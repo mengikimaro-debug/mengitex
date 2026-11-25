@@ -1,5 +1,6 @@
 # 🛡️ MengiTex — Ultra-Fast AES-256 Encrypted SMS & Security Vault
 
+[![Node.js Package](https://github.com/mengikimaro-debug/mengitex/actions/workflows/npm-publish-github-packages.yml/badge.svg?branch=main&event=release)](https://github.com/mengikimaro-debug/mengitex/actions/workflows/npm-publish-github-packages.yml)
 ![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-1E8E6A?style=for-the-badge&logo=android)
 ![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?style=for-the-badge&logo=kotlin)
 ![Security](https://img.shields.io/badge/Encryption-Hardware%20AES--256--GCM-0F172A?style=for-the-badge&logo=google-cloud)
@@ -35,7 +36,7 @@
 ### 🎛️ 5. Muonekano Tulivu & Mfumo wa Kisasa (Modern UI & UX)
 - **Conversation Pop-View:** Shikilia (*Long-Press*) mazungumzo yoyote kwenye orodha kufungua *Pop-View* yenye chaguo za **Chagua Zote (Mark All)**, **Weka Zimesomwa**, **Nyamazisha (Mute)**, **Zuia**, na **Futa**.
 - **Matte Off-White & Carbon Dark Mode:** Muonekano tulivu usiachosha macho wenye chaguo za *By System*, *Off-White*, *Dark*, pamoja na *Dim Light Mode*.
-- **GitHub Auto-Updater:** Mfumo wa ndani kwenye *Mipangilio (Settings)* unaokagua, kupakua, na kusakinisha toleo jipya la APK moja kwa moja kutoka **GitHub Releases**.
+- **GitHub Auto-Updater (`mengikimaro-debug/mengitex`):** Mfumo wa ndani kwenye *Mipangilio (Settings)* unaokagua, kupakua (`0%–100%`), na kusakinisha toleo jipya la APK moja kwa moja kutoka **GitHub Releases**.
 - **Lugha Mbili:** Inafanya kazi kwa **Kiswahili** na **Kiingereza (English)**.
 
 ---
@@ -55,11 +56,11 @@
 
 ## 📦 Jinsi ya Kuweka Toleo Jipya Kwenye GitHub Releases (OTA Updates)
 
-MengiTex ina mfumo wa kusasisha toleo jipya moja kwa moja kutoka GitHub:
-1. Tengeneza APK yako (`Build > Build Bundle(s) / APK(s) > Build APK(s)`).
-2. Nenda kwenye ukurasa wa GitHub wa mradi wako sehemu ya **Releases** -> **Draft a new release**.
+MengiTex ina mfumo wa kusasisha toleo jipya moja kwa moja kutoka GitHub (`https://github.com/mengikimaro-debug/mengitex`):
+1. Tengeneza au hifadhi APK yako (unaweza kubonyeza **Hifadhi APK** au **Tuma APK** ndani ya *Mipangilio -> Mfumo wa Update Mpya*).
+2. Nenda kwenye ukurasa wa GitHub wa mradi wako (`https://github.com/mengikimaro-debug/mengitex/releases`) -> **Draft a new release**.
 3. Weka tag ya toleo jipya (mfano: `v2.5.0`) na pakia faili la `.apk` kwenye sehemu ya **Assets**.
-4. Watumiaji wa MengiTex wakienda kwenye **Mipangilio (Settings) -> Mfumo wa Update Mpya (GitHub)** na kubonyeza **Kagua Update Sasa**, wataweza kupakua na kusakinisha toleo jipya moja kwa moja!
+4. Watumiaji wa MengiTex wakienda kwenye **Mipangilio (Settings) -> Mfumo wa Update Mpya (GitHub)** na kubonyeza **Kagua Sasa**, wataweza kupakua na kusakinisha toleo jipya moja kwa moja ndani ya app!
 
 ---
 
@@ -67,8 +68,8 @@ MengiTex ina mfumo wa kusasisha toleo jipya moja kwa moja kutoka GitHub:
 
 1. **Clone repository hii:**
    ```bash
-   git clone https://github.com/mengikimaro/MengiTex.git
-   cd MengiTex
+   git clone https://github.com/mengikimaro-debug/mengitex.git
+   cd mengitex
    ```
 2. **Fungua kwenye Android Studio** (Ladybug au mpya zaidi).
 3. **Jenga APK ya Debug au Release:**
@@ -80,4 +81,4 @@ MengiTex ina mfumo wa kusasisha toleo jipya moja kwa moja kutoka GitHub:
 
 ## 👤 Mtengenezaji (Author)
 
-Imetengenezwa kwa ubora na usalama wa hali ya juu kwa ajili ya mawasiliano ya kisasa ya **MengiTex**.
+Imetengenezwa kwa ubora na usalama wa hali ya juu kwa ajili ya mawasiliano ya kisasa ya **MengiTex** (`@mengikimaro-debug`).

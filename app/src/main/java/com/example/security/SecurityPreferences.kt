@@ -333,8 +333,9 @@ class SecurityPreferences(private val context: Context) {
             notifActionCallEnabled = prefs[Keys.NOTIF_ACTION_CALL] ?: false,
             notifActionDeleteEnabled = prefs[Keys.NOTIF_ACTION_DELETE] ?: false,
             chatSizeScale = (prefs[Keys.CHAT_SIZE_SCALE] ?: 1.0f).coerceIn(0.75f, 1.45f),
-            githubUpdateRepo = (prefs[Keys.GITHUB_UPDATE_REPO] ?: GithubUpdateChecker.DEFAULT_GITHUB_REPO)
-                .ifBlank { GithubUpdateChecker.DEFAULT_GITHUB_REPO },
+            githubUpdateRepo = GithubUpdateChecker.normalizeRepoSlug(
+                prefs[Keys.GITHUB_UPDATE_REPO] ?: GithubUpdateChecker.DEFAULT_GITHUB_REPO
+            ).ifBlank { GithubUpdateChecker.DEFAULT_GITHUB_REPO },
             githubUpdateChannel = runCatching {
                 GithubUpdateChannel.valueOf(prefs[Keys.GITHUB_UPDATE_CHANNEL] ?: GithubUpdateChannel.STABLE.name)
             }.getOrDefault(GithubUpdateChannel.STABLE),
