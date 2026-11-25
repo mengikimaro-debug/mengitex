@@ -3,4 +3,10 @@
     <cache-path
         name="shared_backups"
         path="shared_backups/" />
+    <cache-path
+        name="github_updates"
+        path="github_updates/" />
+    <files-path
+        name="apk_exports"
+        path="apk_exports/" />
 </paths>

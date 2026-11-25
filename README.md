@@ -69,3 +69,15 @@ MengiTex ina mfumo wa kusasisha toleo jipya moja kwa moja kutoka GitHub:
    ```bash
    git clone https://github.com/mengikimaro/MengiTex.git
    cd MengiTex
+   ```
+2. **Fungua kwenye Android Studio** (Ladybug au mpya zaidi).
+3. **Jenga APK ya Debug au Release:**
+   ```bash
+   ./gradlew assembleDebug
+   ```
+
+---
+
+## 👤 Mtengenezaji (Author)
+
+Imetengenezwa kwa ubora na usalama wa hali ya juu kwa ajili ya mawasiliano ya kisasa ya **MengiTex**.
