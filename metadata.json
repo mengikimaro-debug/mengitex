@@ -1,0 +1,6 @@
+{
+  "name": "MengiTex",
+  "description": "App ya SMS za kawaida bila data wala bando yenye encryption ya AES-256, kutuma kwa marafiki wengi, kuzuia namba geni kimya, kuratibu ujumbe, templeti, na folda iliyofichwa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

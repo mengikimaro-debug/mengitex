@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "CloudBackup": {
+      "title": "CloudBackup",
+      "description": "Client-side AES-256-GCM encrypted MengiTex backup snapshot stored privately per authenticated Google user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID owning this encrypted backup."
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable backup name or description (1-100 chars)."
+        },
+        "deviceModel": {
+          "type": "string",
+          "description": "Origin Android device model label (1-80 chars)."
+        },
+        "encryptedPayload": {
+          "type": "string",
+          "description": "Base64-encoded client-side AES-256-GCM encrypted MengiTex archive payload."
+        },
+        "messageCount": {
+          "type": "integer",
+          "description": "Number of SMS messages included in this snapshot."
+        },
+        "templateCount": {
+          "type": "integer",
+          "description": "Number of message templates included in this snapshot."
+        },
+        "contactCount": {
+          "type": "integer",
+          "description": "Number of saved contacts included in this snapshot."
+        },
+        "passwordProtected": {
+          "type": "boolean",
+          "description": "Whether the payload was encrypted with a user-provided PBKDF2 passphrase."
+        },
+        "formatVersion": {
+          "type": "integer",
+          "description": "Backup archive schema version (currently 1)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created (clients must write FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when last updated (clients must write FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "label",
+        "deviceModel",
+        "encryptedPayload",
+        "messageCount",
+        "templateCount",
+        "contactCount",
+        "passwordProtected",
+        "formatVersion",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/cloud_backups/{backupId}": {
+      "schema": {
+        "$ref": "#/entities/CloudBackup"
+      },
+      "description": "Per-user private encrypted MengiTex cloud backup snapshots isolated by Firebase Auth UID."
+    }
+  }
+}

@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">MengiTex</string>
+    <string name="app_name_disguise">Kikokotoo</string>
+    <string name="nav_inbox">Ujumbe</string>
+    <string name="nav_compose">Tuma</string>
+    <string name="nav_schedule">Ratiba</string>
+    <string name="nav_templates">Templeti</string>
+    <string name="nav_security">Ulinzi</string>
+    <string name="drawer_title">MengiTex</string>
+    <string name="drawer_subtitle">SMS za Kawaida • Bila Data / Bando</string>
+    <string name="security_level_label">Kiwango cha Usalama</string>
+    <string name="trash_label">Taka / Rejesha Data</string>
+    <string name="hidden_logs_label">Folda Iliyofichwa ya Logi</string>
+    <string name="dark_mode_label">Hali ya Giza (Usalama wa Macho)</string>
+    <string name="hide_icon_label">Ficha / Badili Icon ya App</string>
+    <string name="lock_now_label">Funga App Sasa</string>
+    <string name="cd_open_drawer">Fungua menyu ya pembeni</string>
+    <string name="cd_lock_app">Funga app kwa nenosiri</string>
+    <string name="cd_shield_banner">Bango la ulinzi wa encryption</string>
+    <string name="cd_toggle_theme">Badili mwonekano wa mwanga na giza</string>
+</resources>
