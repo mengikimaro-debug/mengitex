@@ -32,7 +32,7 @@ class StealthCallScreeningService : CallScreeningService() {
         CoroutineScope(Dispatchers.IO).launch {
             val appContext = applicationContext
             val prefs = SecurityPreferences(appContext).getSnapshot()
-            val crypto = VaultCryptoManager()
+            val crypto = VaultCryptoManager(appContext)
             val logger = HiddenVaultLogger(appContext, crypto)
 
             val systemName = ContactsLoader.lookupContactName(appContext, incomingNumber)

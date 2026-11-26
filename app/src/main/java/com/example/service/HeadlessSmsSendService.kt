@@ -5,9 +5,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.IBinder
 import android.telephony.TelephonyManager
+import com.example.data.LiveSmsEventBus
 import com.example.data.MessageStatus
 import com.example.data.SiriSmsDatabase
 import com.example.data.SiriSmsRepository
+import com.example.data.SmsInstantCache
 import com.example.security.HiddenVaultLogger
 import com.example.security.SecurityPreferences
 import com.example.security.VaultCryptoManager
@@ -49,7 +51,7 @@ class HeadlessSmsSendService : Service() {
             try {
                 val appContext = applicationContext
                 val prefs = SecurityPreferences(appContext).getSnapshot()
-                val crypto = VaultCryptoManager()
+                val crypto = VaultCryptoManager(appContext)
                 val logger = HiddenVaultLogger(appContext, crypto)
                 val db = SiriSmsDatabase.getInstance(appContext)
                 val repo = SiriSmsRepository(db.dao(), crypto, logger)
@@ -72,6 +74,12 @@ class HeadlessSmsSendService : Service() {
                         partCount = partCount,
                         isSecretBurnAfterRead = false
                     )
+                    runCatching {
+                        repo.getMessageByIdDecrypted(id)?.let { decMsg ->
+                            SmsInstantCache.prependMessageMemoryOnly(decMsg)
+                            LiveSmsEventBus.emitIncoming(decMsg)
+                        }
+                    }
                     val sendResult = SmsDispatchManager.sendMultipartSms(
                         context = appContext,
                         messageId = id,
@@ -80,14 +88,14 @@ class HeadlessSmsSendService : Service() {
                         simSubId = simSubId,
                         requestDeliveryReport = prefs.deliveryReportsEnabled
                     )
-                    if (sendResult.isSuccess) {
-                        DefaultAppRoleHelper.writeSentSmsToSystemProvider(appContext, phone, messageBody)
-                    } else {
+                    if (sendResult.isFailure) {
+                        val note = sendResult.exceptionOrNull()?.message ?: "Quick reply failed"
                         repo.updateMessageStatus(
                             id = id,
                             status = MessageStatus.FAILED,
-                            note = sendResult.exceptionOrNull()?.message ?: "Quick reply failed"
+                            note = note
                         )
+                        LiveSmsEventBus.emitStatusUpdate(id, MessageStatus.FAILED, note)
                     }
                 }
             } finally {

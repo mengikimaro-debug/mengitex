@@ -3,10 +3,12 @@ package com.example.service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.example.data.LiveSmsEventBus
 import com.example.data.MessageStatus
 import com.example.data.SiriSmsDatabase
 import com.example.data.SiriSmsRepository
 import com.example.security.HiddenVaultLogger
+import com.example.security.SecurityPreferences
 import com.example.security.VaultCryptoManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +26,8 @@ class ScheduledSmsReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val appContext = context.applicationContext
-                val crypto = VaultCryptoManager()
+                val prefs = SecurityPreferences(appContext).getSnapshot()
+                val crypto = VaultCryptoManager(appContext)
                 val logger = HiddenVaultLogger(appContext, crypto)
                 val repo = SiriSmsRepository(
                     SiriSmsDatabase.getInstance(appContext).dao(),
@@ -45,20 +48,25 @@ class ScheduledSmsReceiver : BroadcastReceiver() {
                         messageId = msg.id,
                         phoneNumber = msg.phoneNumber,
                         body = msg.body,
-                        simSubId = msg.simSubId
+                        simSubId = msg.simSubId,
+                        requestDeliveryReport = prefs.deliveryReportsEnabled
                     )
                     if (sendResult.isSuccess) {
+                        val note = "Ratiba imefika — inatuma kupitia ${msg.simSlotLabel}"
                         repo.updateMessageStatus(
                             id = msg.id,
                             status = MessageStatus.SENDING,
-                            note = "Ratiba imefika — inatuma kupitia ${msg.simSlotLabel}"
+                            note = note
                         )
+                        LiveSmsEventBus.emitStatusUpdate(msg.id, MessageStatus.SENDING, note)
                     } else {
+                        val note = "Ratiba imeshindwa kutuma: ${sendResult.exceptionOrNull()?.message ?: "Ruhusa ya SMS inahitajika"}"
                         repo.updateMessageStatus(
                             id = msg.id,
                             status = MessageStatus.FAILED,
-                            note = "Ratiba imeshindwa kutuma: ${sendResult.exceptionOrNull()?.message ?: "Ruhusa ya SMS inahitajika"}"
+                            note = note
                         )
+                        LiveSmsEventBus.emitStatusUpdate(msg.id, MessageStatus.FAILED, note)
                     }
                 }
             } finally {

@@ -21,6 +21,7 @@ import com.example.cloud.CloudBackupRepository
 import com.example.data.ContactItem
 import com.example.data.DecryptedSmsMessage
 import com.example.data.DecryptedTemplate
+import com.example.data.LiveSmsEventBus
 import com.example.data.MessageDirection
 import com.example.data.MessageStatus
 import com.example.data.SiriSmsDatabase
@@ -2498,25 +2499,31 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private suspend fun dispatchSingleMessageNow(msgItem: DecryptedSmsMessage) {
+        val deliveryEnabled = _uiState.value.settings.deliveryReportsEnabled
         val result = SmsDispatchManager.sendMultipartSms(
             context = appContext,
             messageId = msgItem.id,
             phoneNumber = msgItem.phoneNumber,
             body = msgItem.body,
-            simSubId = msgItem.simSubId
+            simSubId = msgItem.simSubId,
+            requestDeliveryReport = deliveryEnabled
         )
         if (result.isSuccess) {
+            val note = "Dispatched via ${msgItem.simSlotLabel}"
             repository.updateMessageStatus(
                 id = msgItem.id,
                 status = MessageStatus.SENDING,
-                note = "Dispatched via ${msgItem.simSlotLabel}"
+                note = note
             )
+            LiveSmsEventBus.emitStatusUpdate(msgItem.id, MessageStatus.SENDING, note)
         } else {
+            val note = result.exceptionOrNull()?.message ?: "SEND_SMS required"
             repository.updateMessageStatus(
                 id = msgItem.id,
                 status = MessageStatus.FAILED,
-                note = result.exceptionOrNull()?.message ?: "SEND_SMS required"
+                note = note
             )
+            LiveSmsEventBus.emitStatusUpdate(msgItem.id, MessageStatus.FAILED, note)
         }
     }
 

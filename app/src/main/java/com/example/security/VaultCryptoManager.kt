@@ -95,6 +95,13 @@ class VaultCryptoManager(context: Context? = null) {
             if (globalAppContext == null) {
                 globalAppContext = appCtx
             }
+            if (!isFastDekBackedByStorage) {
+                synchronized(VaultCryptoManager::class.java) {
+                    if (!isFastDekBackedByStorage) {
+                        sharedFastDek = null
+                    }
+                }
+            }
         }
 
         fun bindContext(context: Context) {

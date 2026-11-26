@@ -270,6 +270,7 @@ class BubbleChatActivity : ComponentActivity() {
                     repository = repository,
                     language = settings.language,
                     selectedSimSubId = settings.selectedSimSubId,
+                    deliveryReportsEnabled = settings.deliveryReportsEnabled,
                     onOpenFullApp = { targetName, targetPhone ->
                         val launchIntent = Intent(this, MainActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -339,6 +340,7 @@ private fun BubbleChatContent(
     repository: SiriSmsRepository,
     language: AppLanguage,
     selectedSimSubId: Int,
+    deliveryReportsEnabled: Boolean,
     onOpenFullApp: (String, String) -> Unit,
     onClose: () -> Unit
 ) {
@@ -1203,20 +1205,35 @@ private fun BubbleChatContent(
                                         simSubId = selectedSimSubId,
                                         partCount = parts
                                     )
+                                    runCatching {
+                                        repository.getMessageByIdDecrypted(msgId)?.let { decMsg ->
+                                            com.example.data.SmsInstantCache.prependMessageMemoryOnly(decMsg)
+                                            com.example.data.LiveSmsEventBus.emitIncoming(decMsg)
+                                        }
+                                    }
                                     val result = SmsDispatchManager.sendMultipartSms(
                                         context = context.applicationContext,
                                         messageId = msgId,
                                         phoneNumber = targetDest,
                                         body = text,
-                                        simSubId = selectedSimSubId
+                                        simSubId = selectedSimSubId,
+                                        requestDeliveryReport = deliveryReportsEnabled
                                     )
+                                    if (result.isFailure && SmsDispatchManager.hasSendSmsPermission(context)) {
+                                        val failNote = result.exceptionOrNull()?.message ?: "Imeshindwa kutuma"
+                                        repository.updateMessageStatus(msgId, MessageStatus.FAILED, failNote)
+                                        com.example.data.LiveSmsEventBus.emitStatusUpdate(msgId, MessageStatus.FAILED, failNote)
+                                    }
                                     withContext(Dispatchers.Main) {
                                         if (result.isSuccess) {
                                             replyText = ""
                                             statusText = if (isSw) "Ujumbe umetumwa! ✓" else "Reply sent! ✓"
-                                        } else {
+                                        } else if (!SmsDispatchManager.hasSendSmsPermission(context)) {
                                             SmsDispatchManager.openSystemSmsFallback(context, listOf(targetDest), text)
                                             statusText = if (isSw) "Imefunguliwa kwenye mfumo wa SMS" else "Opened in system SMS"
+                                        } else {
+                                            val err = result.exceptionOrNull()?.localizedMessage ?: "Error"
+                                            statusText = if (isSw) "Imeshindwa kutuma: $err" else "Failed to send: $err"
                                         }
                                     }
                                 }

@@ -266,17 +266,36 @@ object MengiTexNotificationManager {
         isSecretBurn: Boolean,
         settings: SecuritySettings
     ): Boolean {
+        if (!settings.notificationsMasterEnabled) return false
         if (!hasNotificationPermission(context)) return false
         if (isSenderMuted(phoneNumber, settings)) return false
 
+        val categoryAllowed = when {
+            isProtectedTxn -> settings.notifyTransactionsOtp
+            isSecretBurn -> settings.notifySecretVault
+            else -> settings.notifyPersonalSms
+        }
+        if (!categoryAllowed) return false
+
         val isVip = isSenderVip(phoneNumber, settings)
+        val inQuietHours = isCurrentlyInQuietHours(settings)
+        val quietAllowed = (isProtectedTxn && settings.quietHoursAllowTransactions) ||
+            (isVip && settings.quietHoursAllowVip)
+        val quietRestricted = inQuietHours && !quietAllowed
+        val isSilentMode = quietRestricted || (
+            !isVip && (
+                !settings.notifSoundEnabled ||
+                    !settings.notifHeadsUpEnabled ||
+                    settings.notifPriorityLevel == com.example.security.NotificationPriorityLevel.LOW
+                )
+            )
 
         ensureAllChannelsCreated(context, settings)
         val nm = context.getSystemService(NotificationManager::class.java) ?: return false
         val isSw = settings.language == AppLanguage.SW
 
-        // Android System NotificationChannel handles sound, vibration, DND, bubbles & priority automatically
         val channelId = when {
+            isSilentMode -> CHANNEL_SILENT_ALERTS
             isProtectedTxn -> CHANNEL_TRANSACTIONS_OTP
             isSecretBurn -> CHANNEL_SECRET_VAULT
             else -> CHANNEL_BUBBLE_SMS
@@ -364,8 +383,8 @@ object MengiTexNotificationManager {
 
         val accentColor = settings.notifLedColorArgb.toInt()
         val compatPriority = when {
+            isSilentMode -> NotificationCompat.PRIORITY_LOW
             isVip -> NotificationCompat.PRIORITY_HIGH
-            !settings.notifHeadsUpEnabled || !settings.notifSoundEnabled -> NotificationCompat.PRIORITY_LOW
             settings.notifPriorityLevel == com.example.security.NotificationPriorityLevel.HIGH -> NotificationCompat.PRIORITY_HIGH
             settings.notifPriorityLevel == com.example.security.NotificationPriorityLevel.DEFAULT -> NotificationCompat.PRIORITY_DEFAULT
             else -> NotificationCompat.PRIORITY_LOW
@@ -391,12 +410,16 @@ object MengiTexNotificationManager {
             .setContentIntent(contentPendingIntent)
             .setAutoCancel(true)
 
+        if (!settings.notifBadgeEnabled) {
+            builder.setBadgeIconType(NotificationCompat.BADGE_ICON_NONE)
+        }
+
         if (settings.notifGroupBySender) {
             builder.setGroup("mengitex_group_$normKey")
         }
 
         // Apply custom sound / vibration / LED for legacy & heads-up behavior
-        if (!settings.notifSoundEnabled && !isVip) {
+        if (isSilentMode || (!settings.notifSoundEnabled && !isVip)) {
             builder.setSilent(true)
         } else {
             val soundUri = settings.notifRingtoneUri.takeIf { it.isNotBlank() }
@@ -600,6 +623,7 @@ object MengiTexNotificationManager {
         statusNote: String,
         settings: SecuritySettings
     ) {
+        if (!settings.notificationsMasterEnabled || !settings.notifyDeliveryReports) return
         if (!hasNotificationPermission(context)) return
 
         ensureAllChannelsCreated(context, settings)
@@ -750,6 +774,8 @@ object MengiTexNotificationManager {
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.fromParts("package", context.packageName, null)
             }
+        }.apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         runCatching { context.startActivity(intent) }
     }
@@ -765,6 +791,8 @@ object MengiTexNotificationManager {
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.fromParts("package", context.packageName, null)
             }
+        }.apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         runCatching { context.startActivity(intent) }
     }
@@ -782,6 +810,8 @@ object MengiTexNotificationManager {
             Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.fromParts("package", context.packageName, null)
             }
+        }.apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         runCatching { context.startActivity(intent) }
     }

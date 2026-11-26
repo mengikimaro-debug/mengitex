@@ -33,8 +33,10 @@ object SmsDispatchManager {
 
     private fun resolveSmsManager(context: Context, subId: Int): SmsManager {
         val validSubId = subId > 0 && subId != android.telephony.SubscriptionManager.INVALID_SUBSCRIPTION_ID
+        @Suppress("DEPRECATION")
+        val legacyDefault = { SmsManager.getDefault() }
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val base = context.getSystemService(SmsManager::class.java)
+            val base = context.getSystemService(SmsManager::class.java) ?: legacyDefault()
             if (validSubId) {
                 runCatching { base.createForSubscriptionId(subId) }.getOrDefault(base)
             } else {
@@ -44,9 +46,9 @@ object SmsDispatchManager {
             @Suppress("DEPRECATION")
             if (validSubId) {
                 runCatching { SmsManager.getSmsManagerForSubscriptionId(subId) }
-                    .getOrDefault(SmsManager.getDefault())
+                    .getOrDefault(legacyDefault())
             } else {
-                SmsManager.getDefault()
+                legacyDefault()
             }
         }
     }

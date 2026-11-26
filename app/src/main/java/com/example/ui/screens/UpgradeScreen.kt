@@ -77,6 +77,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -97,9 +98,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.security.SecuritySettings
 import com.example.service.GithubDownloadProgress
 import com.example.service.GithubReleaseInfo
+import com.example.service.GithubSelfInstallOutcome
 import com.example.service.GithubSelfInstallProgress
 import com.example.service.GithubUpdateChannel
 import com.example.service.GithubUpdateCheckResult
@@ -172,8 +177,65 @@ fun UpgradeScreen(
     var downloadProgress by remember { mutableStateOf<GithubDownloadProgress?>(null) }
     var selfInstallProgress by remember { mutableStateOf<GithubSelfInstallProgress?>(null) }
     var downloadedApkFile by remember { mutableStateOf<File?>(null) }
+    var pendingInstallApkFile by remember { mutableStateOf<File?>(null) }
+    var awaitingInstallPermission by remember { mutableStateOf(false) }
     var selfInstallCompletedTag by remember { mutableStateOf<String?>(null) }
     var actionFeedback by remember { mutableStateOf<String?>(null) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val launchStagedInstallNow: (File, String?) -> Unit = { stagedFile, versionTag ->
+        val launchRes = GithubUpdateChecker.launchSystemApkInstaller(context, stagedFile)
+        if (launchRes.isSuccess) {
+            selfInstallCompletedTag = versionTag
+            actionFeedback = if (isSw) {
+                "Kisakinishi cha Android kimefunguliwa — thibitisha kuboresha (${stagedFile.name})."
+            } else {
+                "Android Package Installer opened — tap Install to apply (${stagedFile.name})."
+            }
+        } else {
+            val err = launchRes.exceptionOrNull()?.localizedMessage ?: "Error"
+            actionFeedback = if (isSw) "Imeshindwa kufungua kisakinishi: $err" else "Could not open installer: $err"
+        }
+    }
+
+    val unknownSourcesLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        val staged = pendingInstallApkFile
+        if (GithubUpdateChecker.canRequestPackageInstalls(context) && staged != null && staged.exists()) {
+            awaitingInstallPermission = false
+            launchStagedInstallNow(staged, selfInstallCompletedTag)
+        } else if (!GithubUpdateChecker.canRequestPackageInstalls(context)) {
+            awaitingInstallPermission = false
+            actionFeedback = if (isSw) {
+                "Ruhusa ya 'Sakinisha programu zisizojulikana' inahitajika ili kuendelea."
+            } else {
+                "Allow 'Install unknown apps' permission in Settings to install the update."
+            }
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                installedVersion = GithubUpdateChecker.getInstalledAppVersionName(context)
+                val staged = pendingInstallApkFile
+                if (awaitingInstallPermission &&
+                    staged != null &&
+                    staged.exists() &&
+                    GithubUpdateChecker.canRequestPackageInstalls(context)
+                ) {
+                    awaitingInstallPermission = false
+                    launchStagedInstallNow(staged, selfInstallCompletedTag)
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val saveApkLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")
@@ -189,6 +251,9 @@ fun UpgradeScreen(
                     } else {
                         "APK (${file.name} • $sizeStr) saved to your device."
                     }
+                } else {
+                    val err = res.exceptionOrNull()?.localizedMessage ?: "Error"
+                    actionFeedback = if (isSw) "Imeshindwa kuhifadhi: $err" else "Save failed: $err"
                 }
             }
         }
@@ -222,7 +287,7 @@ fun UpgradeScreen(
 
     val openExternalUrl: (String) -> Unit = { url ->
         val safeUrl = url.trim()
-        if (safeUrl.isNotEmpty() && !safeUrl.startsWith("local://")) {
+        if (safeUrl.startsWith("https://", ignoreCase = true) || safeUrl.startsWith("http://", ignoreCase = true)) {
             runCatching {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(safeUrl)).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -232,7 +297,7 @@ fun UpgradeScreen(
         }
     }
 
-    val defaultReadyRelease = remember(installedVersion, installedApkSize, settings.githubUpdateRepo, isSw) {
+    val defaultFallbackRelease = remember(installedVersion, installedApkSize, settings.githubUpdateRepo) {
         val cleanVer = installedVersion.substringBefore('+').removePrefix("v").removePrefix("V")
         GithubReleaseInfo(
             tagName = "v$cleanVer",
@@ -241,10 +306,9 @@ fun UpgradeScreen(
             htmlUrl = GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo),
             publishedAt = "v$cleanVer",
             isPrerelease = false,
-            apkAssetUrl = GithubUpdateChecker.LOCAL_APK_SCHEME,
+            apkAssetUrl = null,
             apkAssetName = "MengiTex-v$cleanVer.apk",
-            apkSizeBytes = installedApkSize,
-            isLocalReadyBuild = true
+            apkSizeBytes = installedApkSize
         )
     }
 
@@ -263,29 +327,28 @@ fun UpgradeScreen(
                 },
                 publishedAt = settings.githubCachedPublishedAt,
                 isPrerelease = settings.githubUpdateChannel == GithubUpdateChannel.PRE_RELEASE,
-                apkAssetUrl = settings.githubCachedApkUrl.takeIf { it.isNotBlank() }
-                    ?: GithubUpdateChecker.LOCAL_APK_SCHEME,
+                apkAssetUrl = settings.githubCachedApkUrl.takeIf {
+                    it.startsWith("https://", ignoreCase = true) || it.startsWith("http://", ignoreCase = true)
+                },
                 apkAssetName = settings.githubCachedApkName.takeIf { it.isNotBlank() }
-                    ?: defaultReadyRelease.apkAssetName,
+                    ?: defaultFallbackRelease.apkAssetName,
                 apkSizeBytes = if (settings.githubCachedApkSizeBytes > 0L) {
                     settings.githubCachedApkSizeBytes
                 } else {
-                    installedApkSize
+                    0L
                 }
             )
         } else {
-            defaultReadyRelease
+            defaultFallbackRelease
         }
     }
 
-    val isNewerAvailable = remember(installedVersion, activeRelease.tagName, selfInstallCompletedTag) {
-        if (selfInstallCompletedTag != null &&
-            activeRelease.tagName.removePrefix("v").equals(selfInstallCompletedTag!!.removePrefix("v"), ignoreCase = true)
-        ) {
-            false
-        } else {
-            GithubUpdateChecker.isRemoteVersionNewer(installedVersion, activeRelease.tagName)
-        }
+    val hasApkAsset = !activeRelease.apkAssetUrl.isNullOrBlank() &&
+        (activeRelease.apkAssetUrl!!.startsWith("https://", ignoreCase = true) ||
+            activeRelease.apkAssetUrl!!.startsWith("http://", ignoreCase = true))
+
+    val isNewerAvailable = remember(installedVersion, activeRelease.tagName) {
+        GithubUpdateChecker.isRemoteVersionNewer(installedVersion, activeRelease.tagName)
     }
 
     val executeSelfInstallNow: (GithubReleaseInfo, File) -> Unit = { targetRelease, file ->
@@ -304,18 +367,38 @@ fun UpgradeScreen(
                 }
                 isSelfInstalling = false
                 if (installRes.isSuccess) {
-                    val newVer = installRes.getOrThrow()
-                    installedVersion = newVer
-                    selfInstallCompletedTag = newVer
-                    val savedSha = GithubUpdateChecker.getSelfInstalledSha256(context)
-                    if (savedSha.isNotBlank()) {
-                        verifiedShaHex = savedSha.take(8).uppercase()
-                    }
-                    val sizeLabel = GithubUpdateChecker.formatByteSize(file.length())
-                    actionFeedback = if (isSw) {
-                        "Toleo v$newVer limeboreshwa kikamilifu ($sizeLabel)."
-                    } else {
-                        "Upgraded to v$newVer successfully ($sizeLabel)."
+                    when (val outcome = installRes.getOrThrow()) {
+                        is GithubSelfInstallOutcome.LaunchedSystemInstaller -> {
+                            pendingInstallApkFile = outcome.stagedApk
+                            downloadedApkFile = outcome.stagedApk
+                            selfInstallCompletedTag = outcome.versionTag
+                            verifiedShaHex = outcome.sha256Short.take(8).uppercase()
+                            val sizeLabel = GithubUpdateChecker.formatByteSize(outcome.stagedApk.length())
+                            actionFeedback = if (isSw) {
+                                "Kisakinishi cha Android kimefunguliwa (v${outcome.versionTag} • $sizeLabel). Bonyeza 'Install' kuthibitisha."
+                            } else {
+                                "Android Installer opened (v${outcome.versionTag} • $sizeLabel). Tap Install to confirm."
+                            }
+                        }
+                        is GithubSelfInstallOutcome.NeedsInstallPermission -> {
+                            pendingInstallApkFile = outcome.stagedApk
+                            downloadedApkFile = outcome.stagedApk
+                            selfInstallCompletedTag = outcome.versionTag
+                            verifiedShaHex = outcome.sha256Short.take(8).uppercase()
+                            awaitingInstallPermission = true
+                            actionFeedback = if (isSw) {
+                                "Washa ruhusa ya 'Sakinisha programu zisizojulikana' kisha rudi — APK itaendelea kusakinishwa."
+                            } else {
+                                "Enable 'Allow from this source' in Settings — installation will resume automatically."
+                            }
+                            runCatching {
+                                unknownSourcesLauncher.launch(
+                                    GithubUpdateChecker.createUnknownSourcesSettingsIntent(context)
+                                )
+                            }.onFailure {
+                                awaitingInstallPermission = false
+                            }
+                        }
                     }
                 } else {
                     val err = installRes.exceptionOrNull()?.localizedMessage ?: "Error"
@@ -327,32 +410,49 @@ fun UpgradeScreen(
 
     val startDownloadAndInstall: (GithubReleaseInfo) -> Unit = { targetRelease ->
         if (!isDownloadingApk && !isSelfInstalling) {
-            isDownloadingApk = true
-            selfInstallProgress = null
-            actionFeedback = null
-            downloadProgress = GithubDownloadProgress(
-                bytesDownloaded = 0L,
-                totalBytes = targetRelease.apkSizeBytes.coerceAtLeast(1L),
-                percent = 3,
-                speedBytesPerSec = 0L,
-                activeStreams = 10,
-                streamProgresses = List(10) { 0.08f }
-            )
-            scope.launch {
-                val res = GithubUpdateChecker.downloadReleaseApkInApp(
-                    context = context,
-                    release = targetRelease
-                ) { prog ->
-                    downloadProgress = prog
-                }
-                isDownloadingApk = false
-                if (res.isSuccess) {
-                    val file = res.getOrThrow()
-                    downloadedApkFile = file
-                    executeSelfInstallNow(targetRelease, file)
+            val targetUrl = targetRelease.apkAssetUrl.orEmpty()
+            val staged = pendingInstallApkFile
+            if (staged != null && staged.exists() && selfInstallCompletedTag != null &&
+                targetRelease.tagName.removePrefix("v").equals(selfInstallCompletedTag!!.removePrefix("v"), ignoreCase = true)
+            ) {
+                executeSelfInstallNow(targetRelease, staged)
+            } else if (!targetUrl.startsWith("https://", ignoreCase = true) &&
+                !targetUrl.startsWith("http://", ignoreCase = true)
+            ) {
+                actionFeedback = if (isSw) {
+                    "Toleo ${targetRelease.tagName} halina faili la .apk kwenye GitHub Releases bado. Fungua GitHub au kagua tena."
                 } else {
-                    val err = res.exceptionOrNull()?.localizedMessage ?: "Error"
-                    actionFeedback = if (isSw) "Imeshindwa kupakua: $err" else "Download failed: $err"
+                    "Release ${targetRelease.tagName} has no .apk asset attached on GitHub yet."
+                }
+            } else {
+                isDownloadingApk = true
+                selfInstallProgress = null
+                selfInstallCompletedTag = null
+                actionFeedback = null
+                downloadProgress = GithubDownloadProgress(
+                    bytesDownloaded = 0L,
+                    totalBytes = targetRelease.apkSizeBytes.coerceAtLeast(1L),
+                    percent = 3,
+                    speedBytesPerSec = 0L,
+                    activeStreams = 10,
+                    streamProgresses = List(10) { 0.08f }
+                )
+                scope.launch {
+                    val res = GithubUpdateChecker.downloadReleaseApkInApp(
+                        context = context,
+                        release = targetRelease
+                    ) { prog ->
+                        downloadProgress = prog
+                    }
+                    isDownloadingApk = false
+                    if (res.isSuccess) {
+                        val file = res.getOrThrow()
+                        downloadedApkFile = file
+                        executeSelfInstallNow(targetRelease, file)
+                    } else {
+                        val err = res.exceptionOrNull()?.localizedMessage ?: "Error"
+                        actionFeedback = if (isSw) "Imeshindwa kupakua: $err" else "Download failed: $err"
+                    }
                 }
             }
         }
@@ -589,8 +689,9 @@ fun UpgradeScreen(
                                 } else {
                                     "Downloading ${downloadProgress?.percent ?: 0}%..."
                                 }
-                                selfInstallCompletedTag != null -> if (isSw) "Toleo Limeboreshwa" else "Upgrade Completed"
-                                isNewerAvailable -> if (isSw) "Boresha Sasa" else "Upgrade Now"
+                                pendingInstallApkFile?.exists() == true -> if (isSw) "Sakinisha APK Sasa" else "Install Staged APK"
+                                !hasApkAsset -> if (isSw) "Hakuna APK Kwenye GitHub" else "No APK Attached Yet"
+                                isNewerAvailable -> if (isSw) "Pakua & Sakinisha" else "Download & Install"
                                 else -> if (isSw) "Sakinisha Tena" else "Reinstall Build"
                             }
 
@@ -802,6 +903,7 @@ fun UpgradeScreen(
 
                 val checkErrorMsg = when (val res = checkResult) {
                     is GithubUpdateCheckResult.Error -> if (isSw) res.messageSw else res.messageEn
+                    is GithubUpdateCheckResult.Success -> if (isSw) res.statusNoticeSw else res.statusNoticeEn
                     is GithubUpdateCheckResult.NoReleasesFound -> if (isSw) {
                         "Hakuna toleo rasmi lililochapishwa bado kwenye ${res.repoSlug}."
                     } else {
@@ -1115,13 +1217,13 @@ fun UpgradeScreen(
                         UpgradeQuickToolTile(
                             icon = Icons.Filled.SaveAlt,
                             label = if (isSw) "Hifadhi APK" else "Save APK",
-                            enabled = !ctaBusy,
+                            enabled = !ctaBusy && (downloadedApkFile?.exists() == true || hasApkAsset),
                             modifier = Modifier.weight(1f),
                             onClick = {
                                 val existing = downloadedApkFile
                                 if (existing != null && existing.exists()) {
                                     saveApkLauncher.launch(existing.name)
-                                } else if (!isDownloadingApk) {
+                                } else if (!isDownloadingApk && hasApkAsset) {
                                     isDownloadingApk = true
                                     scope.launch {
                                         val res = GithubUpdateChecker.downloadReleaseApkInApp(
@@ -1129,9 +1231,13 @@ fun UpgradeScreen(
                                             release = activeRelease
                                         ) { prog -> downloadProgress = prog }
                                         isDownloadingApk = false
-                                        res.getOrNull()?.let { file ->
+                                        if (res.isSuccess) {
+                                            val file = res.getOrThrow()
                                             downloadedApkFile = file
                                             saveApkLauncher.launch(file.name)
+                                        } else {
+                                            val err = res.exceptionOrNull()?.localizedMessage ?: "Error"
+                                            actionFeedback = if (isSw) "Imeshindwa kupakua: $err" else "Download failed: $err"
                                         }
                                     }
                                 }
@@ -1140,7 +1246,7 @@ fun UpgradeScreen(
                         UpgradeQuickToolTile(
                             icon = Icons.Filled.Share,
                             label = if (isSw) "Shiriki APK" else "Share APK",
-                            enabled = !ctaBusy,
+                            enabled = !ctaBusy && (downloadedApkFile?.exists() == true || hasApkAsset),
                             modifier = Modifier.weight(1f),
                             onClick = {
                                 val existing = downloadedApkFile
@@ -1150,7 +1256,7 @@ fun UpgradeScreen(
                                         apkFile = existing,
                                         title = if (isSw) "Shiriki faili la programu" else "Share APK"
                                     )
-                                } else if (!isDownloadingApk) {
+                                } else if (!isDownloadingApk && hasApkAsset) {
                                     isDownloadingApk = true
                                     scope.launch {
                                         val res = GithubUpdateChecker.downloadReleaseApkInApp(
@@ -1158,13 +1264,17 @@ fun UpgradeScreen(
                                             release = activeRelease
                                         ) { prog -> downloadProgress = prog }
                                         isDownloadingApk = false
-                                        res.getOrNull()?.let { file ->
+                                        if (res.isSuccess) {
+                                            val file = res.getOrThrow()
                                             downloadedApkFile = file
                                             GithubUpdateChecker.shareDownloadedApk(
                                                 context = context,
                                                 apkFile = file,
                                                 title = if (isSw) "Shiriki faili la programu" else "Share APK"
                                             )
+                                        } else {
+                                            val err = res.exceptionOrNull()?.localizedMessage ?: "Error"
+                                            actionFeedback = if (isSw) "Imeshindwa kupakua: $err" else "Download failed: $err"
                                         }
                                     }
                                 }

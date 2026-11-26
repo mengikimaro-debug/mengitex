@@ -3,6 +3,7 @@ package com.example.service
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.example.data.LiveSmsEventBus
 import com.example.data.MessageStatus
 import com.example.data.SiriSmsDatabase
 import com.example.data.SiriSmsRepository
@@ -30,7 +31,7 @@ class BootRescheduleReceiver : BroadcastReceiver() {
             try {
                 val appContext = context.applicationContext
                 val prefs = SecurityPreferences(appContext).getSnapshot()
-                val crypto = VaultCryptoManager()
+                val crypto = VaultCryptoManager(appContext)
                 val logger = HiddenVaultLogger(appContext, crypto)
                 val dao = SiriSmsDatabase.getInstance(appContext).dao()
                 val repo = SiriSmsRepository(dao, crypto, logger)
@@ -51,11 +52,21 @@ class BootRescheduleReceiver : BroadcastReceiver() {
                             requestDeliveryReport = prefs.deliveryReportsEnabled
                         )
                         if (sendResult.isSuccess) {
+                            val note = "Imetumwa baada ya simu kuwaka • ${decrypted.simSlotLabel}"
                             repo.updateMessageStatus(
                                 id = decrypted.id,
                                 status = MessageStatus.SENDING,
-                                note = "Imetumwa baada ya simu kuwaka • ${decrypted.simSlotLabel}"
+                                note = note
                             )
+                            LiveSmsEventBus.emitStatusUpdate(decrypted.id, MessageStatus.SENDING, note)
+                        } else {
+                            val note = sendResult.exceptionOrNull()?.message ?: "Imeshindwa kutuma baada ya kuwaka"
+                            repo.updateMessageStatus(
+                                id = decrypted.id,
+                                status = MessageStatus.FAILED,
+                                note = note
+                            )
+                            LiveSmsEventBus.emitStatusUpdate(decrypted.id, MessageStatus.FAILED, note)
                         }
                     } else {
                         SmsDispatchManager.scheduleAlarmForSms(appContext, entity.id, targetTime)

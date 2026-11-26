@@ -26,7 +26,7 @@ class MmsWapPushReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val appContext = context.applicationContext
-                val crypto = VaultCryptoManager()
+                val crypto = VaultCryptoManager(appContext)
                 val logger = HiddenVaultLogger(appContext, crypto)
                 val mimeType = intent.type.orEmpty().ifBlank { "application/vnd.wap.mms-message" }
                 logger.appendLog(

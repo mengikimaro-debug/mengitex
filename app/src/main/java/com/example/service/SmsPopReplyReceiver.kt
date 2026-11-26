@@ -7,9 +7,11 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.RemoteInput
 import com.example.R
+import com.example.data.LiveSmsEventBus
 import com.example.data.MessageStatus
 import com.example.data.SiriSmsDatabase
 import com.example.data.SiriSmsRepository
+import com.example.data.SmsInstantCache
 import com.example.security.HiddenVaultLogger
 import com.example.security.SecurityPreferences
 import com.example.security.VaultCryptoManager
@@ -157,14 +159,26 @@ class SmsPopReplyReceiver : BroadcastReceiver() {
                             simSubId = simSubId,
                             partCount = parts
                         )
+                        runCatching {
+                            repo.getMessageByIdDecrypted(msgId)?.let { decMsg ->
+                                SmsInstantCache.prependMessageMemoryOnly(decMsg)
+                                LiveSmsEventBus.emitIncoming(decMsg)
+                            }
+                        }
 
                         val result = SmsDispatchManager.sendMultipartSms(
                             context = appContext,
                             messageId = msgId,
                             phoneNumber = phoneNumber,
                             body = replyText,
-                            simSubId = simSubId
+                            simSubId = simSubId,
+                            requestDeliveryReport = prefs.deliveryReportsEnabled
                         )
+                        if (result.isFailure) {
+                            val failNote = result.exceptionOrNull()?.message ?: "Pop Reply failed"
+                            repo.updateMessageStatus(msgId, MessageStatus.FAILED, failNote)
+                            LiveSmsEventBus.emitStatusUpdate(msgId, MessageStatus.FAILED, failNote)
+                        }
 
                         val nm = appContext.getSystemService(NotificationManager::class.java)
                         if (nm != null && notificationId != 0) {

@@ -4,10 +4,12 @@ import android.app.DownloadManager
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -55,7 +57,6 @@ data class GithubReleaseInfo(
     val apkAssetName: String?,
     val apkSizeBytes: Long,
     val assets: List<GithubReleaseAsset> = emptyList(),
-    val isLocalReadyBuild: Boolean = false,
     val discoveredUserRepos: List<String> = emptyList()
 )
 
@@ -76,6 +77,20 @@ data class GithubSelfInstallProgress(
     val percent: Int,
     val sha256Short: String = ""
 )
+
+sealed class GithubSelfInstallOutcome {
+    data class LaunchedSystemInstaller(
+        val versionTag: String,
+        val sha256Short: String,
+        val stagedApk: File
+    ) : GithubSelfInstallOutcome()
+
+    data class NeedsInstallPermission(
+        val versionTag: String,
+        val sha256Short: String,
+        val stagedApk: File
+    ) : GithubSelfInstallOutcome()
+}
 
 sealed class GithubUpdateCheckResult {
     data class Success(
@@ -102,15 +117,11 @@ object GithubUpdateChecker {
 
     const val DEFAULT_GITHUB_REPO = "mengikimaro-debug/mengitex"
     private const val LEGACY_DEFAULT_REPO = "mengikimaro/MengiTex"
-    const val LOCAL_APK_SCHEME = "local://mengitex-current-apk"
     private const val UPDATER_PREFS = "mengitex_github_updater_prefs"
     private const val KEY_GITHUB_TOKEN = "github_pat_token"
-    private const val KEY_SELF_INSTALLED_VERSION = "self_installed_version_tag"
-    private const val KEY_SELF_INSTALLED_NAME = "self_installed_release_name"
-    private const val KEY_SELF_INSTALLED_AT_MS = "self_installed_timestamp_ms"
     private const val KEY_SELF_INSTALLED_SHA = "self_installed_sha256"
-    private const val TURBO_STREAM_COUNT = 10 // 10x Parallel Hyper-Stream Accelerator
-    private const val TURBO_BUFFER_BYTES = 262_144 // 256 KB ultra-fast I/O buffer per stream
+    private const val TURBO_STREAM_COUNT = 10
+    private const val TURBO_BUFFER_BYTES = 262_144
 
     fun getSavedGithubToken(context: Context): String {
         return runCatching {
@@ -130,14 +141,6 @@ object GithubUpdateChecker {
         }
     }
 
-    fun getSelfInstalledOtaVersion(context: Context): String? {
-        return runCatching {
-            context.getSharedPreferences(UPDATER_PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_SELF_INSTALLED_VERSION, null)
-                ?.takeIf { it.isNotBlank() }
-        }.getOrNull()
-    }
-
     fun getSelfInstalledSha256(context: Context): String {
         return runCatching {
             context.getSharedPreferences(UPDATER_PREFS, Context.MODE_PRIVATE)
@@ -147,26 +150,19 @@ object GithubUpdateChecker {
     }
 
     fun getInstalledAppVersionName(context: Context): String {
-        val baseVersion = runCatching {
+        return runCatching {
             val pm = context.packageManager
             val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pm.getPackageInfo(
                     context.packageName,
-                    android.content.pm.PackageManager.PackageInfoFlags.of(0)
+                    PackageManager.PackageInfoFlags.of(0)
                 )
             } else {
                 @Suppress("DEPRECATION")
                 pm.getPackageInfo(context.packageName, 0)
             }
-            pkgInfo.versionName?.takeIf { it.isNotBlank() } ?: "3.0.0"
-        }.getOrDefault("3.0.0")
-
-        val otaVersion = getSelfInstalledOtaVersion(context)
-        return if (!otaVersion.isNullOrBlank() && isRemoteVersionNewer(baseVersion, otaVersion)) {
-            otaVersion.removePrefix("v").removePrefix("V")
-        } else {
-            baseVersion
-        }
+            pkgInfo.versionName?.takeIf { it.isNotBlank() } ?: "3.1.0"
+        }.getOrDefault("3.1.0")
     }
 
     fun getInstalledApkSize(context: Context): Long {
@@ -176,13 +172,86 @@ object GithubUpdateChecker {
         }.getOrDefault(0L)
     }
 
-    /**
-     * Normalizes user input such as:
-     * - "owner/repo"
-     * - "https://github.com/owner/repo"
-     * - "https://github.com/owner/repo/releases"
-     * - Direct APK URLs ("https://.../app.apk")
-     */
+    fun canRequestPackageInstalls(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching { context.packageManager.canRequestPackageInstalls() }.getOrDefault(false)
+        } else {
+            true
+        }
+    }
+
+    fun createUnknownSourcesSettingsIntent(context: Context): Intent {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:${context.packageName}")
+            )
+        } else {
+            Intent(Settings.ACTION_SECURITY_SETTINGS)
+        }
+    }
+
+    fun launchSystemApkInstaller(context: Context, apkFile: File): Result<Unit> {
+        return runCatching {
+            require(apkFile.exists() && apkFile.length() > 1024L) {
+                "Faili la APK halipo au halijakamilika."
+            }
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                apkFile
+            )
+            val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val pm = context.packageManager
+            if (viewIntent.resolveActivity(pm) != null) {
+                context.startActivity(viewIntent)
+            } else {
+                @Suppress("DEPRECATION")
+                val installIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                    data = uri
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                    putExtra(Intent.EXTRA_RETURN_RESULT, true)
+                }
+                context.startActivity(installIntent)
+            }
+        }
+    }
+
+    fun verifyApkArchive(context: Context, apkFile: File): Result<String> {
+        return runCatching {
+            require(apkFile.exists() && apkFile.length() > 1024L) {
+                "Faili la APK halipo au ni dogo mno."
+            }
+            val hasManifest = ZipFile(apkFile).use { zip ->
+                zip.size() > 0 && zip.getEntry("AndroidManifest.xml") != null
+            }
+            require(hasManifest) {
+                "Faili lililopakuliwa si APK halali ya Android."
+            }
+            val pm = context.packageManager
+            val archiveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageArchiveInfo(
+                    apkFile.absolutePath,
+                    PackageManager.PackageInfoFlags.of(0)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageArchiveInfo(apkFile.absolutePath, 0)
+            }
+            require(archiveInfo != null) {
+                "Mfumo wa Android umeshindwa kusoma kifurushi hiki cha APK."
+            }
+            require(archiveInfo.packageName == context.packageName) {
+                "APK hii (${archiveInfo.packageName}) hailingani na programu ya MengiTex."
+            }
+            archiveInfo.versionName?.takeIf { it.isNotBlank() } ?: ""
+        }
+    }
+
     fun normalizeRepoSlug(rawInput: String): String {
         val trimmed = rawInput.trim()
         if (trimmed.equals(LEGACY_DEFAULT_REPO, ignoreCase = true)) {
@@ -241,9 +310,6 @@ object GithubUpdateChecker {
         }
     }
 
-    /**
-     * Compares semantic version tags (e.g. "v1.2.0" vs "1.0" or "1.0+a1b2c3d").
-     */
     fun isRemoteVersionNewer(installedVersion: String, remoteTag: String): Boolean {
         val localClean = installedVersion.trim().removePrefix("v").removePrefix("V")
         val remoteClean = remoteTag.trim().removePrefix("v").removePrefix("V")
@@ -281,14 +347,6 @@ object GithubUpdateChecker {
         }
     }
 
-    /**
-     * Multi-Stage GitHub Release, Tag, Commit & Direct APK Resolver:
-     * 1. Supports direct `.apk` URLs immediately.
-     * 2. Checks `/repos/{owner}/{repo}/releases` (formal GitHub Releases).
-     * 3. Falls back to `/repos/{owner}/{repo}/tags` + scans repo tree for any committed `.apk` file.
-     * 4. Falls back to `/repos/{owner}/{repo}/commits` so repos without formal release tags still work.
-     * 5. Falls back to a verified Local Ready Build package so the user can always download & self-install.
-     */
     suspend fun checkLatestRelease(
         context: Context,
         rawRepoInput: String,
@@ -298,19 +356,18 @@ object GithubUpdateChecker {
         val token = getSavedGithubToken(context)
         val trimmedInput = rawRepoInput.trim().ifBlank { DEFAULT_GITHUB_REPO }
 
-        // 0. Direct APK link support
         if (isDirectApkUrl(trimmedInput)) {
             val fileName = trimmedInput.substringAfterLast('/').substringBefore('?').ifBlank { "MengiTex-update.apk" }
             val release = GithubReleaseInfo(
                 tagName = "v$currentVersion-OTA",
-                releaseName = "Direct Turbo APK ($fileName)",
-                bodyNotes = "Faili la programu lipo tayari kupakuliwa na kusakinishwa moja kwa moja.",
+                releaseName = "Direct APK ($fileName)",
+                bodyNotes = "Faili la programu lipo tayari kupakuliwa na kusakinishwa.",
                 htmlUrl = trimmedInput,
                 publishedAt = "Live APK",
                 isPrerelease = false,
                 apkAssetUrl = trimmedInput,
                 apkAssetName = fileName,
-                apkSizeBytes = getInstalledApkSize(context)
+                apkSizeBytes = 0L
             )
             return@withContext GithubUpdateCheckResult.Success(
                 currentVersion = currentVersion,
@@ -335,7 +392,7 @@ object GithubUpdateChecker {
             val (code, body) = executeGithubGet(releasesApiUrl, token)
             when (code) {
                 HttpURLConnection.HTTP_OK -> {
-                    val parsedReleases = parseReleasesArray(body, slug, context)
+                    val parsedReleases = parseReleasesArray(body, slug)
                     val eligible = if (channel == GithubUpdateChannel.STABLE) {
                         parsedReleases.filter { !it.isPrerelease }.ifEmpty { parsedReleases }
                     } else {
@@ -346,127 +403,84 @@ object GithubUpdateChecker {
                         var latest = eligible.first()
                         if (latest.apkAssetUrl.isNullOrBlank()) {
                             val treeApk = findApkInRepoTree(slug, latest.tagName, token)
-                            latest = if (treeApk != null) {
-                                latest.copy(
+                            if (treeApk != null) {
+                                latest = latest.copy(
                                     apkAssetUrl = treeApk.downloadUrl,
                                     apkAssetName = treeApk.name,
                                     apkSizeBytes = treeApk.sizeBytes
                                 )
-                            } else {
-                                latest.copy(
-                                    apkAssetUrl = LOCAL_APK_SCHEME,
-                                    apkAssetName = "MengiTex-${latest.tagName}.apk",
-                                    apkSizeBytes = getInstalledApkSize(context),
-                                    isLocalReadyBuild = true
-                                )
                             }
                         }
                         val isNewer = isRemoteVersionNewer(currentVersion, latest.tagName)
+                        val missingApkSw = if (latest.apkAssetUrl.isNullOrBlank()) {
+                            "Toleo ${latest.tagName} lipo GitHub, lakini faili la .apk bado halijaambatanishwa."
+                        } else null
+                        val missingApkEn = if (latest.apkAssetUrl.isNullOrBlank()) {
+                            "Release ${latest.tagName} is on GitHub, but no .apk file is attached yet."
+                        } else null
                         return@withContext GithubUpdateCheckResult.Success(
                             currentVersion = currentVersion,
                             latestRelease = latest,
                             isNewerAvailable = isNewer,
-                            recentReleases = eligible.take(5)
+                            recentReleases = eligible.take(5),
+                            statusNoticeSw = missingApkSw,
+                            statusNoticeEn = missingApkEn
                         )
                     }
 
-                    val tagsResult = fetchTagsFallback(context, slug, currentVersion, token)
-                    if (tagsResult != null) {
-                        return@withContext tagsResult
-                    }
+                    val tagsResult = fetchTagsFallback(slug, currentVersion, token)
+                    if (tagsResult != null) return@withContext tagsResult
 
-                    val commitsResult = fetchCommitsFallback(context, slug, currentVersion, token)
-                    if (commitsResult != null) {
-                        return@withContext commitsResult
-                    }
+                    val commitsResult = fetchCommitsFallback(slug, currentVersion, token)
+                    if (commitsResult != null) return@withContext commitsResult
 
-                    return@withContext buildLocalReadyFallbackResult(
-                        context = context,
-                        slug = slug,
-                        owner = owner,
-                        currentVersion = currentVersion,
-                        token = token,
-                        noticeSw = "Hazina '$slug' imeunganishwa. Kifurushi cha MengiTex kiko tayari kupakuliwa na kusakinishwa.",
-                        noticeEn = "Connected to '$slug'. MengiTex package is ready for fast download and install."
+                    return@withContext GithubUpdateCheckResult.NoReleasesFound(
+                        repoSlug = slug,
+                        repoHtmlUrl = buildRepoReleasesWebUrl(slug)
+                    )
+                }
+
+                HttpURLConnection.HTTP_NOT_FOUND -> {
+                    val discoveredRepos = fetchOwnerPublicRepos(owner, token)
+                    val matchingRepo = discoveredRepos.firstOrNull {
+                        it.contains("mengi", ignoreCase = true) || it.contains("sms", ignoreCase = true)
+                    }
+                    if (matchingRepo != null && !matchingRepo.equals(slug, ignoreCase = true)) {
+                        val altCommits = fetchCommitsFallback(matchingRepo, currentVersion, token)
+                        if (altCommits != null) {
+                            return@withContext altCommits.copy(
+                                latestRelease = altCommits.latestRelease.copy(discoveredUserRepos = discoveredRepos),
+                                statusNoticeSw = "Hazina imependekezwa: $matchingRepo",
+                                statusNoticeEn = "Suggested repository: $matchingRepo"
+                            )
+                        }
+                    }
+                    return@withContext GithubUpdateCheckResult.NoReleasesFound(
+                        repoSlug = slug,
+                        repoHtmlUrl = buildRepoReleasesWebUrl(slug)
+                    )
+                }
+
+                HttpURLConnection.HTTP_UNAUTHORIZED, HttpURLConnection.HTTP_FORBIDDEN -> {
+                    return@withContext GithubUpdateCheckResult.Error(
+                        messageSw = "GitHub imezuia ombi (HTTP $code). Jaribu tena baadaye au weka Access Token.",
+                        messageEn = "GitHub denied request (HTTP $code). Try again later or add an Access Token."
                     )
                 }
 
                 else -> {
-                    val commitsResult = fetchCommitsFallback(context, slug, currentVersion, token)
-                    if (commitsResult != null) {
-                        return@withContext commitsResult
-                    }
-                    return@withContext buildLocalReadyFallbackResult(
-                        context = context,
-                        slug = slug,
-                        owner = owner,
-                        currentVersion = currentVersion,
-                        token = token,
-                        noticeSw = "Kisakinishi cha MengiTex kiko tayari kwa '$slug'. Bonyeza kusasisha moja kwa moja.",
-                        noticeEn = "MengiTex installer is ready for '$slug'. Tap to update directly."
+                    return@withContext GithubUpdateCheckResult.Error(
+                        messageSw = "Hitilafu ya GitHub API (HTTP $code). Tafadhali jaribu tena.",
+                        messageEn = "GitHub API error (HTTP $code). Please retry."
                     )
                 }
             }
         } catch (_: Exception) {
-            return@withContext buildLocalReadyFallbackResult(
-                context = context,
-                slug = slug,
-                owner = owner,
-                currentVersion = currentVersion,
-                token = token,
-                noticeSw = "Hali ya nje ya mtandao: Kifurushi cha MengiTex kiko tayari kupakuliwa na kusakinishwa moja kwa moja.",
-                noticeEn = "Offline-ready mode: MengiTex package is ready to download and install directly."
+            return@withContext GithubUpdateCheckResult.Error(
+                messageSw = "Hakuna intaneti ya kukagua GitHub sasa. Washa data/Wi-Fi na ujaribu tena.",
+                messageEn = "Unable to reach GitHub right now. Check your internet connection and retry."
             )
         }
-    }
-
-    private fun buildLocalReadyFallbackResult(
-        context: Context,
-        slug: String,
-        owner: String,
-        currentVersion: String,
-        token: String,
-        noticeSw: String,
-        noticeEn: String
-    ): GithubUpdateCheckResult.Success {
-        val discoveredRepos = fetchOwnerPublicRepos(owner, token)
-        val matchingRepo = discoveredRepos.firstOrNull {
-            it.contains("mengi", ignoreCase = true) || it.contains("sms", ignoreCase = true)
-        }
-        if (matchingRepo != null && !matchingRepo.equals(slug, ignoreCase = true)) {
-            val altCommits = fetchCommitsFallback(context, matchingRepo, currentVersion, token)
-            if (altCommits is GithubUpdateCheckResult.Success) {
-                return altCommits.copy(
-                    latestRelease = altCommits.latestRelease.copy(discoveredUserRepos = discoveredRepos),
-                    statusNoticeSw = "Imeunganishwa moja kwa moja na hazina yako: $matchingRepo",
-                    statusNoticeEn = "Connected directly to your repository: $matchingRepo"
-                )
-            }
-        }
-
-        val apkSize = getInstalledApkSize(context)
-        val baseVer = currentVersion.substringBefore('+').removePrefix("v").removePrefix("V")
-        val release = GithubReleaseInfo(
-            tagName = "v$baseVer",
-            releaseName = "MengiTex v$baseVer",
-            bodyNotes = "",
-            htmlUrl = "https://github.com/$slug/releases",
-            publishedAt = "v$baseVer",
-            isPrerelease = false,
-            apkAssetUrl = LOCAL_APK_SCHEME,
-            apkAssetName = "MengiTex-v$baseVer.apk",
-            apkSizeBytes = apkSize,
-            isLocalReadyBuild = true,
-            discoveredUserRepos = discoveredRepos
-        )
-        return GithubUpdateCheckResult.Success(
-            currentVersion = currentVersion,
-            latestRelease = release,
-            isNewerAvailable = false,
-            recentReleases = listOf(release),
-            statusNoticeSw = noticeSw,
-            statusNoticeEn = noticeEn
-        )
     }
 
     private fun fetchOwnerPublicRepos(owner: String, token: String): List<String> {
@@ -511,7 +525,6 @@ object GithubUpdateChecker {
     }
 
     private fun fetchCommitsFallback(
-        context: Context,
         slug: String,
         currentVersion: String,
         token: String
@@ -523,7 +536,6 @@ object GithubUpdateChecker {
             if (arr.length() == 0) return null
 
             val treeApk = findApkInRepoTree(slug, "HEAD", token)
-            val localApkSize = getInstalledApkSize(context)
             val cleanVer = currentVersion.substringBefore('+').removePrefix("v").removePrefix("V")
             val releases = ArrayList<GithubReleaseInfo>()
 
@@ -545,10 +557,9 @@ object GithubUpdateChecker {
                         htmlUrl = htmlUrl,
                         publishedAt = dateStr,
                         isPrerelease = false,
-                        apkAssetUrl = treeApk?.downloadUrl ?: LOCAL_APK_SCHEME,
-                        apkAssetName = treeApk?.name ?: "MengiTex-$tagLabel.apk",
-                        apkSizeBytes = treeApk?.sizeBytes ?: localApkSize,
-                        isLocalReadyBuild = treeApk == null
+                        apkAssetUrl = treeApk?.downloadUrl,
+                        apkAssetName = treeApk?.name,
+                        apkSizeBytes = treeApk?.sizeBytes ?: 0L
                     )
                 )
             }
@@ -560,84 +571,110 @@ object GithubUpdateChecker {
                 latestRelease = latest,
                 isNewerAvailable = isNewer,
                 recentReleases = releases,
-                statusNoticeSw = "Imeunganishwa na GitHub '$slug' • Toleo la mwisho: ${latest.tagName}",
-                statusNoticeEn = "Connected to GitHub '$slug' • Latest build: ${latest.tagName}"
+                statusNoticeSw = if (treeApk == null) {
+                    "Hakuna faili la .apk kwenye GitHub Releases bado. Fungua GitHub Releases kupakia au kujenga APK."
+                } else {
+                    "Imeunganishwa na GitHub '$slug'"
+                },
+                statusNoticeEn = if (treeApk == null) {
+                    "No .apk asset attached on GitHub Releases yet. Open GitHub Releases to publish an APK build."
+                } else {
+                    "Connected to GitHub '$slug'"
+                }
             )
         }.getOrNull()
     }
 
-    /**
-     * Ultra-Fast 128KB-Buffered Turbo APK Downloader:
-     * Streams the update file at maximum throughput into `context.cacheDir/github_updates/<fileName>.apk`
-     * with real-time progress and speed telemetry.
-     */
+    private fun shouldSendAuthHeader(urlString: String): Boolean {
+        val host = runCatching { URL(urlString).host.lowercase() }.getOrDefault("")
+        return host == "github.com" ||
+            host == "api.github.com" ||
+            host == "raw.githubusercontent.com"
+    }
+
+    private fun openConnectionFollowingRedirects(
+        urlString: String,
+        token: String,
+        rangeHeader: String? = null,
+        timeoutMs: Int = 15000
+    ): HttpURLConnection {
+        var resolvedUrl = urlString
+        var redirects = 0
+        while (redirects < 8) {
+            val isApiAsset = resolvedUrl.contains("api.github.com/repos/", ignoreCase = true) &&
+                resolvedUrl.contains("/releases/assets/", ignoreCase = true)
+            val conn = (URL(resolvedUrl).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
+                requestMethod = "GET"
+                connectTimeout = timeoutMs
+                readTimeout = timeoutMs
+                setRequestProperty("User-Agent", "MengiTex-OTA/3.1")
+                setRequestProperty("Accept", if (isApiAsset) "application/octet-stream" else "*/*")
+                setRequestProperty("Accept-Encoding", "identity")
+                if (!rangeHeader.isNullOrBlank()) {
+                    setRequestProperty("Range", rangeHeader)
+                }
+                if (token.isNotBlank() && shouldSendAuthHeader(resolvedUrl)) {
+                    setRequestProperty("Authorization", "Bearer $token")
+                }
+            }
+            val status = conn.responseCode
+            if (status in 300..399) {
+                val loc = conn.getHeaderField("Location")
+                conn.disconnect()
+                if (loc.isNullOrBlank()) {
+                    error("Redirect bila anwani lengwa (HTTP $status)")
+                }
+                resolvedUrl = URL(URL(resolvedUrl), loc).toString()
+                redirects++
+            } else {
+                return conn
+            }
+        }
+        error("Imeshindwa kufuata viungo vya GitHub (redirects zimezidi)")
+    }
+
     suspend fun downloadReleaseApkInApp(
         context: Context,
         release: GithubReleaseInfo,
         onProgress: (GithubDownloadProgress) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
+        val updatesDir = File(context.cacheDir, "github_updates").apply {
+            if (!exists()) mkdirs()
+        }
+        val safeTag = release.tagName.replace(Regex("[^A-Za-z0-9._+-]"), "_").ifBlank { "latest" }
+        val rawName = release.apkAssetName?.takeIf { it.isNotBlank() } ?: "MengiTex-$safeTag.apk"
+        val finalName = if (rawName.endsWith(".apk", ignoreCase = true)) {
+            rawName
+        } else {
+            "${rawName.substringBeforeLast('.')}.apk"
+        }
+        val destFile = File(updatesDir, finalName)
+        val partFile = File(updatesDir, "$finalName.part")
+
         runCatching {
-            val updatesDir = File(context.cacheDir, "github_updates").apply {
-                if (!exists()) mkdirs()
-            }
-            val safeTag = release.tagName.replace(Regex("[^A-Za-z0-9._+-]"), "_")
-            val rawName = release.apkAssetName?.takeIf { it.isNotBlank() } ?: "MengiTex-$safeTag.apk"
-            val finalName = if (rawName.endsWith(".apk", ignoreCase = true)) {
-                rawName
-            } else {
-                "${rawName.substringBeforeLast('.')}.apk"
-            }
-            val destFile = File(updatesDir, finalName)
             val targetUrl = release.apkAssetUrl?.trim().orEmpty()
-
-            // Fast Local / Verified OTA Build Stream
-            if (targetUrl.isEmpty() || targetUrl == LOCAL_APK_SCHEME || release.isLocalReadyBuild) {
-                return@runCatching streamVerifiedLocalApkBuild(context, destFile, onProgress)
+            require(
+                targetUrl.startsWith("https://", ignoreCase = true) ||
+                    targetUrl.startsWith("http://", ignoreCase = true)
+            ) {
+                "Hakuna faili la APK kwenye toleo hili bado. Pakia APK kwenye GitHub Releases au tumia kiungo cha moja kwa moja."
             }
 
-            // Live HTTP/HTTPS 10-Stream (10x) Hyper-Speed Downloader with automatic Range acceleration
+            if (partFile.exists()) partFile.delete()
             val token = getSavedGithubToken(context)
-            var resolvedUrl = targetUrl
-            var redirects = 0
-            var probeConn: HttpURLConnection? = null
-
-            while (redirects < 6) {
-                val conn = (URL(resolvedUrl).openConnection() as HttpURLConnection).apply {
-                    instanceFollowRedirects = true
-                    requestMethod = "GET"
-                    connectTimeout = 10000
-                    readTimeout = 15000
-                    setRequestProperty("User-Agent", "MengiTex-Hyper10x-OTA/2.0")
-                    setRequestProperty("Accept", "*/*")
-                    setRequestProperty("Accept-Encoding", "identity")
-                    if (token.isNotBlank() && resolvedUrl.contains("github.com", ignoreCase = true)) {
-                        setRequestProperty("Authorization", "Bearer $token")
-                    }
-                }
-                val status = conn.responseCode
-                if (status in 300..399) {
-                    val loc = conn.getHeaderField("Location")
-                    conn.disconnect()
-                    if (loc.isNullOrBlank()) break
-                    resolvedUrl = loc
-                    redirects++
-                } else {
-                    probeConn = conn
-                    break
-                }
+            val activeConn = openConnectionFollowingRedirects(targetUrl, token)
+            val status = activeConn.responseCode
+            if (status !in 200..299) {
+                activeConn.disconnect()
+                error("Imeshindwa kupakua APK (HTTP $status)")
             }
 
-            val activeConn = probeConn
-            if (activeConn == null || activeConn.responseCode !in 200..299) {
-                activeConn?.disconnect()
-                return@runCatching streamVerifiedLocalApkBuild(context, destFile, onProgress)
-            }
-
-            val finalUrl = activeConn.url?.toString() ?: resolvedUrl
+            val finalUrl = activeConn.url?.toString() ?: targetUrl
             val contentLength = activeConn.contentLengthLong
-            val acceptsRanges = activeConn.getHeaderField("Accept-Ranges")?.contains("bytes", ignoreCase = true) == true
+            val acceptsRanges = activeConn.getHeaderField("Accept-Ranges")
+                ?.contains("bytes", ignoreCase = true) == true
 
-            // Genuine 10x Parallel Stream Download when server supports HTTP byte ranges & file >= 256 KB
             if (acceptsRanges && contentLength >= 262_144L) {
                 activeConn.disconnect()
                 val parallelOk = runCatching {
@@ -645,76 +682,86 @@ object GithubUpdateChecker {
                         urlString = finalUrl,
                         token = token,
                         totalBytes = contentLength,
-                        destFile = destFile,
+                        destFile = partFile,
                         onProgress = onProgress
                     )
                 }.isSuccess
-                if (parallelOk && destFile.exists() && destFile.length() == contentLength) {
-                    return@runCatching destFile
-                }
-                // Fallback to direct 256KB stream if a server rejects parallel range slices
-                return@runCatching downloadSingleTurboStream(
-                    urlString = finalUrl,
-                    token = token,
-                    expectedSize = contentLength,
-                    destFile = destFile,
-                    onProgress = onProgress
-                )
-            }
-
-            try {
-                val expectedTotal = if (contentLength > 0L) contentLength else release.apkSizeBytes.coerceAtLeast(1_048_576L)
-                val startTime = System.nanoTime()
-                var downloaded = 0L
-                val buffer = ByteArray(TURBO_BUFFER_BYTES)
-                var lastEmitMs = 0L
-
-                BufferedInputStream(activeConn.inputStream, TURBO_BUFFER_BYTES).use { input ->
-                    BufferedOutputStream(FileOutputStream(destFile), TURBO_BUFFER_BYTES).use { output ->
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read <= 0) break
-                            output.write(buffer, 0, read)
-                            downloaded += read
-                            val nowMs = System.currentTimeMillis()
-                            if (nowMs - lastEmitMs >= 30L) {
-                                lastEmitMs = nowMs
-                                val elapsedSec = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.02)
-                                val speed = (downloaded / elapsedSec).toLong()
-                                val pct = ((downloaded * 100L) / expectedTotal.coerceAtLeast(downloaded)).toInt().coerceIn(1, 99)
-                                val ratio = pct / 100f
-                                onProgress(
-                                    GithubDownloadProgress(
-                                        bytesDownloaded = downloaded,
-                                        totalBytes = expectedTotal.coerceAtLeast(downloaded),
-                                        percent = pct,
-                                        speedBytesPerSec = speed,
-                                        activeStreams = TURBO_STREAM_COUNT,
-                                        streamProgresses = List(TURBO_STREAM_COUNT) { idx ->
-                                            (ratio + ((idx % 3) - 1) * 0.04f).coerceIn(0.05f, 0.99f)
-                                        }
-                                    )
-                                )
-                            }
-                        }
-                        output.flush()
-                    }
-                }
-                val totalElapsedSec = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.02)
-                onProgress(
-                    GithubDownloadProgress(
-                        bytesDownloaded = downloaded,
-                        totalBytes = downloaded,
-                        percent = 100,
-                        speedBytesPerSec = (downloaded / totalElapsedSec).toLong(),
-                        activeStreams = TURBO_STREAM_COUNT,
-                        streamProgresses = List(TURBO_STREAM_COUNT) { 1f }
+                if (!parallelOk || !partFile.exists() || partFile.length() != contentLength) {
+                    if (partFile.exists()) partFile.delete()
+                    downloadSingleTurboStream(
+                        urlString = finalUrl,
+                        token = token,
+                        expectedSize = contentLength,
+                        destFile = partFile,
+                        onProgress = onProgress
                     )
-                )
-                destFile
-            } finally {
-                activeConn.disconnect()
+                }
+            } else {
+                try {
+                    val expectedTotal = if (contentLength > 0L) contentLength else release.apkSizeBytes.coerceAtLeast(1_048_576L)
+                    val startTime = System.nanoTime()
+                    var downloaded = 0L
+                    val buffer = ByteArray(TURBO_BUFFER_BYTES)
+                    var lastEmitMs = 0L
+
+                    BufferedInputStream(activeConn.inputStream, TURBO_BUFFER_BYTES).use { input ->
+                        BufferedOutputStream(FileOutputStream(partFile), TURBO_BUFFER_BYTES).use { output ->
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read <= 0) break
+                                output.write(buffer, 0, read)
+                                downloaded += read
+                                val nowMs = System.currentTimeMillis()
+                                if (nowMs - lastEmitMs >= 30L) {
+                                    lastEmitMs = nowMs
+                                    val elapsedSec = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.02)
+                                    val speed = (downloaded / elapsedSec).toLong()
+                                    val pct = ((downloaded * 100L) / expectedTotal.coerceAtLeast(downloaded)).toInt().coerceIn(1, 99)
+                                    val ratio = pct / 100f
+                                    onProgress(
+                                        GithubDownloadProgress(
+                                            bytesDownloaded = downloaded,
+                                            totalBytes = expectedTotal.coerceAtLeast(downloaded),
+                                            percent = pct,
+                                            speedBytesPerSec = speed,
+                                            activeStreams = TURBO_STREAM_COUNT,
+                                            streamProgresses = List(TURBO_STREAM_COUNT) { idx ->
+                                                (ratio + ((idx % 3) - 1) * 0.04f).coerceIn(0.05f, 0.99f)
+                                            }
+                                        )
+                                    )
+                                }
+                            }
+                            output.flush()
+                        }
+                    }
+                    val totalElapsedSec = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.02)
+                    onProgress(
+                        GithubDownloadProgress(
+                            bytesDownloaded = downloaded,
+                            totalBytes = downloaded,
+                            percent = 100,
+                            speedBytesPerSec = (downloaded / totalElapsedSec).toLong(),
+                            activeStreams = TURBO_STREAM_COUNT,
+                            streamProgresses = List(TURBO_STREAM_COUNT) { 1f }
+                        )
+                    )
+                } finally {
+                    activeConn.disconnect()
+                }
             }
+
+            // Strictly verify downloaded binary is a real Android APK matching MengiTex
+            verifyApkArchive(context, partFile).getOrThrow()
+
+            if (destFile.exists()) destFile.delete()
+            if (!partFile.renameTo(destFile)) {
+                partFile.copyTo(destFile, overwrite = true)
+                partFile.delete()
+            }
+            destFile
+        }.onFailure {
+            if (partFile.exists()) partFile.delete()
         }
     }
 
@@ -741,22 +788,18 @@ object GithubUpdateChecker {
             val end = ((start + chunkSize) - 1L).coerceAtMost(totalBytes - 1L)
             perStreamTarget[idx] = (end - start + 1L).coerceAtLeast(1L)
             async(Dispatchers.IO) {
-                val conn = (URL(urlString).openConnection() as HttpURLConnection).apply {
-                    instanceFollowRedirects = true
-                    requestMethod = "GET"
-                    connectTimeout = 10000
-                    readTimeout = 15000
-                    setRequestProperty("User-Agent", "MengiTex-Hyper10x-OTA/2.0")
-                    setRequestProperty("Accept", "*/*")
-                    setRequestProperty("Range", "bytes=$start-$end")
-                    if (token.isNotBlank() && urlString.contains("github.com", ignoreCase = true)) {
-                        setRequestProperty("Authorization", "Bearer $token")
-                    }
-                }
+                val conn = openConnectionFollowingRedirects(
+                    urlString = urlString,
+                    token = token,
+                    rangeHeader = "bytes=$start-$end"
+                )
                 try {
                     val code = conn.responseCode
                     if (code != HttpURLConnection.HTTP_PARTIAL && code != HttpURLConnection.HTTP_OK) {
                         error("Range HTTP $code on stream $idx")
+                    }
+                    if (code == HttpURLConnection.HTTP_OK && idx > 0) {
+                        error("Server ignored Range header")
                     }
                     val buf = ByteArray(TURBO_BUFFER_BYTES)
                     var writePos = start
@@ -819,18 +862,12 @@ object GithubUpdateChecker {
         destFile: File,
         onProgress: (GithubDownloadProgress) -> Unit
     ): File {
-        val conn = (URL(urlString).openConnection() as HttpURLConnection).apply {
-            instanceFollowRedirects = true
-            requestMethod = "GET"
-            connectTimeout = 10000
-            readTimeout = 15000
-            setRequestProperty("User-Agent", "MengiTex-Hyper10x-OTA/2.0")
-            setRequestProperty("Accept", "*/*")
-            if (token.isNotBlank() && urlString.contains("github.com", ignoreCase = true)) {
-                setRequestProperty("Authorization", "Bearer $token")
-            }
-        }
+        val conn = openConnectionFollowingRedirects(urlString = urlString, token = token)
         return try {
+            val status = conn.responseCode
+            if (status !in 200..299) {
+                error("Imeshindwa kupakua faili (HTTP $status)")
+            }
             val startTime = System.nanoTime()
             var downloaded = 0L
             val buffer = ByteArray(TURBO_BUFFER_BYTES)
@@ -883,116 +920,31 @@ object GithubUpdateChecker {
         }
     }
 
-    private suspend fun streamVerifiedLocalApkBuild(
-        context: Context,
-        destFile: File,
-        onProgress: (GithubDownloadProgress) -> Unit
-    ): File = coroutineScope {
-        val sourcePath = context.applicationInfo?.sourceDir
-            ?: error("APK source path unavailable on this device.")
-        val srcFile = File(sourcePath)
-        if (!srcFile.exists()) error("Installed APK file not found.")
-        val totalBytes = srcFile.length().coerceAtLeast(1L)
-
-        RandomAccessFile(destFile, "rw").use { raf ->
-            raf.setLength(totalBytes)
-        }
-
-        val totalCopied = AtomicLong(0L)
-        val perStreamCopied = AtomicLongArray(TURBO_STREAM_COUNT)
-        val perStreamTarget = LongArray(TURBO_STREAM_COUNT) { 1L }
-        val lastEmitMs = AtomicLong(0L)
-        val startTime = System.nanoTime()
-        val chunkSize = (totalBytes + TURBO_STREAM_COUNT - 1L) / TURBO_STREAM_COUNT
-
-        val jobs = (0 until TURBO_STREAM_COUNT).mapNotNull { idx ->
-            val start = idx * chunkSize
-            if (start >= totalBytes) return@mapNotNull null
-            val end = ((start + chunkSize) - 1L).coerceAtMost(totalBytes - 1L)
-            val sliceLen = (end - start + 1L).coerceAtLeast(1L)
-            perStreamTarget[idx] = sliceLen
-            async(Dispatchers.IO) {
-                val buf = ByteArray(TURBO_BUFFER_BYTES.coerceAtMost(65_536))
-                var remaining = sliceLen
-                RandomAccessFile(srcFile, "r").use { srcRaf ->
-                    RandomAccessFile(destFile, "rw").use { dstRaf ->
-                        srcRaf.seek(start)
-                        dstRaf.seek(start)
-                        while (remaining > 0L) {
-                            val toRead = minOf(buf.size.toLong(), remaining).toInt()
-                            val r = srcRaf.read(buf, 0, toRead)
-                            if (r <= 0) break
-                            dstRaf.write(buf, 0, r)
-                            remaining -= r
-                            perStreamCopied.addAndGet(idx, r.toLong())
-                            val acc = totalCopied.addAndGet(r.toLong())
-                            val now = System.currentTimeMillis()
-                            val prev = lastEmitMs.get()
-                            if (now - prev >= 24L && lastEmitMs.compareAndSet(prev, now)) {
-                                val elapsedSec = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.01)
-                                val speed = (acc / elapsedSec).toLong()
-                                val pct = ((acc * 100L) / totalBytes).toInt().coerceIn(1, 99)
-                                val laneProgress = List(TURBO_STREAM_COUNT) { lane ->
-                                    (perStreamCopied.get(lane).toFloat() / perStreamTarget[lane].toFloat()).coerceIn(0f, 1f)
-                                }
-                                onProgress(
-                                    GithubDownloadProgress(
-                                        bytesDownloaded = acc,
-                                        totalBytes = totalBytes,
-                                        percent = pct,
-                                        speedBytesPerSec = speed,
-                                        activeStreams = TURBO_STREAM_COUNT,
-                                        streamProgresses = laneProgress
-                                    )
-                                )
-                            }
-                            delay(2L)
-                        }
-                    }
-                }
-            }
-        }
-        jobs.awaitAll()
-        val totalElapsed = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.01)
-        onProgress(
-            GithubDownloadProgress(
-                bytesDownloaded = totalBytes,
-                totalBytes = totalBytes,
-                percent = 100,
-                speedBytesPerSec = (totalBytes / totalElapsed).toLong().coerceAtLeast(totalBytes * 10L),
-                activeStreams = TURBO_STREAM_COUNT,
-                streamProgresses = List(TURBO_STREAM_COUNT) { 1f }
-            )
-        )
-        destFile
-    }
-
     /**
-     * In-App Auto Self-Installer ("Mfumo wa App Kuji-Install Moja kwa Moja"):
-     * Never fails or gets rejected by Android's PackageInstaller restrictions:
-     * 1. Verifies SHA-256 cryptographic digest and ZIP/APK package structure of [downloadedFile].
-     * 2. Extracts and verifies the OTA payload modules inside the app's secure update container.
-     * 3. Commits the new version metadata & live OTA patch atomically into MengiTex without losing data.
-     * 4. Also copies the `.apk` into the device's public `Downloads` folder so the user has the standalone installer file.
+     * Real 4-Stage Android Package Installer Launcher:
+     * 1. Computes & displays SHA-256 cryptographic digest.
+     * 2. Validates APK ZIP + AndroidManifest.xml + packageName integrity via PackageManager.
+     * 3. Stages the verified APK inside `filesDir/apk_exports/` exposed via FileProvider.
+     * 4. Checks `canRequestPackageInstalls()` and launches Android's real system Package Installer UI.
      */
     suspend fun runInAppSelfInstaller(
         context: Context,
         release: GithubReleaseInfo,
         downloadedFile: File,
         onInstallProgress: (GithubSelfInstallProgress) -> Unit
-    ): Result<String> = withContext(Dispatchers.IO) {
+    ): Result<GithubSelfInstallOutcome> = withContext(Dispatchers.IO) {
         runCatching {
-            require(downloadedFile.exists() && downloadedFile.length() > 0L) {
-                "Faili la update halipo au ni tupu."
+            require(downloadedFile.exists() && downloadedFile.length() > 1024L) {
+                "Faili la update halipo au halijakamilika."
             }
 
-            // Stage 1: Verify SHA-256 Signature & Package Integrity (0% -> 28%)
+            // Stage 1: Verify SHA-256 cryptographic digest (0% -> 28%)
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 1,
-                    stageSw = "Hatua 1/4: Kuthibitisha saini ya usalama (SHA-256 & AES-256)...",
-                    stageEn = "Stage 1/4: Verifying SHA-256 cryptographic signature...",
-                    percent = 14
+                    stageSw = "Hatua 1/4: Kuthibitisha saini ya usalama (SHA-256)...",
+                    stageEn = "Stage 1/4: Verifying SHA-256 signature...",
+                    percent = 15
                 )
             )
             val digest = MessageDigest.getInstance("SHA-256")
@@ -1005,94 +957,102 @@ object GithubUpdateChecker {
                 }
             }
             val shaHex = digest.digest().joinToString("") { "%02X".format(it) }.take(12)
-            delay(160L)
+            delay(80L)
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 1,
-                    stageSw = "Hatua 1/4: Saini imethibitishwa (SHA256: $shaHex) ✓",
-                    stageEn = "Stage 1/4: Signature verified (SHA256: $shaHex) ✓",
+                    stageSw = "Hatua 1/4: SHA-256 imethibitishwa ($shaHex) ✓",
+                    stageEn = "Stage 1/4: SHA-256 verified ($shaHex) ✓",
                     percent = 28,
                     sha256Short = shaHex
                 )
             )
 
-            // Stage 2: Inspect & Stage OTA Package Modules (28% -> 58%)
+            // Stage 2: Verify APK structure & AndroidManifest package match (28% -> 58%)
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 2,
-                    stageSw = "Hatua 2/4: Kufungua na kuandaa moduli za toleo ${release.tagName}...",
-                    stageEn = "Stage 2/4: Extracting & staging ${release.tagName} modules...",
+                    stageSw = "Hatua 2/4: Kukagua kifurushi cha APK (${release.tagName})...",
+                    stageEn = "Stage 2/4: Validating APK archive (${release.tagName})...",
                     percent = 45,
                     sha256Short = shaHex
                 )
             )
-            val isValidZipOrApk = runCatching {
-                ZipFile(downloadedFile).use { zip ->
-                    zip.size() > 0
-                }
-            }.getOrDefault(false)
+            verifyApkArchive(context, downloadedFile).getOrThrow()
 
             val stagedDir = File(context.filesDir, "apk_exports").apply {
                 if (!exists()) mkdirs()
             }
-            val stagedApk = File(stagedDir, "MengiTex-Active-OTA.apk")
-            if (isValidZipOrApk) {
-                runCatching { downloadedFile.copyTo(stagedApk, overwrite = true) }
-            }
-            delay(180L)
+            val safeTag = release.tagName.replace(Regex("[^A-Za-z0-9._+-]"), "_").ifBlank { "latest" }
+            val stagedApk = File(stagedDir, "MengiTex-$safeTag.apk")
+            downloadedFile.copyTo(stagedApk, overwrite = true)
+
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 2,
-                    stageSw = "Hatua 2/4: Moduli za mfumo zimeunganishwa kikamilifu ✓",
-                    stageEn = "Stage 2/4: System modules staged successfully ✓",
+                    stageSw = "Hatua 2/4: Kifurushi cha APK ni halali ✓",
+                    stageEn = "Stage 2/4: APK package validated ✓",
                     percent = 58,
                     sha256Short = shaHex
                 )
             )
 
-            // Stage 3: Apply Self-Install & Export copy to Android Public Downloads (58% -> 88%)
+            // Stage 3: Save integrity hash & check Android install permission (58% -> 84%)
+            context.getSharedPreferences(UPDATER_PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_SELF_INSTALLED_SHA, shaHex)
+                .apply()
+
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 3,
-                    stageSw = "Hatua 3/4: Inasakinisha (${release.tagName}) bila kupoteza ujumbe...",
-                    stageEn = "Stage 3/4: Installing (${release.tagName}) with zero data loss...",
-                    percent = 76,
+                    stageSw = "Hatua 3/4: Kuandaa kisakinishi cha Android...",
+                    stageEn = "Stage 3/4: Preparing Android Package Installer...",
+                    percent = 80,
                     sha256Short = shaHex
                 )
             )
-            // Also save a copy into public Downloads on Android 10+ via MediaStore (zero permission needed!)
-            runCatching {
-                exportApkToPublicDownloads(context, downloadedFile, release.apkAssetName ?: downloadedFile.name)
-            }
-            delay(200L)
 
-            // Stage 4: Commit Installed Version State & Activate (88% -> 100%)
-            val cleanInstalledTag = release.tagName.trim().removePrefix("v").removePrefix("V")
-            context.getSharedPreferences(UPDATER_PREFS, Context.MODE_PRIVATE)
-                .edit()
-                .putString(KEY_SELF_INSTALLED_VERSION, cleanInstalledTag)
-                .putString(KEY_SELF_INSTALLED_NAME, release.releaseName)
-                .putLong(KEY_SELF_INSTALLED_AT_MS, System.currentTimeMillis())
-                .putString(KEY_SELF_INSTALLED_SHA, shaHex)
-                .commit()
+            val cleanTag = release.tagName.trim().removePrefix("v").removePrefix("V")
+            if (!canRequestPackageInstalls(context)) {
+                onInstallProgress(
+                    GithubSelfInstallProgress(
+                        stageIndex = 4,
+                        stageSw = "Hatua 4/4: Washa ruhusa ya 'Sakinisha programu zisizojulikana'...",
+                        stageEn = "Stage 4/4: Allow 'Install unknown apps' permission...",
+                        percent = 95,
+                        sha256Short = shaHex
+                    )
+                )
+                return@runCatching GithubSelfInstallOutcome.NeedsInstallPermission(
+                    versionTag = cleanTag,
+                    sha256Short = shaHex,
+                    stagedApk = stagedApk
+                )
+            }
+
+            // Stage 4: Launch Android's real system PackageInstaller UI on Main thread
+            withContext(Dispatchers.Main) {
+                launchSystemApkInstaller(context, stagedApk).getOrThrow()
+            }
 
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 4,
-                    stageSw = "Hatua 4/4: MengiTex v$cleanInstalledTag imesakinishwa kikamilifu ✓",
-                    stageEn = "Stage 4/4: MengiTex v$cleanInstalledTag installed successfully ✓",
+                    stageSw = "Hatua 4/4: Kisakinishi cha Android kimefunguliwa — thibitisha kusakinisha ✓",
+                    stageEn = "Stage 4/4: Android installer opened — confirm installation ✓",
                     percent = 100,
                     sha256Short = shaHex
                 )
             )
-            cleanInstalledTag
+            GithubSelfInstallOutcome.LaunchedSystemInstaller(
+                versionTag = cleanTag,
+                sha256Short = shaHex,
+                stagedApk = stagedApk
+            )
         }
     }
 
-    /**
-     * Zero-permission MediaStore export to the device's public `Downloads` directory on Android 10+ (API 29+)
-     * so the user also has the `.apk` file right in their phone's Downloads folder.
-     */
     fun exportApkToPublicDownloads(context: Context, sourceApk: File, displayFileName: String): Result<Uri> {
         return runCatching {
             val cleanName = if (displayFileName.endsWith(".apk", ignoreCase = true)) {
@@ -1130,9 +1090,6 @@ object GithubUpdateChecker {
         }
     }
 
-    /**
-     * Shares the downloaded/prepared APK file so the user can send it or upload it to GitHub Releases.
-     */
     fun shareDownloadedApk(context: Context, apkFile: File, title: String): Result<Unit> {
         return runCatching {
             require(apkFile.exists() && apkFile.length() > 0L) { "APK file not found." }
@@ -1154,9 +1111,6 @@ object GithubUpdateChecker {
         }
     }
 
-    /**
-     * Copies the downloaded APK to a user-selected SAF destination URI (e.g. Downloads folder).
-     */
     suspend fun saveApkToSafUri(context: Context, sourceApk: File, targetUri: Uri): Result<Long> =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -1178,9 +1132,6 @@ object GithubUpdateChecker {
             }
         }
 
-    /**
-     * Enqueues a background download into Android's system DownloadManager (shows in system notification bar).
-     */
     fun enqueueSystemDownloadManager(
         context: Context,
         url: String,
@@ -1208,9 +1159,9 @@ object GithubUpdateChecker {
             connectTimeout = 8000
             readTimeout = 8000
             setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("User-Agent", "MengiTex-Turbo-OTA/3.0")
+            setRequestProperty("User-Agent", "MengiTex-OTA/3.1")
             setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
-            if (token.isNotBlank()) {
+            if (token.isNotBlank() && shouldSendAuthHeader(urlString)) {
                 setRequestProperty("Authorization", "Bearer $token")
             }
         }
@@ -1228,18 +1179,18 @@ object GithubUpdateChecker {
         }
     }
 
-    private fun parseReleasesArray(jsonText: String, slug: String, context: Context): List<GithubReleaseInfo> {
+    private fun parseReleasesArray(jsonText: String, slug: String): List<GithubReleaseInfo> {
         val array = JSONArray(jsonText)
         val list = ArrayList<GithubReleaseInfo>(array.length())
         for (i in 0 until array.length()) {
             val obj = array.optJSONObject(i) ?: continue
             if (obj.optBoolean("draft", false)) continue
-            list.add(parseReleaseObject(obj, slug, context))
+            list.add(parseReleaseObject(obj, slug))
         }
         return list
     }
 
-    private fun parseReleaseObject(obj: JSONObject, slug: String, context: Context): GithubReleaseInfo {
+    private fun parseReleaseObject(obj: JSONObject, slug: String): GithubReleaseInfo {
         val tagName = obj.optString("tag_name", "").ifBlank { "v1.0" }
         val releaseName = obj.optString("name", "").ifBlank { "MengiTex $tagName" }
         val bodyNotes = obj.optString("body", "").trim()
@@ -1275,8 +1226,6 @@ object GithubUpdateChecker {
             }
         }
 
-        val chosenAsset = apkAsset ?: assets.firstOrNull()
-        val fallbackSize = getInstalledApkSize(context)
         return GithubReleaseInfo(
             tagName = tagName,
             releaseName = releaseName,
@@ -1284,16 +1233,14 @@ object GithubUpdateChecker {
             htmlUrl = htmlUrl,
             publishedAt = publishedAt,
             isPrerelease = isPrerelease,
-            apkAssetUrl = chosenAsset?.downloadUrl ?: LOCAL_APK_SCHEME,
-            apkAssetName = chosenAsset?.name ?: "MengiTex-$tagName.apk",
-            apkSizeBytes = chosenAsset?.sizeBytes?.takeIf { it > 0L } ?: fallbackSize,
-            assets = assets,
-            isLocalReadyBuild = chosenAsset == null
+            apkAssetUrl = apkAsset?.downloadUrl,
+            apkAssetName = apkAsset?.name,
+            apkSizeBytes = apkAsset?.sizeBytes ?: 0L,
+            assets = assets
         )
     }
 
     private fun fetchTagsFallback(
-        context: Context,
         slug: String,
         currentVersion: String,
         token: String
@@ -1304,7 +1251,6 @@ object GithubUpdateChecker {
             val arr = JSONArray(body)
             if (arr.length() == 0) return null
             val treeApk = findApkInRepoTree(slug, "HEAD", token)
-            val fallbackSize = getInstalledApkSize(context)
             val tags = ArrayList<GithubReleaseInfo>()
             for (i in 0 until arr.length()) {
                 val tObj = arr.optJSONObject(i) ?: continue
@@ -1314,14 +1260,13 @@ object GithubUpdateChecker {
                     GithubReleaseInfo(
                         tagName = tagName,
                         releaseName = "MengiTex $tagName",
-                        bodyNotes = "GitHub Release Tag $tagName ($slug)",
+                        bodyNotes = "GitHub Tag $tagName ($slug)",
                         htmlUrl = "https://github.com/$slug/releases/tag/$tagName",
                         publishedAt = "GitHub Tag",
                         isPrerelease = tagName.contains('-'),
-                        apkAssetUrl = treeApk?.downloadUrl ?: LOCAL_APK_SCHEME,
-                        apkAssetName = treeApk?.name ?: "MengiTex-$tagName.apk",
-                        apkSizeBytes = treeApk?.sizeBytes ?: fallbackSize,
-                        isLocalReadyBuild = treeApk == null
+                        apkAssetUrl = treeApk?.downloadUrl,
+                        apkAssetName = treeApk?.name,
+                        apkSizeBytes = treeApk?.sizeBytes ?: 0L
                     )
                 )
             }
@@ -1331,7 +1276,13 @@ object GithubUpdateChecker {
                 currentVersion = currentVersion,
                 latestRelease = latest,
                 isNewerAvailable = isRemoteVersionNewer(currentVersion, latest.tagName),
-                recentReleases = tags
+                recentReleases = tags,
+                statusNoticeSw = if (treeApk == null) {
+                    "Toleo ${latest.tagName} lipo GitHub, lakini faili la .apk bado halijaambatanishwa."
+                } else null,
+                statusNoticeEn = if (treeApk == null) {
+                    "Tag ${latest.tagName} is on GitHub, but no .apk file is attached yet."
+                } else null
             )
         }.getOrNull()
     }
