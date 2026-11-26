@@ -232,19 +232,10 @@ fun GithubUpdateSectionContent(
 
     val defaultReadyRelease = remember(installedVersion, installedApkSize, settings.githubUpdateRepo, isSw) {
         val cleanVer = installedVersion.substringBefore('+').removePrefix("v").removePrefix("V")
-        val notes = if (isSw) {
-            "• Injini ya upakuaji wa mikondo 10 sambamba yenye kasi kubwa\n" +
-                "• Usakinishaji wa moja kwa moja uliothibitishwa kwa SHA-256\n" +
-                "• Kizuia matangazo bora (namba 07/06/+255 na miamala salama)"
-        } else {
-            "• High-speed 10-stream parallel downloader with live speed meter\n" +
-                "• SHA-256 verified automatic in-app self-installer\n" +
-                "• Smart ad blocker keeping personal numbers & transactions safe"
-        }
         GithubReleaseInfo(
             tagName = "v$cleanVer",
             releaseName = "MengiTex v$cleanVer",
-            bodyNotes = notes,
+            bodyNotes = "",
             htmlUrl = GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo),
             publishedAt = "v$cleanVer",
             isPrerelease = false,
@@ -257,7 +248,10 @@ fun GithubUpdateSectionContent(
 
     val activeRelease: GithubReleaseInfo = when (val res = checkResult) {
         is GithubUpdateCheckResult.Success -> res.latestRelease
-        else -> if (settings.githubCachedLatestTag.isNotBlank()) {
+        else -> if (
+            settings.githubCachedLatestTag.isNotBlank() &&
+            !GithubUpdateChecker.isRemoteVersionNewer(settings.githubCachedLatestTag, installedVersion)
+        ) {
             GithubReleaseInfo(
                 tagName = settings.githubCachedLatestTag,
                 releaseName = settings.githubCachedReleaseName.ifBlank { "MengiTex ${settings.githubCachedLatestTag}" },
@@ -387,15 +381,21 @@ fun GithubUpdateSectionContent(
         label = "android17_upgrade_progress"
     )
 
-    val refreshRotation by rememberInfiniteTransition(label = "check_spin").animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "spin_angle"
-    )
+    val refreshRotation = if (isChecking) {
+        val transition = rememberInfiniteTransition(label = "check_spin")
+        val angle by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(900, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "spin_angle"
+        )
+        angle
+    } else {
+        0f
+    }
 
     val cardShape = RoundedCornerShape(26.dp)
     val cleanInstalled = installedVersion.substringBefore('+').removePrefix("v").removePrefix("V")
@@ -433,32 +433,12 @@ fun GithubUpdateSectionContent(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = if (isNewerAvailable) tertiaryContainer else primaryContainer
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.AutoAwesome,
-                                contentDescription = null,
-                                tint = if (isNewerAvailable) onTertiaryContainer else onPrimaryContainer,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = if (isSw) "MFUMO MPYA WA MABORESHO" else "NEW VISION UPGRADE",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = 0.4.sp,
-                                color = if (isNewerAvailable) onTertiaryContainer else onPrimaryContainer,
-                                maxLines = 1
-                            )
-                        }
-                    }
+                    Text(
+                        text = if (isSw) "Maboresho" else "Updates",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

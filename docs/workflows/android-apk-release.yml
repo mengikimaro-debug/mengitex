@@ -71,7 +71,7 @@ jobs:
       - name: Prepare versioned APK artifact
         run: |
           mkdir -p release_apks
-          TAG_NAME="${GITHUB_REF_NAME:-v2.0.0}"
+          TAG_NAME="${GITHUB_REF_NAME:-v3.0.0}"
           SAFE_TAG=$(echo "$TAG_NAME" | tr -cd 'A-Za-z0-9._-')
           APK_SRC=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
           if [ -z "$APK_SRC" ]; then

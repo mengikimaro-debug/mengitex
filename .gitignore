@@ -10,11 +10,18 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+app/build/
+.build-outputs/
+release_apks/
+*.apk
+*.aab
 /captures
 .externalNativeBuild
 .cxx
 local.properties
 .env
+.aistudio/
 debug.keystore
+my-upload-key.jks
 *-debug.log
 

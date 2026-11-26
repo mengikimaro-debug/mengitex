@@ -154,7 +154,7 @@ fun SettingsScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         com.example.ui.components.OneUi85SubScreenHeader(
             title = s.settingsTitle,
-            subtitle = if (isSwLang) "Usimbaji wa AES-256" else "AES-256 Encrypted",
+            subtitle = null,
             backIcon = Icons.AutoMirrored.Filled.ArrowBack,
             backContentDescription = s.cdBack,
             backTestTag = "settings_back_button",
@@ -180,13 +180,13 @@ fun SettingsScreen(
                 }
             }
 
-            // 1B. Auto SMS Ad Blocker (15..., 09..., & Non-Transaction Ads — minimized when active)
+            // 1B. Auto SMS Ad Blocker
             item {
                 StaggeredEntrance(index = 1) {
                     SettingsSectionCard(
                         icon = Icons.Filled.Block,
                         title = s.adBlockerCardTitle,
-                        subtitle = s.adBlockerCardSub,
+                        subtitle = null,
                         accent = if (settings.autoBlockAdsEnabled) successGreen else MaterialTheme.colorScheme.error,
                         expanded = adBlockerExpanded,
                         onToggleExpand = { adBlockerExpanded = !adBlockerExpanded },
@@ -199,44 +199,17 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(s.adBlockerToggleTitle, style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    s.adBlockerToggleSub,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            Text(
+                                text = s.adBlockerToggleTitle,
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.weight(1f)
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
                             Switch(
                                 checked = settings.autoBlockAdsEnabled,
                                 onCheckedChange = onAutoBlockAdsChange,
                                 modifier = Modifier.testTag("settings_auto_block_ads_switch")
                             )
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.VerifiedUser,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Text(
-                                    text = s.adBlockerProtectedChip,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            }
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedButton(
@@ -260,7 +233,7 @@ fun SettingsScreen(
                     SettingsSectionCard(
                         icon = Icons.Filled.BrightnessLow,
                         title = s.settingsAppearanceCard,
-                        subtitle = s.settingsAppearanceSub,
+                        subtitle = null,
                         accent = MaterialTheme.colorScheme.primary,
                         expanded = appearanceExpanded,
                         onToggleExpand = { appearanceExpanded = !appearanceExpanded },
@@ -268,7 +241,7 @@ fun SettingsScreen(
                         statusBadgeColor = MaterialTheme.colorScheme.primary,
                         headerTestTag = "settings_appearance_header"
                     ) {
-                        // Color Theme Selector: By System • Off-White • Dark
+                        // Color Theme Selector
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -286,34 +259,11 @@ fun SettingsScreen(
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary
                                 )
-                                Column {
-                                    Text(
-                                        text = if (isSwLang) "Rangi ya Muonekano" else "Color Theme",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = when (settings.themeMode) {
-                                            AppThemeMode.SYSTEM -> if (isSwLang) {
-                                                "Inafuata mandhari ya mfumo wa simu"
-                                            } else {
-                                                "Follows phone system theme"
-                                            }
-                                            AppThemeMode.LIGHT -> if (isSwLang) {
-                                                "Mwonekano mpya wa mwanga wa Android 17"
-                                            } else {
-                                                "Solid Android 17 Light theme"
-                                            }
-                                            AppThemeMode.DARK -> if (isSwLang) {
-                                                "Mwonekano wa giza wa Android 17"
-                                            } else {
-                                                "Solid Android 17 Dark theme"
-                                            }
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Text(
+                                    text = if (isSwLang) "Mandhari" else "Theme",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
 
                             Row(
@@ -381,14 +331,7 @@ fun SettingsScreen(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Icon(Icons.Filled.BrightnessLow, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
-                                Column {
-                                    Text(s.settingsDimLightTitle, style = MaterialTheme.typography.titleSmall)
-                                    Text(
-                                        s.settingsDimLightSub,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Text(s.settingsDimLightTitle, style = MaterialTheme.typography.titleSmall)
                             }
                             Switch(
                                 checked = settings.dimLightEnabled,
@@ -512,23 +455,12 @@ fun SettingsScreen(
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
-                                    Column {
-                                        Text(
-                                            text = if (isSw) "Ukubwa wa Mazungumzo ($chatSizePercent%)" else "Chat Size ($chatSizePercent%)",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = if (isSw) {
-                                                "Rekebisha ukubwa wa maandishi na ujumbe kwenye mazungumzo"
-                                            } else {
-                                                "Adjust message bubble and text size in conversations"
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                                    Text(
+                                        text = if (isSw) "Ukubwa wa Maandishi ($chatSizePercent%)" else "Text Size ($chatSizePercent%)",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                 }
                                 Surface(
                                     onClick = { onChatSizeScaleChange(1.0f) },
@@ -678,7 +610,7 @@ fun SettingsScreen(
                     SettingsSectionCard(
                         icon = Icons.Filled.Language,
                         title = s.settingsLanguageCard,
-                        subtitle = s.settingsLanguageSub,
+                        subtitle = null,
                         accent = MaterialTheme.colorScheme.primary,
                         expanded = languageExpanded,
                         onToggleExpand = { languageExpanded = !languageExpanded },
@@ -721,7 +653,7 @@ fun SettingsScreen(
                     SettingsSectionCard(
                         icon = Icons.Filled.VisibilityOff,
                         title = s.settingsStealthIconCard,
-                        subtitle = s.settingsStealthIconSub,
+                        subtitle = null,
                         accent = MaterialTheme.colorScheme.primary,
                         expanded = stealthIconExpanded,
                         onToggleExpand = { stealthIconExpanded = !stealthIconExpanded },
@@ -750,11 +682,11 @@ fun SettingsScreen(
                     SettingsSectionCard(
                         icon = Icons.Filled.CloudSync,
                         title = s.settingsBackupCardTitle,
-                        subtitle = s.settingsBackupCardSub,
+                        subtitle = null,
                         accent = MaterialTheme.colorScheme.secondary,
                         expanded = backupExpanded,
                         onToggleExpand = { backupExpanded = !backupExpanded },
-                        statusBadge = "AES-256",
+                        statusBadge = null,
                         statusBadgeColor = MaterialTheme.colorScheme.secondary,
                         headerTestTag = "settings_backup_header"
                     ) {
@@ -779,11 +711,11 @@ fun SettingsScreen(
                     SettingsSectionCard(
                         icon = Icons.Filled.SimCard,
                         title = s.settingsSimPermsCard,
-                        subtitle = s.settingsSimPermsSub,
+                        subtitle = null,
                         accent = MaterialTheme.colorScheme.secondary,
                         expanded = simSecurityExpanded,
                         onToggleExpand = { simSecurityExpanded = !simSecurityExpanded },
-                        statusBadge = simBadge.take(14),
+                        statusBadge = if (detectedSims.isNotEmpty()) simBadge.take(14) else null,
                         statusBadgeColor = MaterialTheme.colorScheme.secondary,
                         headerTestTag = "settings_sim_header"
                     ) {
@@ -831,18 +763,6 @@ fun SettingsScreen(
                     }
                 }
             }
-
-            item {
-                Text(
-                    text = s.settingsAboutOffline,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                )
-            }
         }
     }
 }
@@ -851,7 +771,7 @@ fun SettingsScreen(
 private fun SettingsSectionCard(
     icon: ImageVector,
     title: String,
-    subtitle: String,
+    subtitle: String?,
     accent: Color,
     expanded: Boolean,
     onToggleExpand: () -> Unit,
@@ -896,7 +816,7 @@ private fun SettingsSectionCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    if (expanded) {
+                    if (expanded && !subtitle.isNullOrBlank()) {
                         Text(
                             text = subtitle,
                             style = MaterialTheme.typography.labelSmall,

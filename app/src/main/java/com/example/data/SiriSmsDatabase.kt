@@ -22,7 +22,7 @@ abstract class SiriSmsDatabase : RoomDatabase() {
         private var INSTANCE: SiriSmsDatabase? = null
 
         fun getInstance(context: Context): SiriSmsDatabase {
-            com.example.security.VaultCryptoManager.bindContext(context.applicationContext)
+            com.example.security.VaultCryptoManager.registerContextOnly(context.applicationContext)
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,

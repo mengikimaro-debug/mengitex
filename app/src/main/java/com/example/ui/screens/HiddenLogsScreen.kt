@@ -75,7 +75,7 @@ fun HiddenLogsScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         com.example.ui.components.OneUi85SubScreenHeader(
             title = s.hiddenLogsTitle,
-            subtitle = stats.hiddenPathDisplay,
+            subtitle = null,
             backIcon = Icons.AutoMirrored.Filled.ArrowBack,
             backContentDescription = s.cdBack,
             backTestTag = "hidden_logs_back_button",

@@ -166,58 +166,31 @@ fun SecurityDrawerContent(
                                 modifier = Modifier.testTag("drawer_brand_logo")
                             )
                             Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(7.dp)
-                                ) {
-                                    Text(
-                                        text = "MengiTex",
-                                        style = MaterialTheme.typography.titleLarge,
-                                        color = Color(0xFFF8FAFC),
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                    Surface(
-                                        shape = RoundedCornerShape(50),
-                                        color = Color(0xFF0B57D0)
+                                Text(
+                                    text = "MengiTex",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = Color(0xFFF8FAFC),
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                if (detectedSims.isNotEmpty()) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                                     ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.SimCard,
+                                            contentDescription = null,
+                                            tint = Color(0xFFC4B5FD),
+                                            modifier = Modifier.size(12.dp)
+                                        )
                                         Text(
-                                            text = "v${com.example.BuildConfig.VERSION_NAME}",
+                                            text = detectedSims.joinToString(" • ") { it.displayName },
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFFFFFFFF),
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                            color = Color(0xFFCBD5E1),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                }
-                                Text(
-                                    text = s.drawerAesActive,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFFD3E3FD),
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.SimCard,
-                                        contentDescription = null,
-                                        tint = Color(0xFFC4B5FD),
-                                        modifier = Modifier.size(12.dp)
-                                    )
-                                    Text(
-                                        text = if (detectedSims.isEmpty()) {
-                                            s.drawerSimAuto
-                                        } else {
-                                            detectedSims.joinToString(" • ") { it.displayName }
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFFCBD5E1),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
                                 }
                             }
                         }
@@ -372,7 +345,7 @@ fun SecurityDrawerContent(
                 DrawerActionTile(
                     icon = Icons.Filled.EditNote,
                     title = s.drawerCompose,
-                    subtitle = s.drawerComposeSub,
+                    subtitle = null,
                     badgeText = null,
                     accentColor = Color(0xFF2563EB),
                     titleColor = drawerTitleColor,
@@ -384,7 +357,7 @@ fun SecurityDrawerContent(
                 DrawerActionTile(
                     icon = Icons.Filled.ScheduleSend,
                     title = s.drawerSchedule,
-                    subtitle = s.drawerScheduleSub,
+                    subtitle = null,
                     badgeText = if (scheduledCount > 0) scheduledCount.toString() else null,
                     accentColor = Color(0xFF7C3AED),
                     titleColor = drawerTitleColor,
@@ -396,7 +369,7 @@ fun SecurityDrawerContent(
                 DrawerActionTile(
                     icon = Icons.Filled.Description,
                     title = s.drawerTemplates,
-                    subtitle = s.drawerTemplatesSub,
+                    subtitle = null,
                     badgeText = null,
                     accentColor = Color(0xFF0EA5E9),
                     titleColor = drawerTitleColor,
@@ -408,7 +381,7 @@ fun SecurityDrawerContent(
                 DrawerActionTile(
                     icon = Icons.Filled.BarChart,
                     title = s.drawerUsageDashboard,
-                    subtitle = s.drawerUsageDashboardSub,
+                    subtitle = null,
                     badgeText = if (totalMessagesCount > 0) totalMessagesCount.toString() else null,
                     accentColor = Color(0xFF10B981),
                     titleColor = drawerTitleColor,
@@ -419,14 +392,14 @@ fun SecurityDrawerContent(
             }
 
             DrawerGroupCard(
-                title = "${s.drawerSectionVault} • AES-256",
+                title = s.drawerSectionVault,
                 cardBg = drawerCardBg,
                 borderColor = drawerCardBorder
             ) {
                 DrawerActionTile(
                     icon = Icons.Filled.DeleteOutline,
                     title = s.drawerTrash,
-                    subtitle = s.drawerTrashSub,
+                    subtitle = null,
                     badgeText = if (trashCount > 0) trashCount.toString() else null,
                     accentColor = MaterialTheme.colorScheme.tertiary,
                     titleColor = drawerTitleColor,
@@ -438,11 +411,7 @@ fun SecurityDrawerContent(
                 DrawerActionTile(
                     icon = Icons.Filled.SystemUpdate,
                     title = s.drawerUpgrade,
-                    subtitle = if (hasUpgradeAvailable && latestUpgradeTag.isNotBlank()) {
-                        "${s.drawerUpgradeSub} • $latestUpgradeTag"
-                    } else {
-                        s.drawerUpgradeSub
-                    },
+                    subtitle = if (hasUpgradeAvailable && latestUpgradeTag.isNotBlank()) latestUpgradeTag else null,
                     badgeText = if (hasUpgradeAvailable) s.drawerUpgradeAvailableBadge else null,
                     accentColor = if (hasUpgradeAvailable) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
                     titleColor = drawerTitleColor,
@@ -454,7 +423,7 @@ fun SecurityDrawerContent(
                 DrawerActionTile(
                     icon = Icons.Filled.Settings,
                     title = s.drawerSettings,
-                    subtitle = s.drawerSettingsSub,
+                    subtitle = null,
                     badgeText = null,
                     accentColor = MaterialTheme.colorScheme.primary,
                     titleColor = drawerTitleColor,
@@ -551,7 +520,7 @@ private fun DrawerSubtleDivider(borderColor: Color) {
 private fun DrawerActionTile(
     icon: ImageVector,
     title: String,
-    subtitle: String,
+    subtitle: String?,
     badgeText: String?,
     accentColor: Color,
     titleColor: Color,
@@ -591,13 +560,15 @@ private fun DrawerActionTile(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = subColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = subColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
         if (badgeText != null) {
             Badge(

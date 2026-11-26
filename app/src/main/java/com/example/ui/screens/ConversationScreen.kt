@@ -130,8 +130,6 @@ import com.example.service.ContactsLoader
 import com.example.service.DetectedSimCard
 import com.example.service.SmsDispatchManager
 import com.example.service.VoiceDictationHelper
-import com.example.ui.components.NextGenGlassSurface
-import com.example.ui.components.NextGenIconOrb
 import com.example.ui.components.VoiceWaveformVisualizer
 import com.example.ui.i18n.AppLanguage
 import com.example.ui.i18n.LocalAppStrings
@@ -140,6 +138,18 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+private val chatBubbleTimeFormatter = object : ThreadLocal<SimpleDateFormat>() {
+    override fun initialValue(): SimpleDateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+}
+
+private val chatTimelineDateFormatter = object : ThreadLocal<SimpleDateFormat>() {
+    override fun initialValue(): SimpleDateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+}
+
+private val chatDetailDateFormatter = object : ThreadLocal<SimpleDateFormat>() {
+    override fun initialValue(): SimpleDateFormat = SimpleDateFormat("dd MMM yyyy, HH:mm:ss", Locale.getDefault())
+}
 
 private sealed interface ChatTimelineItem {
     data class DateHeader(val label: String) : ChatTimelineItem
@@ -427,6 +437,7 @@ fun ConversationScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .imePadding()
     ) {
         // 1. Authentic Full-Width Android 17 Google Messages Top Bar
@@ -609,19 +620,17 @@ fun ConversationScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Text(
-                                        text = if (contactName.isNotBlank() && contactName != phoneNumber) {
-                                            phoneNumber
-                                        } else {
-                                            s.convTapProfileHint
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = false)
-                                    )
+                                    if (contactName.isNotBlank() && contactName != phoneNumber) {
+                                        Text(
+                                            text = phoneNumber,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                    }
                                     if (activeSim != null) {
                                         Surface(
                                             shape = RoundedCornerShape(50),
@@ -778,12 +787,6 @@ fun ConversationScreen(
                         text = s.convNoMessagesYet,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = s.convStartTypingHint,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
                     )
                 }
             } else {
@@ -1018,7 +1021,7 @@ fun ConversationScreen(
                     SelectionBottomActionButton(
                         icon = Icons.Filled.ContentCopy,
                         label = s.convActionCopy,
-                        accentColor = Color(0xFF2563EB),
+                        accentColor = MaterialTheme.colorScheme.primary,
                         enabled = hasCopyableText,
                         onClick = {
                             copyMessageBody(selectedPlainText)
@@ -1032,7 +1035,7 @@ fun ConversationScreen(
                     SelectionBottomActionButton(
                         icon = Icons.Filled.Share,
                         label = s.convActionShare,
-                        accentColor = Color(0xFF7C3AED),
+                        accentColor = MaterialTheme.colorScheme.secondary,
                         enabled = hasCopyableText,
                         onClick = {
                             shareMessageBody(selectedPlainText)
@@ -1046,7 +1049,7 @@ fun ConversationScreen(
                     SelectionBottomActionButton(
                         icon = Icons.AutoMirrored.Filled.Forward,
                         label = s.convActionForward,
-                        accentColor = Color(0xFF0EA5E9),
+                        accentColor = MaterialTheme.colorScheme.onSurface,
                         enabled = hasCopyableText,
                         onClick = {
                             forwardingMessageBody = selectedPlainText
@@ -1061,7 +1064,7 @@ fun ConversationScreen(
                         SelectionBottomActionButton(
                             icon = Icons.Filled.Info,
                             label = s.convActionInfo,
-                            accentColor = Color(0xFF4F46E5),
+                            accentColor = MaterialTheme.colorScheme.primary,
                             enabled = true,
                             onClick = {
                                 inspectedMessage = selectedMessages.first()
@@ -1320,20 +1323,18 @@ fun ConversationScreen(
                                     imageVector = Icons.Filled.EnhancedEncryption,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(10.dp)
+                                    modifier = Modifier.size(11.dp)
                                 )
-                                Text(
-                                    text = if (draftText.isNotEmpty()) {
-                                        "${s.charPartsCounter(draftText.length, partCount)}"
-                                    } else {
-                                        "KS256"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1
-                                )
+                                if (draftText.isNotEmpty()) {
+                                    Text(
+                                        text = s.charPartsCounter(draftText.length, partCount),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
@@ -1962,10 +1963,16 @@ private fun PremiumChatBubble(
     val isSw = s.btnCancel == "Ghairi"
     val isOutgoing = message.direction == MessageDirection.OUTGOING
     val timeText = remember(message.timestamp) {
-        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.timestamp))
+        (chatBubbleTimeFormatter.get() ?: SimpleDateFormat("HH:mm", Locale.getDefault()))
+            .format(Date(message.timestamp))
     }
-    val detectedPhoneNumbers = remember(message.body, message.isSecretBurnAfterRead) {
-        if (message.isSecretBurnAfterRead) emptyList() else ContactsLoader.extractPhoneNumbersFromText(message.body)
+    val detectedPhoneSpans = remember(message.body, message.isSecretBurnAfterRead) {
+        if (message.isSecretBurnAfterRead) emptyList()
+        else ContactsLoader.extractPhoneNumberSpans(message.body)
+    }
+    val detectedPhoneNumbers = remember(detectedPhoneSpans) {
+        if (detectedPhoneSpans.isEmpty()) emptyList()
+        else detectedPhoneSpans.map { it.rawMatch }.distinct()
     }
 
     val scaledMaxWidth = (312f * chatSizeScale).coerceIn(248f, 360f).dp
@@ -2060,11 +2067,36 @@ private fun PremiumChatBubble(
                 }
             }
         } else if (isOutgoing) {
+            val outBubbleBg = MaterialTheme.colorScheme.primaryContainer
+            val outBubbleFg = MaterialTheme.colorScheme.onPrimaryContainer
+            val outPhoneColor = MaterialTheme.colorScheme.primary
+            val outPhoneBg = MaterialTheme.colorScheme.surfaceContainerLowest
+            val outHighlightColor = MaterialTheme.colorScheme.onTertiaryContainer
+            val outHighlightBg = MaterialTheme.colorScheme.tertiaryContainer
+            val outAnnotatedText = remember(
+                message.body,
+                highlightQuery,
+                detectedPhoneSpans,
+                outPhoneColor,
+                outPhoneBg,
+                outHighlightColor,
+                outHighlightBg
+            ) {
+                buildPhoneAndSearchHighlightedText(
+                    text = message.body,
+                    query = highlightQuery,
+                    phoneColor = outPhoneColor,
+                    phoneBg = outPhoneBg,
+                    highlightColor = outHighlightColor,
+                    highlightBg = outHighlightBg,
+                    precomputedPhoneSpans = detectedPhoneSpans
+                )
+            }
             Box(
                 modifier = Modifier
                     .widthIn(max = scaledMaxWidth)
                     .clip(bubbleShape)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .background(outBubbleBg)
                     .combinedClickable(
                         onClick = {
                             if (!isSelectionMode && detectedPhoneNumbers.size == 1 && message.body.trim().length <= 18) {
@@ -2080,19 +2112,12 @@ private fun PremiumChatBubble(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = buildPhoneAndSearchHighlightedText(
-                            text = message.body,
-                            query = highlightQuery,
-                            phoneColor = Color(0xFFBAE6FD),
-                            phoneBg = Color(0x38000000),
-                            highlightColor = Color(0xFFFEF08A),
-                            highlightBg = Color(0x4D000000)
-                        ),
+                        text = outAnnotatedText,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontSize = scaledBodyFontSize,
                             lineHeight = scaledBodyLineHeight
                         ),
-                        color = Color.White
+                        color = outBubbleFg
                     )
                     if (detectedPhoneNumbers.isNotEmpty()) {
                         DetectedPhoneNumbersBubbleBar(
@@ -2105,32 +2130,32 @@ private fun PremiumChatBubble(
                         )
                     }
 
-                    // Clean Tick + Delivery Status Badge
+                    // Clean Tick + Delivery Status Badge (100% solid matte Android 17 tonal colors)
                     val hasRepliedAfter = latestIncomingReplyTimestamp > message.timestamp
                     val (tickIcon, tickTint, deliveryLabel) = when {
                         message.status == MessageStatus.DELIVERED -> Triple(
                             Icons.Filled.DoneAll,
-                            Color(0xFF6EE7B7),
+                            MaterialTheme.colorScheme.primary,
                             s.deliveryLabelDelivered
                         )
                         message.status == MessageStatus.SENT && hasRepliedAfter -> Triple(
                             Icons.Filled.DoneAll,
-                            Color(0xFF93C5FD),
+                            MaterialTheme.colorScheme.secondary,
                             s.deliveryLabelDelivered
                         )
                         message.status == MessageStatus.SENDING -> Triple(
                             Icons.Filled.Schedule,
-                            Color(0xFFFDE68A),
+                            MaterialTheme.colorScheme.tertiary,
                             s.deliveryLabelSending
                         )
                         message.status == MessageStatus.FAILED -> Triple(
                             Icons.Filled.ErrorOutline,
-                            Color(0xFFFCA5A5),
+                            MaterialTheme.colorScheme.error,
                             s.deliveryLabelFailed
                         )
                         else -> Triple(
                             Icons.Filled.Done,
-                            Color(0xE6FFFFFF),
+                            outBubbleFg,
                             s.deliveryLabelSent
                         )
                     }
@@ -2144,13 +2169,13 @@ private fun PremiumChatBubble(
                             Text(
                                 text = "${message.partCount}p •",
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
-                                color = Color(0xB8FFFFFF)
+                                color = outBubbleFg
                             )
                         }
                         Text(
                             text = timeText,
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
-                            color = Color(0xCCFFFFFF)
+                            color = outBubbleFg
                         )
                         Text(
                             text = "• $deliveryLabel",
@@ -2255,15 +2280,29 @@ private fun PremiumChatBubble(
                             )
                         }
                     }
-                    Text(
-                        text = buildPhoneAndSearchHighlightedText(
+                    val inPhoneColor = MaterialTheme.colorScheme.primary
+                    val inPhoneBg = MaterialTheme.colorScheme.primaryContainer
+                    val inAnnotatedText = remember(
+                        message.body,
+                        highlightQuery,
+                        detectedPhoneSpans,
+                        inPhoneColor,
+                        inPhoneBg,
+                        highlightColor,
+                        highlightBg
+                    ) {
+                        buildPhoneAndSearchHighlightedText(
                             text = message.body,
                             query = highlightQuery,
-                            phoneColor = MaterialTheme.colorScheme.primary,
-                            phoneBg = MaterialTheme.colorScheme.primaryContainer,
+                            phoneColor = inPhoneColor,
+                            phoneBg = inPhoneBg,
                             highlightColor = highlightColor,
-                            highlightBg = highlightBg
-                        ),
+                            highlightBg = highlightBg,
+                            precomputedPhoneSpans = detectedPhoneSpans
+                        )
+                    }
+                    Text(
+                        text = inAnnotatedText,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontSize = scaledBodyFontSize,
                             lineHeight = scaledBodyLineHeight
@@ -2322,12 +2361,12 @@ internal fun DetectedPhoneNumbersBubbleBar(
     ) {
         phoneNumbers.forEach { phone ->
             val containerBg = if (isOutgoingBubble) {
-                MaterialTheme.colorScheme.onPrimary
+                MaterialTheme.colorScheme.surfaceContainerLowest
             } else {
                 MaterialTheme.colorScheme.primaryContainer
             }
             val numberTextColor = if (isOutgoingBubble) {
-                MaterialTheme.colorScheme.primary
+                MaterialTheme.colorScheme.onSurface
             } else {
                 MaterialTheme.colorScheme.onPrimaryContainer
             }
@@ -2365,7 +2404,7 @@ internal fun DetectedPhoneNumbersBubbleBar(
                         Surface(
                             onClick = { onCall(phone) },
                             shape = CircleShape,
-                            color = Color(0xFF16A34A),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
                             modifier = Modifier
                                 .size(24.dp)
                                 .testTag("bubble_phone_call_$phone")
@@ -2374,7 +2413,7 @@ internal fun DetectedPhoneNumbersBubbleBar(
                                 Icon(
                                     imageVector = Icons.Filled.Call,
                                     contentDescription = if (isSw) "Piga" else "Call",
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.size(13.dp)
                                 )
                             }
@@ -2382,7 +2421,7 @@ internal fun DetectedPhoneNumbersBubbleBar(
                         Surface(
                             onClick = { onCopy(phone) },
                             shape = CircleShape,
-                            color = if (isOutgoingBubble) Color.White else MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier
                                 .size(24.dp)
                                 .testTag("bubble_phone_copy_$phone")
@@ -2391,7 +2430,7 @@ internal fun DetectedPhoneNumbersBubbleBar(
                                 Icon(
                                     imageVector = Icons.Filled.ContentCopy,
                                     contentDescription = "Copy",
-                                    tint = if (isOutgoingBubble) Color(0xFF1E40AF) else MaterialTheme.colorScheme.onPrimary,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(12.dp)
                                 )
                             }
@@ -2409,9 +2448,10 @@ internal fun buildPhoneAndSearchHighlightedText(
     phoneColor: Color,
     phoneBg: Color,
     highlightColor: Color,
-    highlightBg: Color
+    highlightBg: Color,
+    precomputedPhoneSpans: List<ContactsLoader.DetectedPhoneSpan>? = null
 ): androidx.compose.ui.text.AnnotatedString {
-    val phoneSpans = ContactsLoader.extractPhoneNumberSpans(text)
+    val phoneSpans = precomputedPhoneSpans ?: ContactsLoader.extractPhoneNumberSpans(text)
     if (phoneSpans.isEmpty() && query.isBlank()) {
         return androidx.compose.ui.text.AnnotatedString(text)
     }
@@ -2485,7 +2525,8 @@ private fun MessageDetailsDialog(
     val s = LocalAppStrings.current
     val isSw = s.btnCancel == "Ghairi"
     val fullDate = remember(message.timestamp) {
-        SimpleDateFormat("dd MMM yyyy, HH:mm:ss", Locale.getDefault()).format(Date(message.timestamp))
+        (chatDetailDateFormatter.get() ?: SimpleDateFormat("dd MMM yyyy, HH:mm:ss", Locale.getDefault()))
+            .format(Date(message.timestamp))
     }
     val statusText = when (message.status) {
         MessageStatus.DELIVERED -> s.statusDelivered
@@ -2579,17 +2620,24 @@ private fun buildTimelineItems(
 ): List<ChatTimelineItem> {
     if (messages.isEmpty()) return emptyList()
     val now = Calendar.getInstance()
-    val dateFmt = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-    val result = mutableListOf<ChatTimelineItem>()
-    var lastDayKey = ""
+    val nowYear = now.get(Calendar.YEAR)
+    val nowDayOfYear = now.get(Calendar.DAY_OF_YEAR)
+    val cal = Calendar.getInstance()
+    val dateFmt = chatTimelineDateFormatter.get() ?: SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+    val result = ArrayList<ChatTimelineItem>(messages.size + 8)
+    var lastYear = -1
+    var lastDayOfYear = -1
 
-    messages.forEach { msg ->
-        val cal = Calendar.getInstance().apply { timeInMillis = msg.timestamp }
-        val dayKey = "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
-        if (dayKey != lastDayKey) {
-            lastDayKey = dayKey
-            val sameYear = now.get(Calendar.YEAR) == cal.get(Calendar.YEAR)
-            val diff = now.get(Calendar.DAY_OF_YEAR) - cal.get(Calendar.DAY_OF_YEAR)
+    for (i in 0 until messages.size) {
+        val msg = messages[i]
+        cal.timeInMillis = msg.timestamp
+        val year = cal.get(Calendar.YEAR)
+        val dayOfYear = cal.get(Calendar.DAY_OF_YEAR)
+        if (year != lastYear || dayOfYear != lastDayOfYear) {
+            lastYear = year
+            lastDayOfYear = dayOfYear
+            val sameYear = nowYear == year
+            val diff = nowDayOfYear - dayOfYear
             val headerLabel = when {
                 sameYear && diff == 0 -> todayLabel
                 sameYear && diff == 1 -> yesterdayLabel

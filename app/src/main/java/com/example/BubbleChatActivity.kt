@@ -1087,39 +1087,14 @@ private fun BubbleChatContent(
                     }
                 }
 
-                // Real-time Keystore AES-256-GCM AAD-v3 status strip above Android Phone Bubble SMS Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.EnhancedEncryption,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Text(
-                            text = "Keystore AES-256 • $bubbleKeystoreFingerprint",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    statusText?.let { msg ->
-                        Text(
-                            text = msg,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF16A34A)
-                        )
-                    }
+                statusText?.let { msg ->
+                    Text(
+                        text = msg,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF16A34A),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 // Compact Bottom Authentic Android Phone SMS Composer Bar inside Bubble Pop ("Hii bar ya kutuma sms mpya weka iwe ndogo")
@@ -1470,11 +1445,13 @@ private fun BubbleMessageRow(
         horizontalArrangement = if (isOutgoing) Arrangement.End else Arrangement.Start
     ) {
         if (isOutgoing) {
+            val outBg = MaterialTheme.colorScheme.primaryContainer
+            val outFg = MaterialTheme.colorScheme.onPrimaryContainer
             Box(
                 modifier = Modifier
                     .widthIn(max = 285.dp)
                     .clip(bubbleShape)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .background(outBg)
                     .combinedClickable(
                         onClick = {},
                         onLongClick = onLongPress
@@ -1485,10 +1462,10 @@ private fun BubbleMessageRow(
                     Text(
                         text = body,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimary
+                        color = outFg
                     )
                     if (detectedPhones.isNotEmpty()) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.primaryContainer)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerLowest)
                         detectedPhones.forEach { num ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1499,32 +1476,32 @@ private fun BubbleMessageRow(
                                     text = num,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimary
+                                    color = outFg
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Surface(
                                         onClick = { onCallPhone(num) },
                                         shape = RoundedCornerShape(7.dp),
-                                        color = Color(0xFF16A34A)
+                                        color = MaterialTheme.colorScheme.secondaryContainer
                                     ) {
                                         Text(
                                             text = if (isSw) "Piga" else "Call",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
                                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                         )
                                     }
                                     Surface(
                                         onClick = { onCopyText(num) },
                                         shape = RoundedCornerShape(7.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer
+                                        color = MaterialTheme.colorScheme.surfaceContainerLowest
                                     ) {
                                         Text(
                                             text = "Copy",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                         )
                                     }
@@ -1535,22 +1512,22 @@ private fun BubbleMessageRow(
                     val (tickIcon, tickTint, deliveryReportLabel) = when (status) {
                         MessageStatus.DELIVERED -> Triple(
                             Icons.Filled.DoneAll,
-                            Color(0xFF6EE7B7),
+                            MaterialTheme.colorScheme.primary,
                             if (isSw) "Imefika" else "Delivered"
                         )
                         MessageStatus.FAILED -> Triple(
                             Icons.Filled.ErrorOutline,
-                            Color(0xFFFCA5A5),
+                            MaterialTheme.colorScheme.error,
                             if (isSw) "Imeshindwa" else "Failed"
                         )
                         MessageStatus.SENDING -> Triple(
                             Icons.Filled.Schedule,
-                            Color(0xFFFDE68A),
+                            MaterialTheme.colorScheme.tertiary,
                             if (isSw) "Inatuma..." else "Sending..."
                         )
                         else -> Triple(
                             Icons.Filled.Done,
-                            MaterialTheme.colorScheme.onPrimary,
+                            outFg,
                             if (isSw) "Imetumwa" else "Sent"
                         )
                     }
@@ -1562,7 +1539,7 @@ private fun BubbleMessageRow(
                         Text(
                             text = timeText,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary
+                            color = outFg
                         )
                         Text(
                             text = "• $deliveryReportLabel",

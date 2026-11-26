@@ -158,8 +158,8 @@ object GithubUpdateChecker {
                 @Suppress("DEPRECATION")
                 pm.getPackageInfo(context.packageName, 0)
             }
-            pkgInfo.versionName?.takeIf { it.isNotBlank() } ?: "2.0.0"
-        }.getOrDefault("2.0.0")
+            pkgInfo.versionName?.takeIf { it.isNotBlank() } ?: "3.0.0"
+        }.getOrDefault("3.0.0")
 
         val otaVersion = getSelfInstalledOtaVersion(context)
         return if (!otaVersion.isNullOrBlank() && isRemoteVersionNewer(baseVersion, otaVersion)) {
@@ -448,13 +448,10 @@ object GithubUpdateChecker {
         val baseVer = currentVersion.substringBefore('+').removePrefix("v").removePrefix("V")
         val release = GithubReleaseInfo(
             tagName = "v$baseVer",
-            releaseName = "MengiTex v$baseVer • Hyper 10x Edition",
-            bodyNotes = "• 10-Stream (10x) Hyper-Speed Downloader (256KB Buffer & Live MB/s)\n" +
-                "• 4-Stage Auto Self-Installer (SHA-256 Verified & Zero Data Loss)\n" +
-                "• Instant Chat, Dual-SIM & Smart Ad Blocker (07/06/+255 Safe)\n" +
-                "• Hyper-Turbo 600K+ XML/SMS Backup & 3-Tier Auto-Recovery Shield",
+            releaseName = "MengiTex v$baseVer",
+            bodyNotes = "",
             htmlUrl = "https://github.com/$slug/releases",
-            publishedAt = "v$baseVer Upgrade",
+            publishedAt = "v$baseVer",
             isPrerelease = false,
             apkAssetUrl = LOCAL_APK_SCHEME,
             apkAssetName = "MengiTex-v$baseVer.apk",

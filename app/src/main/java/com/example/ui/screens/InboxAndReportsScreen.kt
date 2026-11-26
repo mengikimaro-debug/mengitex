@@ -127,7 +127,7 @@ data class ConversationThread(
     val isBlockedAdThread: Boolean = false
 )
 
-private data class GroupedInboxData(
+data class GroupedInboxData(
     val threadsWithMessages: List<Pair<ConversationThread, List<DecryptedSmsMessage>>>,
     val blockedAdsCount: Int
 )
@@ -150,7 +150,7 @@ private class SinglePassThreadAcc(
     val messages: ArrayList<DecryptedSmsMessage> = ArrayList(8)
 )
 
-private fun buildInboxThreadsSinglePass(
+fun buildInboxThreadsSinglePass(
     messages: List<DecryptedSmsMessage>,
     contacts: List<ContactItem>
 ): GroupedInboxData {
@@ -308,6 +308,7 @@ private fun filterThreadsFast(
 fun InboxAndReportsScreen(
     messages: List<DecryptedSmsMessage>,
     contacts: List<ContactItem> = emptyList(),
+    precomputedGroupedInbox: GroupedInboxData? = null,
     filter: InboxFilter,
     settings: SecuritySettings,
     isDefaultSmsApp: Boolean = false,
@@ -361,15 +362,16 @@ fun InboxAndReportsScreen(
     val trimmedQuery = searchQuery.trim()
     val queryDigits = remember(trimmedQuery) { trimmedQuery.filter { it.isDigit() } }
 
-    // 6G Single-pass O(N) thread grouping: zero coroutine hop for <= 6,000 SMS (takes ~1.5ms),
-    // background-accelerated on Dispatchers.Default for giant 100k..600k archives.
-    val groupedInboxData = if (messages.size <= 6000) {
+    // Zero-latency precomputed thread index from ViewModel when provided; otherwise fallback to fast async pass.
+    val groupedInboxData = if (precomputedGroupedInbox != null) {
+        precomputedGroupedInbox
+    } else if (messages.size <= 120) {
         remember(messages, contacts) {
             buildInboxThreadsSinglePass(messages, contacts)
         }
     } else {
         val asyncGrouped by androidx.compose.runtime.produceState(
-            initialValue = remember { buildInboxThreadsSinglePass(messages, contacts) },
+            initialValue = remember { buildInboxThreadsSinglePass(messages.take(120), contacts) },
             key1 = messages,
             key2 = contacts
         ) {
@@ -383,8 +385,8 @@ fun InboxAndReportsScreen(
     val allThreadsWithMessages = groupedInboxData.threadsWithMessages
     val blockedAdsMessageCount = groupedInboxData.blockedAdsCount
 
-    // Zero-hop synchronous filtering when browsing inbox tabs (0.05ms!), async only for massive search queries
-    val conversations = if (trimmedQuery.isEmpty() || messages.size <= 6000) {
+    // Zero-hop synchronous filtering when browsing inbox tabs, async on Default for active text search over >100 threads
+    val conversations = if (trimmedQuery.isEmpty() || allThreadsWithMessages.size <= 100) {
         remember(allThreadsWithMessages, activeFilter, trimmedQuery, queryDigits, searchScope) {
             filterThreadsFast(
                 allThreadsWithMessages = allThreadsWithMessages,
@@ -427,20 +429,30 @@ fun InboxAndReportsScreen(
         if (trimmedQuery.isEmpty() || searchScope == SearchScope.MESSAGES) {
             emptyList()
         } else {
-            val existingNorms = allThreadsWithMessages.map { it.first.normalizedPhone }.toSet()
+            val existingNorms = HashSet<String>(allThreadsWithMessages.size)
+            for (i in 0 until allThreadsWithMessages.size) {
+                existingNorms.add(allThreadsWithMessages[i].first.normalizedPhone)
+            }
             val qLower = trimmedQuery.lowercase()
-            contacts.filter { contact ->
+            val hits = ArrayList<ContactItem>(6)
+            for (i in 0 until contacts.size) {
+                val contact = contacts[i]
                 val norm = ContactsLoader.normalizePhone(contact.phoneNumber)
-                if (norm in existingNorms) return@filter false
+                if (norm in existingNorms) continue
                 val nameMatch = contact.name.lowercase().contains(qLower)
                 val numMatch = contact.phoneNumber.lowercase().contains(qLower) ||
                     (queryDigits.length >= 2 && contact.phoneNumber.filter { it.isDigit() }.contains(queryDigits))
-                when (searchScope) {
+                val matches = when (searchScope) {
                     SearchScope.NAMES -> nameMatch
                     SearchScope.NUMBERS -> numMatch
                     else -> nameMatch || numMatch
                 }
-            }.take(6)
+                if (matches) {
+                    hits.add(contact)
+                    if (hits.size >= 6) break
+                }
+            }
+            hits
         }
     }
 
@@ -658,41 +670,12 @@ fun InboxAndReportsScreen(
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = s.adBlockerBannerTitle(blockedAdsMessageCount),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = s.adBlockerBannerSub,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.VerifiedUser,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Text(
-                                    text = s.adBlockerProtectedChip,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            }
+                            Text(
+                                text = s.adBlockerBannerTitle(blockedAdsMessageCount),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -768,20 +751,13 @@ fun InboxAndReportsScreen(
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = s.defaultSmsBannerTitle,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = s.defaultSmsBannerSub,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
+                            Text(
+                                text = s.defaultSmsBannerTitle,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.weight(1f)
+                            )
                             IconButton(
                                 onClick = { dismissedDefaultBanner = true },
                                 modifier = Modifier.size(28.dp)
@@ -930,12 +906,6 @@ fun InboxAndReportsScreen(
                             textAlign = TextAlign.Center
                         )
                         if (activeFilter != InboxFilter.BLOCKED_ADS) {
-                            Text(
-                                text = s.inboxEmptyHint,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
                             Spacer(modifier = Modifier.height(4.dp))
                             NextGenGradientFab(
                                 text = s.btnNewMessage,
@@ -947,6 +917,7 @@ fun InboxAndReportsScreen(
                     }
                 }
             } else {
+                val isDarkTheme = isSystemInDarkTheme()
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -963,6 +934,7 @@ fun InboxAndReportsScreen(
                             highlightQuery = trimmedQuery,
                             isSelected = isThreadSelected,
                             isSelectionMode = isSelectionMode,
+                            isDark = isDarkTheme,
                             onViewProfile = {
                                 if (isSelectionMode) {
                                     selectedThreadKeys = if (isThreadSelected) {
@@ -1002,9 +974,8 @@ fun InboxAndReportsScreen(
                             key = { "contact_match_${it.id}" },
                             contentType = { "contact_search_match" }
                         ) { contact ->
-                            val isDark = isSystemInDarkTheme()
-                            val (avatarBg, avatarFg) = remember(contact.phoneNumber, isDark) {
-                                android17AvatarColors(contact.phoneNumber, isDark)
+                            val (avatarBg, avatarFg) = remember(contact.phoneNumber, isDarkTheme) {
+                                android17AvatarColors(contact.phoneNumber, isDarkTheme)
                             }
                             val rowShape = RoundedCornerShape(20.dp)
                             val highlightColor = MaterialTheme.colorScheme.primary
@@ -1271,6 +1242,7 @@ private fun PremiumConversationRow(
     highlightQuery: String = "",
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
+    isDark: Boolean = isSystemInDarkTheme(),
     onViewProfile: () -> Unit = {},
     onAllowBlockedAd: (() -> Unit)? = null,
     onClick: () -> Unit,
@@ -1279,7 +1251,6 @@ private fun PremiumConversationRow(
     val s = LocalAppStrings.current
     val previewMsg = thread.matchedMessage ?: thread.latestMessage
     val hasUnread = thread.unreadCount > 0
-    val isDark = isSystemInDarkTheme()
     val (avatarBg, avatarFg) = remember(thread.normalizedPhone, isDark) {
         android17AvatarColors(thread.normalizedPhone, isDark)
     }
@@ -1571,16 +1542,32 @@ internal fun extractInitials(displayName: String): String {
     }
 }
 
+private val inboxTimeFormat = object : ThreadLocal<SimpleDateFormat>() {
+    override fun initialValue(): SimpleDateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+}
+private val inboxSameYearFormat = object : ThreadLocal<SimpleDateFormat>() {
+    override fun initialValue(): SimpleDateFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
+}
+private val inboxOtherYearFormat = object : ThreadLocal<SimpleDateFormat>() {
+    override fun initialValue(): SimpleDateFormat = SimpleDateFormat("dd/MM/yy", Locale.getDefault())
+}
+private val inboxCalendarPool = object : ThreadLocal<Calendar>() {
+    override fun initialValue(): Calendar = Calendar.getInstance()
+}
+
 private fun formatSmartConversationTime(timestamp: Long, yesterdayLabel: String): String {
-    val now = Calendar.getInstance()
-    val target = Calendar.getInstance().apply { timeInMillis = timestamp }
-    val sameYear = now.get(Calendar.YEAR) == target.get(Calendar.YEAR)
-    val dayDiff = now.get(Calendar.DAY_OF_YEAR) - target.get(Calendar.DAY_OF_YEAR)
+    val cal = inboxCalendarPool.get() ?: Calendar.getInstance()
+    cal.timeInMillis = System.currentTimeMillis()
+    val nowYear = cal.get(Calendar.YEAR)
+    val nowDay = cal.get(Calendar.DAY_OF_YEAR)
+    cal.timeInMillis = timestamp
+    val sameYear = nowYear == cal.get(Calendar.YEAR)
+    val dayDiff = nowDay - cal.get(Calendar.DAY_OF_YEAR)
     return when {
-        sameYear && dayDiff == 0 -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+        sameYear && dayDiff == 0 -> (inboxTimeFormat.get() ?: SimpleDateFormat("HH:mm", Locale.getDefault())).format(Date(timestamp))
         sameYear && dayDiff == 1 -> yesterdayLabel
-        sameYear -> SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(timestamp))
-        else -> SimpleDateFormat("dd/MM/yy", Locale.getDefault()).format(Date(timestamp))
+        sameYear -> (inboxSameYearFormat.get() ?: SimpleDateFormat("dd MMM", Locale.getDefault())).format(Date(timestamp))
+        else -> (inboxOtherYearFormat.get() ?: SimpleDateFormat("dd/MM/yy", Locale.getDefault())).format(Date(timestamp))
     }
 }
 

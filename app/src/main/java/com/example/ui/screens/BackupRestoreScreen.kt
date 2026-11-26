@@ -197,7 +197,7 @@ fun BackupRestoreScreen(
         // Samsung One UI 8.5 Sub-Screen Header
         com.example.ui.components.OneUi85SubScreenHeader(
             title = s.backupCenterTitle,
-            subtitle = "600k+ Turbo • Keystore AES-256",
+            subtitle = null,
             backIcon = Icons.AutoMirrored.Filled.ArrowBack,
             backContentDescription = s.cdBack,
             backTestTag = "backup_back_button",

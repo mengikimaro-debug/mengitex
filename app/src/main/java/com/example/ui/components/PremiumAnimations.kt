@@ -19,8 +19,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +50,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -64,32 +61,14 @@ import androidx.compose.ui.unit.dp
 import com.example.ui.MainTab
 
 /**
- * Tactile spring scale micro-interaction on press for buttons, cards, and chips.
+ * Lightweight M3 tactile clickable modifier without Modifier.composed allocation overhead.
  */
+@Suppress("UNUSED_PARAMETER")
 fun Modifier.premiumBounceClickable(
     enabled: Boolean = true,
     pressedScale: Float = 0.965f,
     onClick: () -> Unit
-): Modifier = composed {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed && enabled) pressedScale else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "premium_bounce_scale"
-    )
-    this
-        .scale(scale)
-        .clickable(
-            interactionSource = interactionSource,
-            indication = androidx.compose.material3.ripple(),
-            enabled = enabled,
-            onClick = onClick
-        )
-}
+): Modifier = this.clickable(enabled = enabled, onClick = onClick)
 
 @Composable
 fun StaggeredEntrance(

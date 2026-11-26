@@ -77,7 +77,7 @@ fun TemplatesScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             OneUi85SubScreenHeader(
                 title = s.templatesTitle,
-                subtitle = "Keystore AES-256",
+                subtitle = null,
                 backIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 backContentDescription = s.cdBack,
                 backTestTag = "templates_back_button",

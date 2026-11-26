@@ -220,7 +220,7 @@ fun ComposeScreen(
     ) {
         OneUi85SubScreenHeader(
             title = s.composeTitle,
-            subtitle = if (isSw) "Chagua namba, tafuta & andika SMS" else "Add number, search & type SMS",
+            subtitle = null,
             backIcon = Icons.AutoMirrored.Filled.ArrowBack,
             backContentDescription = s.cdBack,
             backTestTag = "compose_back_button",
@@ -770,7 +770,7 @@ fun ComposeScreen(
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
-                                text = "KS256 • ${s.charPartsCounter(bodyText.length, partsCount)}",
+                                text = s.charPartsCounter(bodyText.length, partsCount),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,

@@ -356,11 +356,8 @@ private fun MengiTexAppRoot(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activeMessages by viewModel.activeMessages.collectAsStateWithLifecycle()
-    val messagesByThreadKey by viewModel.messagesByThreadKey.collectAsStateWithLifecycle()
-    val scheduledMessages by viewModel.scheduledMessages.collectAsStateWithLifecycle()
-    val trashedMessages by viewModel.trashedMessages.collectAsStateWithLifecycle()
+    val groupedInboxData by viewModel.groupedInboxData.collectAsStateWithLifecycle()
     val activeTemplates by viewModel.activeTemplates.collectAsStateWithLifecycle()
-    val trashedTemplates by viewModel.trashedTemplates.collectAsStateWithLifecycle()
     val allContacts by viewModel.allContacts.collectAsStateWithLifecycle()
     val trashCount by viewModel.trashCount.collectAsStateWithLifecycle()
 
@@ -377,36 +374,41 @@ private fun MengiTexAppRoot(
     var lastPoppedMessageId by remember { mutableStateOf(-1L) }
     var activePopMessage by remember { mutableStateOf<DecryptedSmsMessage?>(null) }
 
-    LaunchedEffect(activeMessages, uiState.isLocked, uiState.activeDestination, uiState.activeConversationPhone, uiState.settings) {
-        if (uiState.isLocked) return@LaunchedEffect
-        val newestIncoming = activeMessages
-            .asSequence()
-            .filter {
-                it.direction == MessageDirection.INCOMING &&
-                    !it.isSilentIntercepted &&
-                    it.status != MessageStatus.BLOCKED_AD &&
-                    it.timestamp >= sessionStartedAt &&
-                    it.id > lastPoppedMessageId
+    LaunchedEffect(activeMessages, uiState.isLocked) {
+        if (uiState.isLocked || activeMessages.isEmpty()) return@LaunchedEffect
+        var newestIncoming: DecryptedSmsMessage? = null
+        // activeMessages is ordered newest-first: break immediately once below sessionStartedAt (~1 iteration!)
+        for (i in 0 until activeMessages.size) {
+            val m = activeMessages[i]
+            if (m.timestamp < sessionStartedAt) break
+            if (m.direction == MessageDirection.INCOMING &&
+                !m.isSilentIntercepted &&
+                m.status != MessageStatus.BLOCKED_AD &&
+                m.id > lastPoppedMessageId
+            ) {
+                if (newestIncoming == null || m.timestamp > newestIncoming.timestamp) {
+                    newestIncoming = m
+                }
             }
-            .maxByOrNull { it.timestamp }
-            ?: return@LaunchedEffect
+        }
+        val targetIncoming = newestIncoming ?: return@LaunchedEffect
 
-        lastPoppedMessageId = newestIncoming.id
+        lastPoppedMessageId = targetIncoming.id
         val isTxn = SmsAdBlockerEngine.evaluate(
-            senderAddress = newestIncoming.phoneNumber,
-            body = newestIncoming.body,
+            senderAddress = targetIncoming.phoneNumber,
+            body = targetIncoming.body,
             isSavedContact = false,
             whitelistedSenders = emptySet(),
             autoBlockAdsEnabled = true
         ).isProtectedTransaction
-        if (MengiTexNotificationManager.shouldSuppressInAppPop(newestIncoming.phoneNumber, isTxn, uiState.settings)) {
+        if (MengiTexNotificationManager.shouldSuppressInAppPop(targetIncoming.phoneNumber, isTxn, uiState.settings)) {
             return@LaunchedEffect
         }
         val viewingSameThread = uiState.activeDestination == DrawerDestination.CONVERSATION &&
             ContactsLoader.normalizePhone(uiState.activeConversationPhone) ==
-            ContactsLoader.normalizePhone(newestIncoming.phoneNumber)
+            ContactsLoader.normalizePhone(targetIncoming.phoneNumber)
         if (!viewingSameThread) {
-            activePopMessage = newestIncoming
+            activePopMessage = targetIncoming
         }
     }
 
@@ -552,11 +554,14 @@ private fun MengiTexAppRoot(
         permissionsLauncher.launch(perms.toTypedArray())
     }
 
-    // Automatic by Android System: register notification channels & auto-request missing runtime permissions + Default SMS role once per install
+    // Automatic by Android System: auto-request missing runtime permissions + Default SMS role once per install
+    var autoSystemCheckedThisSession by remember { mutableStateOf(false) }
     LaunchedEffect(uiState.isLocked) {
-        if (uiState.isLocked) return@LaunchedEffect
-        MengiTexNotificationManager.ensureAllChannelsCreated(context, uiState.settings)
-        val sysPrefs = context.getSharedPreferences("mengitex_auto_system_prefs", Context.MODE_PRIVATE)
+        if (uiState.isLocked || autoSystemCheckedThisSession) return@LaunchedEffect
+        autoSystemCheckedThisSession = true
+        val sysPrefs = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            context.getSharedPreferences("mengitex_auto_system_prefs", Context.MODE_PRIVATE)
+        }
         val missingPerms = buildList {
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 add(Manifest.permission.SEND_SMS)
@@ -719,30 +724,40 @@ private fun MengiTexAppRoot(
                         drawerState = drawerState,
                         scrimColor = Color(0xAD050914),
                         drawerContent = {
-                            SecurityDrawerContent(
-                                settings = uiState.settings,
-                                detectedSims = uiState.detectedSims,
-                                scheduledCount = scheduledMessages.size,
-                                trashCount = trashCount,
-                                hiddenFilesCount = uiState.vaultStats.totalEncryptedFiles,
-                                totalMessagesCount = activeMessages.size,
-                                isDefaultSmsApp = uiState.isDefaultSmsApp,
-                                hasUpgradeAvailable = uiState.hasUpgradeAvailable,
-                                latestUpgradeTag = uiState.latestUpgradeTag,
-                                onSecurityLevelChange = viewModel::setSecurityLevel,
-                                onNavigateDestination = { dest ->
-                                    scope.launch { drawerState.close() }
-                                    viewModel.openDestination(dest)
-                                },
-                                onLockNow = {
-                                    scope.launch { drawerState.close() }
-                                    if (uiState.settings.hasPasscode) {
-                                        viewModel.lockAppNow()
-                                    } else {
-                                        viewModel.openDestination(DrawerDestination.SECURITY)
+                            val shouldRenderDrawer = drawerState.isOpen ||
+                                drawerState.isAnimationRunning ||
+                                drawerState.targetValue != DrawerValue.Closed
+                            if (shouldRenderDrawer) {
+                                val scheduledMessages by viewModel.scheduledMessages.collectAsStateWithLifecycle()
+                                SecurityDrawerContent(
+                                    settings = uiState.settings,
+                                    detectedSims = uiState.detectedSims,
+                                    scheduledCount = scheduledMessages.size,
+                                    trashCount = trashCount,
+                                    hiddenFilesCount = uiState.vaultStats.totalEncryptedFiles,
+                                    totalMessagesCount = activeMessages.size,
+                                    isDefaultSmsApp = uiState.isDefaultSmsApp,
+                                    hasUpgradeAvailable = uiState.hasUpgradeAvailable,
+                                    latestUpgradeTag = uiState.latestUpgradeTag,
+                                    onSecurityLevelChange = viewModel::setSecurityLevel,
+                                    onNavigateDestination = { dest ->
+                                        scope.launch { drawerState.close() }
+                                        viewModel.openDestination(dest)
+                                    },
+                                    onLockNow = {
+                                        scope.launch { drawerState.close() }
+                                        if (uiState.settings.hasPasscode) {
+                                            viewModel.lockAppNow()
+                                        } else {
+                                            viewModel.openDestination(DrawerDestination.SECURITY)
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            } else {
+                                androidx.compose.material3.ModalDrawerSheet(
+                                    modifier = Modifier.width(332.dp)
+                                ) {}
+                            }
                         }
                     ) {
                         val s = LocalAppStrings.current
@@ -827,20 +842,6 @@ private fun MengiTexAppRoot(
                                                         }
                                                     }
                                                 }
-
-                                                Surface(
-                                                    shape = RoundedCornerShape(50),
-                                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                                    modifier = Modifier.padding(end = 8.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "AES-256",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                                                    )
-                                                }
                                             }
                                             HorizontalDivider(
                                                 thickness = 1.dp,
@@ -881,26 +882,14 @@ private fun MengiTexAppRoot(
                                 AnimatedContent(
                                     targetState = uiState.activeDestination,
                                     transitionSpec = {
-                                        if (targetState != DrawerDestination.NONE && initialState == DrawerDestination.NONE) {
-                                            (slideInHorizontally(
-                                                initialOffsetX = { it / 10 },
-                                                animationSpec = tween(115, easing = FastOutSlowInEasing)
-                                            ) + fadeIn(tween(100))) togetherWith
-                                                fadeOut(tween(80))
-                                        } else if (targetState == DrawerDestination.NONE && initialState != DrawerDestination.NONE) {
-                                            fadeIn(tween(95)) togetherWith
-                                                (slideOutHorizontally(
-                                                    targetOffsetX = { it / 10 },
-                                                    animationSpec = tween(105, easing = FastOutSlowInEasing)
-                                                ) + fadeOut(tween(80)))
-                                        } else {
-                                            fadeIn(tween(90)) togetherWith fadeOut(tween(75))
-                                        }
+                                        fadeIn(tween(65, easing = FastOutSlowInEasing)) togetherWith
+                                            fadeOut(tween(45, easing = FastOutSlowInEasing))
                                     },
                                     label = "destination_transition"
                                 ) { dest ->
                                     when (dest) {
                                         DrawerDestination.CONVERSATION -> {
+                                            val messagesByThreadKey by viewModel.messagesByThreadKey.collectAsStateWithLifecycle()
                                             val activeThreadKey = remember(uiState.activeConversationPhone, uiState.activeConversationName) {
                                                 ContactsLoader.resolveCanonicalThreadKey(
                                                     uiState.activeConversationPhone,
@@ -990,13 +979,16 @@ private fun MengiTexAppRoot(
                                             onSchedule = viewModel::scheduleBroadcast
                                         )
 
-                                        DrawerDestination.SCHEDULE -> ScheduleScreen(
-                                            scheduledMessages = scheduledMessages,
-                                            onBack = viewModel::closeDestination,
-                                            onSendNow = viewModel::sendScheduledNow,
-                                            onMoveToTrash = viewModel::moveMessageToTrash,
-                                            onCreateNewSchedule = { viewModel.openDestination(DrawerDestination.COMPOSE) }
-                                        )
+                                        DrawerDestination.SCHEDULE -> {
+                                            val scheduledMessages by viewModel.scheduledMessages.collectAsStateWithLifecycle()
+                                            ScheduleScreen(
+                                                scheduledMessages = scheduledMessages,
+                                                onBack = viewModel::closeDestination,
+                                                onSendNow = viewModel::sendScheduledNow,
+                                                onMoveToTrash = viewModel::moveMessageToTrash,
+                                                onCreateNewSchedule = { viewModel.openDestination(DrawerDestination.COMPOSE) }
+                                            )
+                                        }
 
                                         DrawerDestination.TEMPLATES -> TemplatesScreen(
                                             templates = activeTemplates,
@@ -1035,28 +1027,35 @@ private fun MengiTexAppRoot(
                                             onOpenTrash = { viewModel.openDestination(DrawerDestination.TRASH) }
                                         )
 
-                                        DrawerDestination.USAGE_DASHBOARD -> UsageDashboardScreen(
-                                            messages = activeMessages,
-                                            scheduledMessages = scheduledMessages,
-                                            trashedCount = trashCount,
-                                            vaultStats = uiState.vaultStats,
-                                            onOpenConversation = { name, phone ->
-                                                viewModel.openConversation(name, phone)
-                                            },
-                                            onQuickCompose = { viewModel.openDestination(DrawerDestination.COMPOSE) },
-                                            onBack = viewModel::closeDestination
-                                        )
+                                        DrawerDestination.USAGE_DASHBOARD -> {
+                                            val scheduledMessages by viewModel.scheduledMessages.collectAsStateWithLifecycle()
+                                            UsageDashboardScreen(
+                                                messages = activeMessages,
+                                                scheduledMessages = scheduledMessages,
+                                                trashedCount = trashCount,
+                                                vaultStats = uiState.vaultStats,
+                                                onOpenConversation = { name, phone ->
+                                                    viewModel.openConversation(name, phone)
+                                                },
+                                                onQuickCompose = { viewModel.openDestination(DrawerDestination.COMPOSE) },
+                                                onBack = viewModel::closeDestination
+                                            )
+                                        }
 
-                                        DrawerDestination.TRASH -> TrashScreen(
-                                            trashedMessages = trashedMessages,
-                                            trashedTemplates = trashedTemplates,
-                                            onBack = viewModel::closeDestination,
-                                            onRestoreMessage = viewModel::restoreMessage,
-                                            onDeleteMessageForever = viewModel::permanentlyDeleteMessage,
-                                            onRestoreTemplate = viewModel::restoreTemplate,
-                                            onDeleteTemplateForever = viewModel::permanentlyDeleteTemplate,
-                                            onEmptyAllTrash = viewModel::emptyTrash
-                                        )
+                                        DrawerDestination.TRASH -> {
+                                            val trashedMessages by viewModel.trashedMessages.collectAsStateWithLifecycle()
+                                            val trashedTemplates by viewModel.trashedTemplates.collectAsStateWithLifecycle()
+                                            TrashScreen(
+                                                trashedMessages = trashedMessages,
+                                                trashedTemplates = trashedTemplates,
+                                                onBack = viewModel::closeDestination,
+                                                onRestoreMessage = viewModel::restoreMessage,
+                                                onDeleteMessageForever = viewModel::permanentlyDeleteMessage,
+                                                onRestoreTemplate = viewModel::restoreTemplate,
+                                                onDeleteTemplateForever = viewModel::permanentlyDeleteTemplate,
+                                                onEmptyAllTrash = viewModel::emptyTrash
+                                            )
+                                        }
 
                                         DrawerDestination.HIDDEN_LOGS -> HiddenLogsScreen(
                                             logs = uiState.vaultLogs,
@@ -1175,16 +1174,8 @@ private fun MengiTexAppRoot(
                                             AnimatedContent(
                                                 targetState = uiState.selectedTab,
                                                 transitionSpec = {
-                                                    val forward = targetState.ordinal > initialState.ordinal
-                                                    val slideIn = slideInHorizontally(
-                                                        initialOffsetX = { if (forward) it / 10 else -it / 10 },
-                                                        animationSpec = tween(105, easing = FastOutSlowInEasing)
-                                                    )
-                                                    val slideOut = slideOutHorizontally(
-                                                        targetOffsetX = { if (forward) -it / 10 else it / 10 },
-                                                        animationSpec = tween(90, easing = FastOutSlowInEasing)
-                                                    )
-                                                    (slideIn + fadeIn(tween(95))) togetherWith (slideOut + fadeOut(tween(75)))
+                                                    fadeIn(tween(65, easing = FastOutSlowInEasing)) togetherWith
+                                                        fadeOut(tween(45, easing = FastOutSlowInEasing))
                                                 },
                                                 label = "main_tab_transition"
                                             ) { tab ->
@@ -1192,6 +1183,7 @@ private fun MengiTexAppRoot(
                                                     MainTab.MESSAGES -> InboxAndReportsScreen(
                                                         messages = activeMessages,
                                                         contacts = allContacts,
+                                                        precomputedGroupedInbox = groupedInboxData,
                                                         filter = uiState.inboxFilter,
                                                         settings = uiState.settings,
                                                         isDefaultSmsApp = uiState.isDefaultSmsApp,

@@ -2,6 +2,8 @@ package com.example.data
 
 import android.content.Context
 import com.example.security.VaultCryptoManager
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -36,10 +38,18 @@ object SmsInstantCache {
     @Volatile
     private var memorySnapshot: List<DecryptedSmsMessage> = emptyList()
 
+    @Volatile
+    private var lastSavedFingerprint: Long = 0L
+
+    /**
+     * Zero-I/O Frame-0 RAM check (~0.001ms): never touches disk or AndroidKeyStore on Main Thread.
+     */
+    fun loadMemoryOnly(): List<DecryptedSmsMessage> = memorySnapshot
+
     /**
      * Returns immediately cached messages for Frame 1 hydration & self-healing recovery:
      * - First checks in-process RAM snapshot (~0ms).
-     * - Falls back to primary encrypted disk snapshot (.bin) or shadow backup (.bin.bak) (~2–5ms).
+     * - Falls back to primary encrypted disk snapshot (.bin) or shadow backup (.bin.bak) on IO thread.
      */
     fun loadInstantSync(context: Context, crypto: VaultCryptoManager): List<DecryptedSmsMessage> {
         val inMem = memorySnapshot
@@ -49,8 +59,23 @@ object SmsInstantCache {
         val fromDisk = readDiskSnapshot(context.applicationContext, crypto)
         if (fromDisk.isNotEmpty()) {
             memorySnapshot = fromDisk
+            lastSavedFingerprint = computeListFingerprint(fromDisk)
         }
         return fromDisk
+    }
+
+    private fun computeListFingerprint(messages: List<DecryptedSmsMessage>): Long {
+        if (messages.isEmpty()) return 0L
+        val first = messages.first()
+        val last = messages.last()
+        var h = messages.size.toLong()
+        h = h * 31L + first.id
+        h = h * 31L + first.timestamp
+        h = h * 31L + first.status.hashCode().toLong()
+        h = h * 31L + (if (first.isRead) 1L else 0L)
+        h = h * 31L + last.id
+        h = h * 31L + last.timestamp
+        return h
     }
 
     /**
@@ -79,6 +104,11 @@ object SmsInstantCache {
             return
         }
         val appContext = context.applicationContext
+        val fingerprint = computeListFingerprint(messages)
+        val targetFile = File(appContext.filesDir, CACHE_FILE_NAME)
+        if (fingerprint != 0L && fingerprint == lastSavedFingerprint && targetFile.exists() && targetFile.length() > 32L) {
+            return
+        }
         VaultCryptoManager.bindContext(appContext)
 
         val selected = selectSnapshotSubset(messages)
@@ -107,6 +137,7 @@ object SmsInstantCache {
                 if (!backup.exists() || backup.length() == 0L) {
                     runCatching { target.copyTo(backup, overwrite = true) }
                 }
+                lastSavedFingerprint = fingerprint
             }
         }
     }
@@ -158,6 +189,7 @@ object SmsInstantCache {
      */
     fun clear(context: Context) {
         memorySnapshot = emptyList()
+        lastSavedFingerprint = 0L
         synchronized(diskLock) {
             val dir = context.applicationContext.filesDir
             runCatching { File(dir, CACHE_FILE_NAME).delete() }
@@ -225,12 +257,13 @@ object SmsInstantCache {
     }
 
     private fun serializeMessages(messages: List<DecryptedSmsMessage>): ByteArray {
-        val baos = ByteArrayOutputStream(messages.size * 128 + 64)
-        GZIPOutputStream(baos).use { gzip ->
-            DataOutputStream(gzip).use { out ->
-                out.writeInt(CACHE_MAGIC)
-                out.writeInt(CACHE_VERSION)
-                out.writeInt(messages.size)
+        val baos = ByteArrayOutputStream(minOf(messages.size * 96 + 64, 512 * 1024))
+        GZIPOutputStream(baos, 16384).use { gzip ->
+            BufferedOutputStream(gzip, 16384).use { bos ->
+                DataOutputStream(bos).use { out ->
+                    out.writeInt(CACHE_MAGIC)
+                    out.writeInt(CACHE_VERSION)
+                    out.writeInt(messages.size)
                 for (i in 0 until messages.size) {
                     val m = messages[i]
                     out.writeLong(m.id)
@@ -255,19 +288,21 @@ object SmsInstantCache {
                     if (m.deletedAt != null) out.writeLong(m.deletedAt)
                     writeSafeString(out, m.canonicalThreadKey)
                 }
+                }
             }
         }
         return baos.toByteArray()
     }
 
     private fun deserializeMessages(rawBytes: ByteArray): List<DecryptedSmsMessage> {
-        GZIPInputStream(ByteArrayInputStream(rawBytes)).use { gzip ->
-            DataInputStream(gzip).use { inp ->
-                val magic = inp.readInt()
-                val version = inp.readInt()
-                if (magic != CACHE_MAGIC || version != CACHE_VERSION) return emptyList()
-                val count = inp.readInt().coerceIn(0, MAX_TOTAL_SNAPSHOT_MESSAGES + 500)
-                val out = ArrayList<DecryptedSmsMessage>(count)
+        GZIPInputStream(ByteArrayInputStream(rawBytes), 16384).use { gzip ->
+            BufferedInputStream(gzip, 16384).use { bis ->
+                DataInputStream(bis).use { inp ->
+                    val magic = inp.readInt()
+                    val version = inp.readInt()
+                    if (magic != CACHE_MAGIC || version != CACHE_VERSION) return emptyList()
+                    val count = inp.readInt().coerceIn(0, MAX_TOTAL_SNAPSHOT_MESSAGES + 500)
+                    val out = ArrayList<DecryptedSmsMessage>(count)
                 for (i in 0 until count) {
                     val id = inp.readLong()
                     val contactName = readSafeString(inp)
@@ -315,6 +350,7 @@ object SmsInstantCache {
                     )
                 }
                 return out
+                }
             }
         }
     }

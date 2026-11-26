@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -47,7 +46,6 @@ import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -63,8 +61,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -75,11 +71,8 @@ import androidx.compose.ui.unit.dp
 import com.example.data.ContactItem
 import com.example.data.DecryptedSmsMessage
 import com.example.service.ContactsLoader
-import com.example.ui.components.NextGenGlassSurface
 import com.example.ui.components.NextGenGradientFab
 import com.example.ui.components.NextGenIconOrb
-import com.example.ui.components.StaggeredEntrance
-import com.example.ui.components.premiumBounceClickable
 import com.example.ui.i18n.LocalAppStrings
 import com.example.ui.theme.android17AvatarColors
 
@@ -319,6 +312,7 @@ fun ContactsScreen(
                 }
             } else {
                 val isDark = isSystemInDarkTheme()
+                val cardShape = remember { RoundedCornerShape(20.dp) }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
@@ -329,7 +323,9 @@ fun ContactsScreen(
                         key = { it.id },
                         contentType = { "contact_row" }
                     ) { contact ->
-                        val isSelected = selectedNorms.contains(ContactsLoader.normalizePhone(contact.phoneNumber))
+                        val isSelected = remember(contact.phoneNumber, selectedNorms) {
+                            selectedNorms.contains(ContactsLoader.normalizePhone(contact.phoneNumber))
+                        }
                         val cardBg = if (isSelected) {
                             MaterialTheme.colorScheme.primaryContainer
                         } else {
@@ -338,7 +334,7 @@ fun ContactsScreen(
                         val (avatarBg, avatarFg) = remember(contact.phoneNumber, isDark) {
                             android17AvatarColors(contact.phoneNumber, isDark)
                         }
-                        val cardShape = RoundedCornerShape(20.dp)
+                        val initials = remember(contact.name) { extractInitials(contact.name) }
                         Surface(
                             shape = cardShape,
                             color = cardBg,
@@ -378,7 +374,7 @@ fun ContactsScreen(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = extractInitials(contact.name),
+                                                text = initials,
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (isSelected) MaterialTheme.colorScheme.onPrimary else avatarFg

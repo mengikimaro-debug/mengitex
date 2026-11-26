@@ -169,7 +169,7 @@ fun SecurityCenterScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         com.example.ui.components.OneUi85SubScreenHeader(
             title = s.securityTitle,
-            subtitle = "Keystore AES-256-GCM",
+            subtitle = null,
             backIcon = Icons.AutoMirrored.Filled.ArrowBack,
             backContentDescription = s.cdBack,
             backTestTag = "security_back_button",

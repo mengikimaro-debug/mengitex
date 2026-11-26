@@ -90,6 +90,13 @@ class VaultCryptoManager(context: Context? = null) {
             override fun initialValue(): SecureRandom = SecureRandom()
         }
 
+        fun registerContextOnly(context: Context) {
+            val appCtx = context.applicationContext ?: context
+            if (globalAppContext == null) {
+                globalAppContext = appCtx
+            }
+        }
+
         fun bindContext(context: Context) {
             val appCtx = context.applicationContext ?: context
             if (globalAppContext == null) {
@@ -102,7 +109,7 @@ class VaultCryptoManager(context: Context? = null) {
                     }
                 }
             }
-            // Pre-warm Keystore & Envelope DEK immediately so first real-time message has 0ms cold start
+            // Pre-warm Keystore & Envelope DEK immediately when called on background thread
             runCatching { getOrCreateFastEnvelopeKeyStatic() }
         }
 
@@ -418,7 +425,7 @@ class VaultCryptoManager(context: Context? = null) {
 
     init {
         if (context != null) {
-            bindContext(context)
+            registerContextOnly(context)
         }
     }
 

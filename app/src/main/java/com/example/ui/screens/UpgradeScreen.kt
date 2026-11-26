@@ -234,19 +234,10 @@ fun UpgradeScreen(
 
     val defaultReadyRelease = remember(installedVersion, installedApkSize, settings.githubUpdateRepo, isSw) {
         val cleanVer = installedVersion.substringBefore('+').removePrefix("v").removePrefix("V")
-        val notes = if (isSw) {
-            "• Injini ya upakuaji wa mikondo 10 sambamba yenye kasi kubwa\n" +
-                "• Usakinishaji wa moja kwa moja uliothibitishwa kwa SHA-256\n" +
-                "• Kizuia matangazo bora (namba 07/06/+255 na miamala salama)"
-        } else {
-            "• High-speed 10-stream parallel downloader with live speed meter\n" +
-                "• SHA-256 verified automatic in-app self-installer\n" +
-                "• Smart ad blocker keeping personal numbers & transactions safe"
-        }
         GithubReleaseInfo(
             tagName = "v$cleanVer",
             releaseName = "MengiTex v$cleanVer",
-            bodyNotes = notes,
+            bodyNotes = "",
             htmlUrl = GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo),
             publishedAt = "v$cleanVer",
             isPrerelease = false,
@@ -259,7 +250,10 @@ fun UpgradeScreen(
 
     val activeRelease: GithubReleaseInfo = when (val res = checkResult) {
         is GithubUpdateCheckResult.Success -> res.latestRelease
-        else -> if (settings.githubCachedLatestTag.isNotBlank()) {
+        else -> if (
+            settings.githubCachedLatestTag.isNotBlank() &&
+            !GithubUpdateChecker.isRemoteVersionNewer(settings.githubCachedLatestTag, installedVersion)
+        ) {
             GithubReleaseInfo(
                 tagName = settings.githubCachedLatestTag,
                 releaseName = settings.githubCachedReleaseName.ifBlank { "MengiTex ${settings.githubCachedLatestTag}" },
@@ -386,15 +380,21 @@ fun UpgradeScreen(
         label = "upgrade_hub_progress"
     )
 
-    val refreshRotation by rememberInfiniteTransition(label = "upgrade_hub_spin").animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "upgrade_hub_spin_angle"
-    )
+    val refreshRotation = if (isChecking) {
+        val transition = rememberInfiniteTransition(label = "upgrade_hub_spin")
+        val angle by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(900, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "upgrade_hub_spin_angle"
+        )
+        angle
+    } else {
+        0f
+    }
 
     val cleanInstalled = installedVersion.substringBefore('+').removePrefix("v").removePrefix("V")
     val cleanRemote = activeRelease.tagName.removePrefix("v").removePrefix("V")
@@ -408,7 +408,7 @@ fun UpgradeScreen(
     ) {
         OneUi85SubScreenHeader(
             title = s.upgradeScreenTitle,
-            subtitle = s.upgradeScreenSubtitle,
+            subtitle = null,
             backIcon = Icons.AutoMirrored.Filled.ArrowBack,
             backContentDescription = s.cdBack,
             backTestTag = "upgrade_back_button",
@@ -492,35 +492,9 @@ fun UpgradeScreen(
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.End,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = heroBadgeBg
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.AutoAwesome,
-                                            contentDescription = null,
-                                            tint = heroBadgeFg,
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                        Text(
-                                            text = if (isSw) "MFUMO MPYA WA MABORESHO" else "NEW VISION UPGRADE",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            letterSpacing = 0.4.sp,
-                                            color = heroBadgeFg
-                                        )
-                                    }
-                                }
-
                                 Surface(
                                     shape = RoundedCornerShape(50),
                                     color = MaterialTheme.colorScheme.surfaceContainerLowest
@@ -590,9 +564,9 @@ fun UpgradeScreen(
                                                 if (sp.isNotBlank()) "Downloading $pct% • $sp/s" else "Downloading $pct%"
                                             }
                                         }
-                                        isChecking -> if (isSw) "Inakagua matoleo ya GitHub..." else "Checking GitHub releases..."
-                                        isNewerAvailable -> if (isSw) "Boresha kutoka v$cleanInstalled kwenda v$cleanRemote" else "Upgrade from v$cleanInstalled to v$cleanRemote"
-                                        else -> if (isSw) "Mfumo wako uko kwenye toleo la kisasa" else "Your system is running the latest build"
+                                        isChecking -> if (isSw) "Inakagua..." else "Checking..."
+                                        isNewerAvailable -> "v$cleanInstalled → v$cleanRemote"
+                                        else -> if (isSw) "Toleo la kisasa" else "Up to date"
                                     }
                                     Text(
                                         text = statusSubtitle,
@@ -1003,23 +977,13 @@ fun UpgradeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = if (isSw) "Kagua Kiotomatiki Unapofungua" else "Auto Check on Launch",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = if (isSw) {
-                                            "Tafuta matoleo mapya chinichini app inapowaka"
-                                        } else {
-                                            "Silently check for new releases when opening the app"
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Text(
+                                    text = if (isSw) "Kagua Kiotomatiki" else "Auto Check",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Switch(
                                     checked = settings.githubAutoCheckUpdates,
