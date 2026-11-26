@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release version tag (e.g. v3.3.0)'
+        description: 'Release version tag (e.g. v3.4.0)'
         required: true
-        default: 'v3.3.0'
+        default: 'v3.4.0'
       version_code:
         description: 'Optional monotonic Android versionCode override'
         required: false
@@ -72,7 +72,7 @@ jobs:
 
       - name: Build MengiTex APK
         run: |
-          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.3.0' }}"
+          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.4.0' }}"
           CLEAN_VER=$(echo "$TAG_NAME" | sed 's/^[vV]//' | tr -cd 'A-Za-z0-9._+-')
           EXTRA_ARGS=""
           if [ -n "$CLEAN_VER" ]; then
@@ -92,7 +92,7 @@ jobs:
       - name: Prepare versioned APK artifact
         run: |
           mkdir -p release_apks
-          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.3.0' }}"
+          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.4.0' }}"
           SAFE_TAG=$(echo "$TAG_NAME" | tr -cd 'A-Za-z0-9._-')
           APK_SRC=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
           if [ -z "$APK_SRC" ]; then

@@ -21,8 +21,8 @@ android {
     applicationId = "com.aistudio.sirisms.qvxkmp"
     minSdk = 24
     targetSdk = 36
-    versionCode = propVersionCode ?: 6
-    versionName = propVersionName ?: "3.3.0"
+    versionCode = propVersionCode ?: 7
+    versionName = propVersionName ?: "3.4.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
