@@ -9,7 +9,6 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
-import com.example.R
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -25,20 +24,34 @@ import kotlinx.coroutines.withContext
 /**
  * Handles Google Sign-In via Jetpack Credential Manager + Firebase Auth.
  * Strictly passes ONE credential option per GetCredentialRequest (API 36 compliant)
- * and resolves Web Client ID from R.string.default_web_client_id.
+ * and resolves Web Client ID dynamically from default_web_client_id when configured.
  */
 object GoogleAuthHelper {
 
     private const val TAG = "Auth"
 
+    private fun resolveDefaultWebClientId(context: Context): String? {
+        val resId = context.resources.getIdentifier(
+            "default_web_client_id",
+            "string",
+            context.packageName
+        )
+        return if (resId != 0) {
+            runCatching { context.getString(resId) }.getOrNull()?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
+    }
+
     suspend fun attemptAutoSignIn(activityContext: Context): FirebaseUser? {
         if (!CloudBackupRepository.ensureFirebaseInitialized(activityContext)) return null
         if (Firebase.auth.currentUser != null) return Firebase.auth.currentUser
+        val serverClientId = resolveDefaultWebClientId(activityContext) ?: return null
         return try {
             val credentialManager = CredentialManager.create(activityContext)
             val googleIdOption = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(true)
-                .setServerClientId(activityContext.getString(R.string.default_web_client_id))
+                .setServerClientId(serverClientId)
                 .setAutoSelectEnabled(true)
                 .build()
             val request = GetCredentialRequest.Builder()
@@ -73,10 +86,12 @@ object GoogleAuthHelper {
         if (!CloudBackupRepository.ensureFirebaseInitialized(activityContext)) {
             return Result.failure(IllegalStateException("Cloud backup service is unavailable right now."))
         }
+        val serverClientId = resolveDefaultWebClientId(activityContext)
+            ?: return Result.failure(IllegalStateException("Google Sign-In client ID is not configured."))
         return try {
             val credentialManager = CredentialManager.create(activityContext)
             val signInWithGoogleOption = GetSignInWithGoogleOption.Builder(
-                serverClientId = activityContext.getString(R.string.default_web_client_id)
+                serverClientId = serverClientId
             ).build()
             val request = GetCredentialRequest.Builder()
                 .addCredentialOption(signInWithGoogleOption)
