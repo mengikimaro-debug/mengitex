@@ -50,6 +50,7 @@ import com.example.service.DefaultAppRoleHelper
 import com.example.service.DetectedSimCard
 import com.example.service.GithubReleaseInfo
 import com.example.service.GithubUpdateChannel
+import com.example.service.GithubUpdateCheckResult
 import com.example.service.GithubUpdateChecker
 import com.example.service.MengiTexNotificationManager
 import com.example.service.SimCardManager
@@ -98,12 +99,12 @@ enum class DrawerDestination {
     SCHEDULE,
     TEMPLATES,
     USAGE_DASHBOARD,
-    NOTIFICATION_MANAGER,
     SECURITY,
     HIDDEN_LOGS,
     BACKUP_RESTORE,
     TRASH,
-    SETTINGS
+    SETTINGS,
+    UPGRADE
 }
 
 enum class InboxFilter {
@@ -146,7 +147,9 @@ data class SiriSmsUiState(
     val activeConversationPhone: String = "",
     val activeConversationName: String = "",
     val statusBanner: String? = null,
-    val isInitialMessagesLoaded: Boolean = false
+    val isInitialMessagesLoaded: Boolean = false,
+    val hasUpgradeAvailable: Boolean = false,
+    val latestUpgradeTag: String = ""
 )
 
 class SiriSmsViewModel(application: Application) : AndroidViewModel(application) {
@@ -452,6 +455,32 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         reconcileAdClassificationRulesOnce()
         startInactivityAutoLockWatcher()
         startDueScheduledSmsWatcher()
+        triggerStartupUpgradeCheckIfEnabled()
+    }
+
+    private fun triggerStartupUpgradeCheckIfEnabled() {
+        viewModelScope.launch(Dispatchers.IO) {
+            delay(1_100L)
+            val currentSettings = _uiState.value.settings
+            val installed = GithubUpdateChecker.getInstalledAppVersionName(appContext)
+            val cachedTag = currentSettings.githubCachedLatestTag
+            if (cachedTag.isNotBlank() && GithubUpdateChecker.isRemoteVersionNewer(installed, cachedTag)) {
+                _uiState.update {
+                    it.copy(hasUpgradeAvailable = true, latestUpgradeTag = cachedTag)
+                }
+            }
+            if (!currentSettings.githubAutoCheckUpdates) return@launch
+            val res = runCatching {
+                GithubUpdateChecker.checkLatestRelease(
+                    context = appContext,
+                    rawRepoInput = currentSettings.githubUpdateRepo,
+                    channel = currentSettings.githubUpdateChannel
+                )
+            }.getOrNull()
+            if (res is GithubUpdateCheckResult.Success) {
+                cacheGithubLatestRelease(res.latestRelease)
+            }
+        }
     }
 
     /**
@@ -2741,6 +2770,9 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
     fun setGithubUpdateRepo(repoSlug: String) {
         val normalized = GithubUpdateChecker.normalizeRepoSlug(repoSlug)
             .ifBlank { GithubUpdateChecker.DEFAULT_GITHUB_REPO }
+        _uiState.update {
+            it.copy(hasUpgradeAvailable = false, latestUpgradeTag = "")
+        }
         updateSettingsOptimistically(
             transform = {
                 it.copy(
@@ -2775,6 +2807,14 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
 
     fun cacheGithubLatestRelease(release: GithubReleaseInfo) {
         val now = System.currentTimeMillis()
+        val installed = GithubUpdateChecker.getInstalledAppVersionName(appContext)
+        val newerAvailable = GithubUpdateChecker.isRemoteVersionNewer(installed, release.tagName)
+        _uiState.update {
+            it.copy(
+                hasUpgradeAvailable = newerAvailable,
+                latestUpgradeTag = release.tagName
+            )
+        }
         updateSettingsOptimistically(
             transform = {
                 it.copy(

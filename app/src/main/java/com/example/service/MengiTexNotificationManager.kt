@@ -152,35 +152,24 @@ object MengiTexNotificationManager {
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
 
-        val ringtoneUri: Uri? = if (settings.notifSoundEnabled) {
-            settings.notifRingtoneUri.takeIf { it.isNotBlank() }?.let { runCatching { Uri.parse(it) }.getOrNull() }
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        } else {
-            null
-        }
-        val vibPattern = settings.notifVibratePattern.patternMillis()
+        val defaultRingtoneUri: Uri? = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
-        // 1. Personal SMS & Floating Bubbles channel
+        // 1. Personal SMS & Floating Bubbles channel (Managed automatically by Android System)
         val personalChannel = NotificationChannel(
             CHANNEL_BUBBLE_SMS,
             if (isSw) "SMS Binafsi & Pop Bubbles" else "Personal SMS & Pop Bubbles",
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = if (isSw) {
-                "Arifa za ujumbe mpya zikiwa na aikoni ya mtumaji, Bubble na Pop Reply"
+                "Arifa za ujumbe mpya zinasimamiwa kiotomatiki na mfumo wa Android"
             } else {
-                "Incoming SMS alerts with sender pop icon, Floating Bubbles and Pop Reply"
+                "Incoming SMS alerts managed automatically by Android system"
             }
-            enableLights(settings.notifLedEnabled)
-            lightColor = settings.notifLedColorArgb.toInt()
-            setShowBadge(settings.notifBadgeEnabled)
-            if (vibPattern != null) {
-                enableVibration(true)
-                vibrationPattern = vibPattern
-            } else {
-                enableVibration(false)
-            }
-            setSound(ringtoneUri, audioAttrs)
+            enableLights(true)
+            lightColor = 0xFF10B981.toInt()
+            setShowBadge(true)
+            enableVibration(true)
+            setSound(defaultRingtoneUri, audioAttrs)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 setAllowBubbles(true)
             }
@@ -199,10 +188,9 @@ object MengiTexNotificationManager {
             }
             enableLights(true)
             lightColor = 0xFF10B981.toInt()
-            setShowBadge(settings.notifBadgeEnabled)
-            enableVibration(vibPattern != null)
-            if (vibPattern != null) vibrationPattern = vibPattern
-            setSound(ringtoneUri, audioAttrs)
+            setShowBadge(true)
+            enableVibration(true)
+            setSound(defaultRingtoneUri, audioAttrs)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 setAllowBubbles(true)
             }
@@ -220,12 +208,11 @@ object MengiTexNotificationManager {
                 "Privacy-shielded alerts hiding content on lock screen"
             }
             lockscreenVisibility = NotificationCompat.VISIBILITY_PRIVATE
-            enableLights(settings.notifLedEnabled)
+            enableLights(true)
             lightColor = 0xFF7C3AED.toInt()
-            setShowBadge(settings.notifBadgeEnabled)
-            enableVibration(vibPattern != null)
-            if (vibPattern != null) vibrationPattern = vibPattern
-            setSound(ringtoneUri, audioAttrs)
+            setShowBadge(true)
+            enableVibration(true)
+            setSound(defaultRingtoneUri, audioAttrs)
         }
 
         // 4. Delivery & Scheduled SMS Reports channel
@@ -245,7 +232,7 @@ object MengiTexNotificationManager {
             setSound(null, null)
         }
 
-        // 5. Silent / Tray-Only Channel (used when Sound is Off or Heads-Up is Off)
+        // 5. Silent / Tray-Only Channel
         val silentChannel = NotificationChannel(
             CHANNEL_SILENT_ALERTS,
             if (isSw) "Arifa Kimya (Bila Pop-Up)" else "Silent Tray Notifications",
@@ -259,7 +246,7 @@ object MengiTexNotificationManager {
             enableLights(false)
             enableVibration(false)
             setSound(null, null)
-            setShowBadge(settings.notifBadgeEnabled)
+            setShowBadge(true)
         }
 
         nm.createNotificationChannels(
@@ -279,33 +266,17 @@ object MengiTexNotificationManager {
         isSecretBurn: Boolean,
         settings: SecuritySettings
     ): Boolean {
-        if (!settings.notificationsMasterEnabled) return false
         if (!hasNotificationPermission(context)) return false
         if (isSenderMuted(phoneNumber, settings)) return false
 
         val isVip = isSenderVip(phoneNumber, settings)
 
-        // Category gates
-        if (isSecretBurn && !settings.notifySecretVault) return false
-        if (isProtectedTxn && !settings.notifyTransactionsOtp) return false
-        if (!isProtectedTxn && !isSecretBurn && !settings.notifyPersonalSms && !isVip) return false
-
-        // Quiet Hours (Do Not Disturb) gate with Transactions & VIP exceptions
-        if (isCurrentlyInQuietHours(settings)) {
-            val allowedByTxn = isProtectedTxn && settings.quietHoursAllowTransactions
-            val allowedByVip = isVip && settings.quietHoursAllowVip
-            if (!allowedByTxn && !allowedByVip) {
-                return false
-            }
-        }
-
         ensureAllChannelsCreated(context, settings)
         val nm = context.getSystemService(NotificationManager::class.java) ?: return false
         val isSw = settings.language == AppLanguage.SW
 
-        // Determine channel respecting user's Sound, Priority & Heads-Up preferences
+        // Android System NotificationChannel handles sound, vibration, DND, bubbles & priority automatically
         val channelId = when {
-            !isVip && (!settings.notifHeadsUpEnabled || !settings.notifSoundEnabled || settings.notifPriorityLevel == com.example.security.NotificationPriorityLevel.LOW) -> CHANNEL_SILENT_ALERTS
             isProtectedTxn -> CHANNEL_TRANSACTIONS_OTP
             isSecretBurn -> CHANNEL_SECRET_VAULT
             else -> CHANNEL_BUBBLE_SMS
@@ -629,9 +600,7 @@ object MengiTexNotificationManager {
         statusNote: String,
         settings: SecuritySettings
     ) {
-        if (!settings.notificationsMasterEnabled || !settings.notifyDeliveryReports) return
         if (!hasNotificationPermission(context)) return
-        if (isCurrentlyInQuietHours(settings)) return
 
         ensureAllChannelsCreated(context, settings)
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
@@ -681,7 +650,7 @@ object MengiTexNotificationManager {
         }
         val previewText = when (settings.notifPreviewMode) {
             NotificationPreviewMode.SHOW_ALL -> if (isSw) {
-                "Notification Manager yako inafanya kazi kikamilifu! (Pop Reply, Mlio & Ulinzi viko tayari)"
+                "Arifa za mfumo wa MengiTex zinafanya kazi kikamilifu (Jibu la haraka, Mlio na Ulinzi viko tayari)."
             } else {
                 "Your Notification Manager is working! (Pop Reply, Sound & Privacy active)"
             }

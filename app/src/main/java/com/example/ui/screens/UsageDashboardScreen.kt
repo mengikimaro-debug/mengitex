@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -490,14 +489,10 @@ private fun DashboardKpiCard(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        modifier = modifier.border(
-            1.dp,
-            accent.copy(alpha = 0.28f),
-            RoundedCornerShape(20.dp)
-        )
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        modifier = modifier
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -511,7 +506,7 @@ private fun DashboardKpiCard(
                     modifier = Modifier
                         .size(30.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(accent.copy(alpha = 0.14f)),
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -558,15 +553,9 @@ private fun DashboardChartCard(
 ) {
     Surface(
         shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                1.dp,
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
-                RoundedCornerShape(22.dp)
-            )
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -586,7 +575,7 @@ private fun DashboardChartCard(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(RoundedCornerShape(11.dp))
-                            .background(accent.copy(alpha = 0.14f)),
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -641,7 +630,7 @@ private fun ImpactProgressRow(
                     modifier = Modifier
                         .size(26.dp)
                         .clip(CircleShape)
-                        .background(color.copy(alpha = 0.14f)),
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

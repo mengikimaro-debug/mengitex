@@ -5,7 +5,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -38,18 +37,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlin.math.abs
+import com.example.ui.theme.android17AvatarColors
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -118,7 +117,8 @@ fun DailyUsageAreaBarChart(
         }
     }
 
-    val gridColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+    val gridColor = MaterialTheme.colorScheme.outlineVariant
+    val selectionBandColor = MaterialTheme.colorScheme.surfaceContainerHigh
     val axisTextColor = MaterialTheme.colorScheme.onSurfaceVariant
     val activePoint = points.getOrNull(selectedIndex.coerceIn(0, points.lastIndex))
 
@@ -126,18 +126,12 @@ fun DailyUsageAreaBarChart(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Recharts-style interactive floating tooltip card for the currently selected day
         if (activePoint != null) {
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                        RoundedCornerShape(14.dp)
-                    )
                     .testTag("dashboard_daily_tooltip")
             ) {
                 Row(
@@ -254,7 +248,7 @@ fun DailyUsageAreaBarChart(
                             val centerX = slotWidth * index + slotWidth / 2f
                             if (index == selectedIndex) {
                                 drawRoundRect(
-                                    color = sentColor.copy(alpha = 0.08f),
+                                    color = selectionBandColor,
                                     topLeft = Offset(slotWidth * index + 2.dp.toPx(), topPad),
                                     size = Size((slotWidth - 4.dp.toPx()).coerceAtLeast(2f), plotHeight),
                                     cornerRadius = CornerRadius(8.dp.toPx(), 8.dp.toPx())
@@ -270,11 +264,7 @@ fun DailyUsageAreaBarChart(
 
                             if (sentH > 0.5f) {
                                 drawRoundRect(
-                                    brush = Brush.verticalGradient(
-                                        colors = listOf(sentColor, sentColor.copy(alpha = 0.72f)),
-                                        startY = baseY - sentH,
-                                        endY = baseY
-                                    ),
+                                    color = sentColor,
                                     topLeft = Offset(leftBarX, baseY - sentH),
                                     size = Size(singleBarWidth, sentH),
                                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
@@ -282,11 +272,7 @@ fun DailyUsageAreaBarChart(
                             }
                             if (recvH > 0.5f) {
                                 drawRoundRect(
-                                    brush = Brush.verticalGradient(
-                                        colors = listOf(receivedColor, receivedColor.copy(alpha = 0.72f)),
-                                        startY = baseY - recvH,
-                                        endY = baseY
-                                    ),
+                                    color = receivedColor,
                                     topLeft = Offset(rightBarX, baseY - recvH),
                                     size = Size(singleBarWidth, recvH),
                                     cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
@@ -294,7 +280,6 @@ fun DailyUsageAreaBarChart(
                             }
                         }
                     } else {
-                        // Smooth cubic Bézier Area Chart (Sent + Received series)
                         val xStep = if (count > 1) plotWidth / (count - 1) else 0f
                         val baseY = topPad + plotHeight
 
@@ -307,7 +292,7 @@ fun DailyUsageAreaBarChart(
                             }
                         }
 
-                        fun drawSmoothArea(coords: List<Offset>, strokeColor: Color) {
+                        fun drawSmoothLine(coords: List<Offset>, strokeColor: Color) {
                             if (coords.isEmpty()) return
                             val linePath = Path().apply {
                                 moveTo(coords.first().x, coords.first().y)
@@ -318,41 +303,23 @@ fun DailyUsageAreaBarChart(
                                     cubicTo(ctrlX, prev.y, ctrlX, curr.y, curr.x, curr.y)
                                 }
                             }
-                            val fillPath = Path().apply {
-                                addPath(linePath)
-                                lineTo(coords.last().x, baseY)
-                                lineTo(coords.first().x, baseY)
-                                close()
-                            }
-                            drawPath(
-                                path = fillPath,
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        strokeColor.copy(alpha = 0.28f),
-                                        strokeColor.copy(alpha = 0.02f)
-                                    ),
-                                    startY = topPad,
-                                    endY = baseY
-                                )
-                            )
                             drawPath(
                                 path = linePath,
                                 color = strokeColor,
-                                style = Stroke(width = 2.6.dp.toPx(), cap = StrokeCap.Round)
+                                style = Stroke(width = 2.8.dp.toPx(), cap = StrokeCap.Round)
                             )
                         }
 
                         val recvCoords = coordsFor { it.receivedCount }
                         val sentCoords = coordsFor { it.sentCount }
 
-                        drawSmoothArea(recvCoords, receivedColor)
-                        drawSmoothArea(sentCoords, sentColor)
+                        drawSmoothLine(recvCoords, receivedColor)
+                        drawSmoothLine(sentCoords, sentColor)
 
-                        // Active cursor line & Recharts activeDot highlights
                         val selIdx = selectedIndex.coerceIn(0, count - 1)
                         val selX = sentCoords[selIdx].x
                         drawLine(
-                            color = gridColor.copy(alpha = 0.7f),
+                            color = gridColor,
                             start = Offset(selX, topPad),
                             end = Offset(selX, baseY),
                             strokeWidth = 1.2.dp.toPx(),
@@ -362,9 +329,8 @@ fun DailyUsageAreaBarChart(
                             recvCoords[selIdx] to receivedColor,
                             sentCoords[selIdx] to sentColor
                         ).forEach { (pt, color) ->
-                            drawCircle(color = color.copy(alpha = 0.25f), radius = 9.dp.toPx(), center = pt)
-                            drawCircle(color = Color.White, radius = 5.dp.toPx(), center = pt)
-                            drawCircle(color = color, radius = 3.5.dp.toPx(), center = pt)
+                            drawCircle(color = selectionBandColor, radius = 7.dp.toPx(), center = pt)
+                            drawCircle(color = color, radius = 4.dp.toPx(), center = pt)
                         }
                     }
                 }
@@ -450,23 +416,16 @@ fun MostActiveContactsBarChart(
         reveal.animateTo(1f, tween(durationMillis = 480, easing = FastOutSlowInEasing))
     }
 
-    val avatarPalette = remember {
-        listOf(
-            Color(0xFF2563EB),
-            Color(0xFF7C3AED),
-            Color(0xFF0EA5E9),
-            Color(0xFF059669),
-            Color(0xFFD97706),
-            Color(0xFFE11D48)
-        )
-    }
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         contacts.forEachIndexed { idx, stat ->
-            val avatarColor = avatarPalette[abs(stat.displayName.hashCode() + idx) % avatarPalette.size]
+            val (avatarBg, avatarFg) = remember(stat.phoneNumber, isDark) {
+                android17AvatarColors(stat.phoneNumber.ifBlank { stat.displayName }, isDark)
+            }
             val initial = stat.displayName.trim().firstOrNull()?.uppercase() ?: "#"
             val totalRatio = (stat.totalCount.toFloat() / maxTotal.toFloat()).coerceIn(0.06f, 1f) * reveal.value
             val sentPortion = if (stat.totalCount > 0) stat.sentCount.toFloat() / stat.totalCount.toFloat() else 0f
@@ -489,14 +448,14 @@ fun MostActiveContactsBarChart(
                         modifier = Modifier
                             .size(34.dp)
                             .clip(CircleShape)
-                            .background(avatarColor.copy(alpha = 0.16f)),
+                            .background(avatarBg),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = initial,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = avatarColor
+                            color = avatarFg
                         )
                     }
                     Column(modifier = Modifier.weight(1f)) {
@@ -515,7 +474,7 @@ fun MostActiveContactsBarChart(
                     }
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Text(
                             text = stat.totalCount.toString(),

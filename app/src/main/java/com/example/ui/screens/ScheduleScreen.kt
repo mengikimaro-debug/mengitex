@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -140,15 +139,10 @@ fun ScheduleScreen(
                 items(scheduledMessages, key = { it.id }) { msg ->
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 2.dp,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 0.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f),
-                                RoundedCornerShape(20.dp)
-                            )
                             .testTag("scheduled_card_${msg.id}")
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {

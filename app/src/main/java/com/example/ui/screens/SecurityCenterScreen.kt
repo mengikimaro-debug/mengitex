@@ -10,7 +10,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -75,7 +74,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -179,7 +177,7 @@ fun SecurityCenterScreen(
             trailingContent = {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = levelColor.copy(alpha = 0.16f)
+                    color = MaterialTheme.colorScheme.secondaryContainer
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -191,7 +189,7 @@ fun SecurityCenterScreen(
                             text = "$fortressScore%",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = levelColor
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                 }
@@ -207,23 +205,12 @@ fun SecurityCenterScreen(
             item {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.2.dp, levelColor.copy(alpha = 0.45f), RoundedCornerShape(24.dp))
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = 0.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(
-                                        levelColor.copy(alpha = 0.12f),
-                                        Color.Transparent
-                                    )
-                                )
-                            )
-                            .padding(16.dp),
+                        modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(
@@ -239,8 +226,8 @@ fun SecurityCenterScreen(
                                 Box(
                                     modifier = Modifier
                                         .size(40.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(levelColor.copy(alpha = 0.18f)),
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -275,7 +262,7 @@ fun SecurityCenterScreen(
                         LinearProgressIndicator(
                             progress = { animatedProgress },
                             color = levelColor,
-                            trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
@@ -341,7 +328,7 @@ fun SecurityCenterScreen(
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                     SecurityToggleRow(
                         icon = Icons.Filled.VisibilityOff,
@@ -353,7 +340,7 @@ fun SecurityCenterScreen(
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                     SecurityToggleRow(
                         icon = Icons.Filled.ContentPasteOff,
@@ -365,7 +352,7 @@ fun SecurityCenterScreen(
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                     SecurityToggleRow(
                         icon = Icons.Filled.DeleteForever,
@@ -414,7 +401,7 @@ fun SecurityCenterScreen(
 
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
 
                     SecurityToggleRow(
@@ -428,7 +415,7 @@ fun SecurityCenterScreen(
 
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
 
                     SecurityToggleRow(
@@ -444,8 +431,8 @@ fun SecurityCenterScreen(
 
                     if (isCallScreeningRoleHeld) {
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = successGreen.copy(alpha = 0.14f),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -463,14 +450,14 @@ fun SecurityCenterScreen(
                                     text = s.callRoleActiveTitle,
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = successGreen
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
                         }
                     } else {
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -503,7 +490,7 @@ fun SecurityCenterScreen(
 
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
 
                     SecurityToggleRow(
@@ -743,18 +730,12 @@ private fun SecurityCard(
     trailingAction: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
-    val cardShape = RoundedCornerShape(20.dp)
+    val cardShape = RoundedCornerShape(22.dp)
     Surface(
         shape = cardShape,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = if (expanded) 2.dp else 1.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = if (expanded) accentColor.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                shape = cardShape
-            )
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -770,7 +751,7 @@ private fun SecurityCard(
                     modifier = Modifier
                         .size(34.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(accentColor.copy(alpha = 0.14f)),
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(19.dp))
@@ -795,17 +776,17 @@ private fun SecurityCard(
                 }
                 if (!expanded && !statusBadge.isNullOrBlank()) {
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = statusBadgeColor.copy(alpha = 0.15f)
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.secondaryContainer
                     ) {
                         Text(
                             text = statusBadge,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = statusBadgeColor,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -831,7 +812,7 @@ private fun SecurityCard(
                 ) {
                     HorizontalDivider(
                         modifier = Modifier.padding(bottom = 12.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                     content()
                 }

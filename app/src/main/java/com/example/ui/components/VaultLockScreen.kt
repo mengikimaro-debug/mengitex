@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +43,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -106,15 +104,7 @@ fun VaultLockScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
             .imePadding()
             .padding(24.dp),
         contentAlignment = Alignment.Center
@@ -124,23 +114,13 @@ fun VaultLockScreen(
                 .fillMaxWidth()
                 .widthIn(max = 420.dp)
                 .offset { IntOffset(shakeOffset.value.roundToInt(), 0) },
-            shape = RoundedCornerShape(30.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 0.dp
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(
-                        width = 1.2.dp,
-                        brush = Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
-                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f)
-                            )
-                        ),
-                        shape = RoundedCornerShape(30.dp)
-                    )
                     .padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -148,13 +128,13 @@ fun VaultLockScreen(
                 MengiTexLogoMark(
                     size = 78.dp,
                     cornerRadius = 22.dp,
-                    showGlow = true,
+                    showGlow = false,
                     modifier = Modifier.testTag("vault_lock_brand_logo")
                 )
 
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                    color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
@@ -164,14 +144,14 @@ fun VaultLockScreen(
                         Icon(
                             imageVector = Icons.Filled.EnhancedEncryption,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
                             text = "AES-256-GCM FORTRESS",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
@@ -193,7 +173,7 @@ fun VaultLockScreen(
                 AnimatedVisibility(visible = isInCooldown) {
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.errorContainer,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -297,7 +277,7 @@ fun PrivacyShieldCurtainOverlay() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0B0C10)),
+            .background(Color(0xFF111318)),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -308,7 +288,7 @@ fun PrivacyShieldCurtainOverlay() {
             MengiTexLogoMark(
                 size = 84.dp,
                 cornerRadius = 24.dp,
-                showGlow = true
+                showGlow = false
             )
             Text(
                 text = s.privacyCurtainTitle,

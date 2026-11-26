@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -106,15 +105,10 @@ fun TemplatesScreen(
                 items(filtered, key = { it.id }) { tmpl ->
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 2.dp,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 0.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                                RoundedCornerShape(20.dp)
-                            )
                             .testTag("template_card_${tmpl.id}")
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {

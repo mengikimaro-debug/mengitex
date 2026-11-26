@@ -18,9 +18,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,6 +88,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -106,7 +107,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -135,6 +135,7 @@ import com.example.ui.components.NextGenIconOrb
 import com.example.ui.components.VoiceWaveformVisualizer
 import com.example.ui.i18n.AppLanguage
 import com.example.ui.i18n.LocalAppStrings
+import com.example.ui.theme.android17AvatarColors
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -190,7 +191,6 @@ fun ConversationScreen(
     val normPhone = remember(phoneNumber, contactName) {
         ContactsLoader.resolveCanonicalThreadKey(phoneNumber, contactName)
     }
-    val avatarColors = remember(normPhone) { avatarGradientForKey(normPhone) }
 
     var draftText by remember { mutableStateOf("") }
     var isSecretBurnArmed by remember { mutableStateOf(false) }
@@ -419,262 +419,240 @@ fun ConversationScreen(
         else SmsDispatchManager.estimateSmsPartsFast(draftText)
     }
 
+    val isDarkTheme = isSystemInDarkTheme()
+    val (convAvatarBg, convAvatarFg) = remember(normPhone, isDarkTheme) {
+        android17AvatarColors(normPhone, isDarkTheme)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .imePadding()
     ) {
-        // 1. 2026 Floating Liquid-Glass Conversation Header
-        //    Transforms cleanly into Multi-Select Bar (Mark All • Unmark All • Delete All) when holding a message
-        NextGenGlassSurface(
-            shape = RoundedCornerShape(24.dp),
-            highlighted = isSelectionMode,
-            tonalAlpha = 0.94f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+        // 1. Authentic Full-Width Android 17 Google Messages Top Bar
+        Surface(
+            color = if (isSelectionMode) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.background
+            },
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            if (isSelectionMode) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (isSelectionMode) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        NextGenIconOrb(
-                            icon = Icons.Filled.Close,
-                            contentDescription = s.btnClose,
-                            onClick = {
-                                isSelectionMode = false
-                                selectedMessageIds = emptySet()
-                            },
-                            size = 38.dp,
-                            modifier = Modifier.testTag("selection_exit_button")
-                        )
-                        Text(
-                            text = s.convSelectedCount(selectedMessageIds.size),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            IconButton(
+                                onClick = {
+                                    isSelectionMode = false
+                                    selectedMessageIds = emptySet()
+                                },
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .testTag("selection_exit_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = s.btnClose,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
                             Text(
-                                text = "${selectedMessageIds.size}/${displayedMessages.size}",
-                                style = MaterialTheme.typography.labelMedium,
+                                text = s.convSelectedCount(selectedMessageIds.size),
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.surfaceContainerLowest
+                            ) {
+                                Text(
+                                    text = "${selectedMessageIds.size}/${displayedMessages.size}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SelectionTopChip(
+                                icon = Icons.Filled.SelectAll,
+                                label = s.convMarkAll,
+                                accentColor = MaterialTheme.colorScheme.primary,
+                                enabled = displayedMessages.isNotEmpty(),
+                                onClick = {
+                                    selectedMessageIds = displayedMessages.map { it.id }.toSet()
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("selection_mark_all_button")
+                            )
+                            SelectionTopChip(
+                                icon = Icons.Filled.Deselect,
+                                label = s.convUnmarkAll,
+                                accentColor = MaterialTheme.colorScheme.secondary,
+                                enabled = selectedMessageIds.isNotEmpty(),
+                                onClick = {
+                                    selectedMessageIds = emptySet()
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("selection_unmark_all_button")
+                            )
+                            SelectionTopChip(
+                                icon = Icons.Filled.DeleteSweep,
+                                label = s.convDeleteAll,
+                                accentColor = MaterialTheme.colorScheme.error,
+                                enabled = displayedMessages.isNotEmpty(),
+                                onClick = {
+                                    if (selectedMessageIds.isEmpty()) {
+                                        selectedMessageIds = displayedMessages.map { it.id }.toSet()
+                                    }
+                                    showDeleteSelectedConfirm = true
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("selection_delete_all_button")
                             )
                         }
                     }
-
-                    // 3 Equal-Width Multi-Select Controls: Mark All • Unmark All • Delete All
+                } else {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SelectionTopChip(
-                            icon = Icons.Filled.SelectAll,
-                            label = s.convMarkAll,
-                            accentColor = Color(0xFF2563EB),
-                            enabled = displayedMessages.isNotEmpty(),
-                            onClick = {
-                                selectedMessageIds = displayedMessages.map { it.id }.toSet()
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("selection_mark_all_button")
-                        )
-                        SelectionTopChip(
-                            icon = Icons.Filled.Deselect,
-                            label = s.convUnmarkAll,
-                            accentColor = Color(0xFF7C3AED),
-                            enabled = selectedMessageIds.isNotEmpty(),
-                            onClick = {
-                                selectedMessageIds = emptySet()
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("selection_unmark_all_button")
-                        )
-                        SelectionTopChip(
-                            icon = Icons.Filled.DeleteSweep,
-                            label = s.convDeleteAll,
-                            accentColor = MaterialTheme.colorScheme.error,
-                            enabled = displayedMessages.isNotEmpty(),
-                            onClick = {
-                                if (selectedMessageIds.isEmpty()) {
-                                    selectedMessageIds = displayedMessages.map { it.id }.toSet()
-                                }
-                                showDeleteSelectedConfirm = true
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("selection_delete_all_button")
-                        )
-                    }
-                }
-            } else {
-                // Samsung One UI 8.5 Conversation Top Header Bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Samsung One UI 8.5 Squircle Back Button
-                    Surface(
-                        onClick = onBack,
-                        shape = RoundedCornerShape(15.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
                         modifier = Modifier
-                            .size(40.dp)
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                                RoundedCornerShape(15.dp)
-                            )
-                            .testTag("conversation_back_button")
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("conversation_back_button")
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = s.cdBack,
                                 tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
-                    }
 
-                    // Tappable Profile Header Target (Opens Contact Pop View)
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(18.dp))
-                            .clickable { showContactProfile = true }
-                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                            .testTag("conversation_open_profile_button"),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Samsung One UI 8.5 Squircle Avatar + Keystore Lock Badge
-                        Box(contentAlignment = Alignment.BottomEnd) {
+                        // Tappable Contact Header Target
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable { showContactProfile = true }
+                                .padding(horizontal = 4.dp, vertical = 3.dp)
+                                .testTag("conversation_open_profile_button"),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
                             Box(
                                 modifier = Modifier
-                                    .size(45.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(Brush.linearGradient(avatarColors))
-                                    .border(
-                                        width = 1.dp,
-                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                                        shape = RoundedCornerShape(16.dp)
-                                    ),
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(convAvatarBg),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = extractInitials(contactName),
                                     style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White
+                                    fontWeight = FontWeight.Bold,
+                                    color = convAvatarFg
                                 )
                             }
-                            Box(
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
-                                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Lock,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(9.dp)
-                                )
-                            }
-                        }
 
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(1.dp)
                             ) {
-                                Text(
-                                    text = contactName.ifBlank { phoneNumber },
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
-                                Icon(
-                                    imageVector = Icons.Filled.ChevronRight,
-                                    contentDescription = s.convProfileTitle,
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = if (contactName.isNotBlank() && contactName != phoneNumber) {
-                                        phoneNumber
-                                    } else {
-                                        s.convTapProfileHint
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false)
-                                )
-                                if (activeSim != null) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.78f),
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable(enabled = detectedSims.size > 1) {
-                                                val idx = detectedSims.indexOfFirst { it.subscriptionId == activeSim.subscriptionId }
-                                                val nextSim = detectedSims[(idx + 1) % detectedSims.size]
-                                                onSelectSim(nextSim.subscriptionId)
-                                            }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = contactName.ifBlank { phoneNumber },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Filled.ChevronRight,
+                                        contentDescription = s.convProfileTitle,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = if (contactName.isNotBlank() && contactName != phoneNumber) {
+                                            phoneNumber
+                                        } else {
+                                            s.convTapProfileHint
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    if (activeSim != null) {
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = MaterialTheme.colorScheme.secondaryContainer,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(50))
+                                                .clickable(enabled = detectedSims.size > 1) {
+                                                    val idx = detectedSims.indexOfFirst { it.subscriptionId == activeSim.subscriptionId }
+                                                    val nextSim = detectedSims[(idx + 1) % detectedSims.size]
+                                                    onSelectSim(nextSim.subscriptionId)
+                                                }
                                         ) {
-                                            Icon(
-                                                Icons.Filled.SimCard,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(11.dp)
-                                            )
-                                            Text(
-                                                text = activeSim.displayName,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.SemiBold,
-                                                maxLines = 1
-                                            )
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Filled.SimCard,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.size(11.dp)
+                                                )
+                                                Text(
+                                                    text = activeSim.displayName,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -682,22 +660,25 @@ fun ConversationScreen(
                         }
                     }
                 }
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                )
             }
         }
 
-        // 1b. Optional Live In-Chat Search Bar (triggered from Contact Profile)
+        // 1b. Optional Live In-Chat Search Pill
         AnimatedVisibility(
             visible = showInChatSearch,
             enter = expandVertically() + fadeIn(),
             exit = shrinkVertically() + fadeOut()
         ) {
-            NextGenGlassSurface(
-                shape = RoundedCornerShape(18.dp),
-                tonalAlpha = 0.90f,
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 6.dp)
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -782,12 +763,7 @@ fun ConversationScreen(
                         modifier = Modifier
                             .size(68.dp)
                             .clip(CircleShape)
-                            .background(Brush.linearGradient(avatarColors))
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                                CircleShape
-                            )
+                            .background(convAvatarBg)
                             .clickable { showContactProfile = true },
                         contentAlignment = Alignment.Center
                     ) {
@@ -795,7 +771,7 @@ fun ConversationScreen(
                             text = extractInitials(contactName),
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = convAvatarFg
                         )
                     }
                     Text(
@@ -814,7 +790,7 @@ fun ConversationScreen(
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(
@@ -842,7 +818,7 @@ fun ConversationScreen(
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(50),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                                     ) {
                                         Text(
                                             text = item.label,
@@ -924,7 +900,7 @@ fun ConversationScreen(
             exit = shrinkVertically() + fadeOut()
         ) {
             Surface(
-                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.tertiaryContainer,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -935,7 +911,7 @@ fun ConversationScreen(
                     Icon(
                         Icons.Filled.LocalFireDepartment,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.tertiary,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
@@ -955,7 +931,7 @@ fun ConversationScreen(
             exit = shrinkVertically() + fadeOut()
         ) {
             Surface(
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -988,7 +964,7 @@ fun ConversationScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
             ) {
                 items(templates, key = { it.id }) { tmpl ->
                     Surface(
@@ -996,13 +972,8 @@ fun ConversationScreen(
                             draftText = if (draftText.isBlank()) tmpl.body else "$draftText ${tmpl.body}"
                             showTemplatesTray = false
                         },
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                            RoundedCornerShape(14.dp)
-                        )
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                     ) {
                         Column(
                             modifier = Modifier
@@ -1029,15 +1000,13 @@ fun ConversationScreen(
             }
         }
 
-        // 6. Bottom Dock: Multi-Select Action Bar (Copy • Share • Forward • Details/Trash) OR 2026 Composer Dock
+        // 6. Bottom Dock: Full-Width Android 17 Multi-Select Action Bar OR Composer Dock
         if (isSelectionMode) {
-            NextGenGlassSurface(
-                shape = RoundedCornerShape(26.dp),
-                highlighted = true,
-                tonalAlpha = 0.95f,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
@@ -1118,563 +1087,530 @@ fun ConversationScreen(
                 }
             }
         } else {
-        NextGenGlassSurface(
-            shape = RoundedCornerShape(22.dp),
-            highlighted = isSecretBurnArmed,
-            accentColor = MaterialTheme.colorScheme.tertiary,
-            tonalAlpha = 0.94f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+        Surface(
+            color = if (isSecretBurnArmed) {
+                MaterialTheme.colorScheme.tertiaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            },
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                // Ultra-Compact Top Action Ribbon inside Composer Dock
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    val secretBg by animateColorAsState(
-                        targetValue = if (isSecretBurnArmed) {
-                            MaterialTheme.colorScheme.tertiaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-                        },
-                        animationSpec = tween(180),
-                        label = "dock_secret_bg"
-                    )
-                    val secretFg by animateColorAsState(
-                        targetValue = if (isSecretBurnArmed) {
-                            MaterialTheme.colorScheme.tertiary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        animationSpec = tween(180),
-                        label = "dock_secret_fg"
-                    )
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = secretBg,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .border(
-                                1.dp,
-                                if (isSecretBurnArmed) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.6f)
-                                else Color.Transparent,
-                                RoundedCornerShape(8.dp)
-                            )
-                            .clickable { isSecretBurnArmed = !isSecretBurnArmed }
-                            .testTag("conversation_secret_toggle")
+                    // Compact Top Action Ribbon inside Composer Dock
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.LocalFireDepartment,
-                                contentDescription = s.secretBurnToggleTitle,
-                                tint = secretFg,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Text(
-                                text = s.convToolSecret,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                fontWeight = if (isSecretBurnArmed) FontWeight.Bold else FontWeight.Medium,
-                                color = secretFg
-                            )
-                        }
-                    }
-
-                    val tmplBg by animateColorAsState(
-                        targetValue = if (showTemplatesTray) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-                        },
-                        animationSpec = tween(180),
-                        label = "dock_tmpl_bg"
-                    )
-                    val tmplFg = if (showTemplatesTray) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = tmplBg,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { showTemplatesTray = !showTemplatesTray }
-                            .testTag("conversation_templates_toggle")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Description,
-                                contentDescription = s.drawerTemplates,
-                                tint = tmplFg,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Text(
-                                text = s.convToolTemplates,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                fontWeight = if (showTemplatesTray) FontWeight.Bold else FontWeight.Medium,
-                                color = tmplFg
-                            )
-                        }
-                    }
-
-                    val micBg by animateColorAsState(
-                        targetValue = if (isListeningVoice) {
-                            MaterialTheme.colorScheme.errorContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-                        },
-                        animationSpec = tween(180),
-                        label = "dock_mic_bg"
-                    )
-                    val micFg = if (isListeningVoice) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = micBg,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                if (!hasMicPermission) {
-                                    onRequestMicPermission()
-                                    return@clickable
-                                }
-                                if (isListeningVoice) {
-                                    voiceHelper.stopListening()
-                                } else {
-                                    voiceHelper.startListening(settings.language)
-                                }
-                            }
-                            .testTag("conversation_mic_button")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isListeningVoice) Icons.Filled.Stop else Icons.Filled.Mic,
-                                contentDescription = s.voiceDictateBtn,
-                                tint = micFg,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Text(
-                                text = s.convToolVoice,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                fontWeight = if (isListeningVoice) FontWeight.Bold else FontWeight.Medium,
-                                color = micFg
-                            )
-                        }
-                    }
-
-                    val reportBg by animateColorAsState(
-                        targetValue = if (settings.deliveryReportsEnabled) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-                        },
-                        animationSpec = tween(180),
-                        label = "dock_report_bg"
-                    )
-                    val reportFg = if (settings.deliveryReportsEnabled) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = reportBg,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .border(
-                                1.dp,
-                                if (settings.deliveryReportsEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-                                else Color.Transparent,
-                                RoundedCornerShape(8.dp)
-                            )
-                            .clickable { onToggleDeliveryReport(!settings.deliveryReportsEnabled) }
-                            .testTag("conversation_delivery_report_toggle")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.DoneAll,
-                                contentDescription = s.settingsDeliveryReportTitle,
-                                tint = reportFg,
-                                modifier = Modifier.size(11.dp)
-                            )
-                            Text(
-                                text = s.convToolDeliveryReport,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                fontWeight = if (settings.deliveryReportsEnabled) FontWeight.Bold else FontWeight.Medium,
-                                color = reportFg,
-                                maxLines = 1
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    // Tappable Keystore AES-256-GCM AAD-v3 Real-Time Status Chip + SMS Counter
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { showKeystoreSecurityDialog = true }
-                            .testTag("conversation_keystore_dock_chip")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.EnhancedEncryption,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(10.dp)
-                            )
-                            Text(
-                                text = if (draftText.isNotEmpty()) {
-                                    "${s.charPartsCounter(draftText.length, partCount)}"
-                                } else {
-                                    "KS256"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-
-                // Pending Photo / Document Attachment Chip (shown when user picks a file via `+`)
-                val attached = pendingAttachment
-                AnimatedVisibility(
-                    visible = attached != null,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
-                ) {
-                    if (attached != null) {
+                        val secretBg by animateColorAsState(
+                            targetValue = if (isSecretBurnArmed) {
+                                MaterialTheme.colorScheme.tertiary
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHigh
+                            },
+                            animationSpec = tween(180),
+                            label = "dock_secret_bg"
+                        )
+                        val secretFg by animateColorAsState(
+                            targetValue = if (isSecretBurnArmed) {
+                                MaterialTheme.colorScheme.onTertiary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            animationSpec = tween(180),
+                            label = "dock_secret_fg"
+                        )
                         Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                            shape = RoundedCornerShape(50),
+                            color = secretBg,
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                                    RoundedCornerShape(14.dp)
-                                )
+                                .clip(RoundedCornerShape(50))
+                                .clickable { isSecretBurnArmed = !isSecretBurnArmed }
+                                .testTag("conversation_secret_toggle")
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(28.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.primary),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = if (attached.isPhoto) Icons.Filled.PhotoLibrary else Icons.Filled.Description,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = attached.fileName,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = if (attached.sizeLabel.isNotEmpty()) {
-                                            "${s.attachReadyLabel} • ${attached.sizeLabel}"
-                                        } else {
-                                            s.attachReadyLabel
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { pendingAttachment = null },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Close,
-                                        contentDescription = s.btnClose,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Compact Authentic Android Phone SMS Composer Bar ("Hii bar ya kutuma sms mpya weka iwe ndogo")
-                var isComposerExpanded by remember { mutableStateOf(false) }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    // Compact 38dp Left-Side `+` Choose What To Send Button
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
-                                CircleShape
-                            )
-                            .clickable { showAttachmentSheet = true }
-                            .testTag("conversation_attach_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = s.attachSheetTitle,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(19.dp)
-                        )
-                    }
-
-                    val inputBorderColor by animateColorAsState(
-                        targetValue = when {
-                            isSecretBurnArmed -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.75f)
-                            draftText.isNotEmpty() || pendingAttachment != null -> MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
-                            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                        },
-                        animationSpec = tween(200),
-                        label = "conv_input_border"
-                    )
-
-                    // Compact 38dp Android Phone Rounded Message Capsule
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-                        tonalElevation = 2.dp,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 38.dp)
-                            .border(1.dp, inputBorderColor, RoundedCornerShape(20.dp))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 8.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            // Compact Inline SIM Badge inside left of capsule
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(50))
-                                    .clickable {
-                                        if (detectedSims.size > 1) {
-                                            val currentIdx = detectedSims.indexOfFirst { it.subscriptionId == activeSim?.subscriptionId }
-                                            val nextSim = detectedSims[(currentIdx + 1) % detectedSims.size]
-                                            onSelectSim(nextSim.subscriptionId)
-                                        }
-                                    }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.SimCard,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(11.dp)
-                                    )
-                                    Text(
-                                        text = activeSim?.let { "SIM ${it.slotIndex + 1}" } ?: "SMS",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontSize = 9.sp
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(vertical = 2.dp),
-                                contentAlignment = Alignment.CenterStart
-                            ) {
-                                if (draftText.isEmpty()) {
-                                    Text(
-                                        text = s.convInputPlaceholder,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                BasicTextField(
-                                    value = draftText,
-                                    onValueChange = { draftText = it },
-                                    maxLines = if (isComposerExpanded) Int.MAX_VALUE else 6,
-                                    textStyle = MaterialTheme.typography.bodySmall.copy(
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontSize = 13.5.sp
-                                    ),
-                                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("conversation_message_input")
+                                Icon(
+                                    imageVector = Icons.Filled.LocalFireDepartment,
+                                    contentDescription = s.secretBurnToggleTitle,
+                                    tint = secretFg,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = s.convToolSecret,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isSecretBurnArmed) FontWeight.Bold else FontWeight.Medium,
+                                    color = secretFg
                                 )
                             }
+                        }
 
-                            // Compact Inline Voice Mic Button
-                            Box(
-                                modifier = Modifier
-                                    .size(26.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isListeningVoice) MaterialTheme.colorScheme.errorContainer
-                                        else Color.Transparent
-                                    )
-                                    .clickable {
-                                        if (!hasMicPermission) {
-                                            onRequestMicPermission()
-                                            return@clickable
-                                        }
-                                        if (isListeningVoice) {
-                                            voiceHelper.stopListening()
-                                        } else {
-                                            voiceHelper.startListening(settings.language)
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
+                        val tmplBg by animateColorAsState(
+                            targetValue = if (showTemplatesTray) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHigh
+                            },
+                            animationSpec = tween(180),
+                            label = "dock_tmpl_bg"
+                        )
+                        val tmplFg = if (showTemplatesTray) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = tmplBg,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .clickable { showTemplatesTray = !showTemplatesTray }
+                                .testTag("conversation_templates_toggle")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Description,
+                                    contentDescription = s.drawerTemplates,
+                                    tint = tmplFg,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = s.convToolTemplates,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (showTemplatesTray) FontWeight.Bold else FontWeight.Medium,
+                                    color = tmplFg
+                                )
+                            }
+                        }
+
+                        val micBg by animateColorAsState(
+                            targetValue = if (isListeningVoice) {
+                                MaterialTheme.colorScheme.errorContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHigh
+                            },
+                            animationSpec = tween(180),
+                            label = "dock_mic_bg"
+                        )
+                        val micFg = if (isListeningVoice) {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = micBg,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .clickable {
+                                    if (!hasMicPermission) {
+                                        onRequestMicPermission()
+                                        return@clickable
+                                    }
+                                    if (isListeningVoice) {
+                                        voiceHelper.stopListening()
+                                    } else {
+                                        voiceHelper.startListening(settings.language)
+                                    }
+                                }
+                                .testTag("conversation_mic_button")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
                                 Icon(
                                     imageVector = if (isListeningVoice) Icons.Filled.Stop else Icons.Filled.Mic,
                                     contentDescription = s.voiceDictateBtn,
-                                    tint = if (isListeningVoice) MaterialTheme.colorScheme.error
-                                    else MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
+                                    tint = micFg,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = s.convToolVoice,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isListeningVoice) FontWeight.Bold else FontWeight.Medium,
+                                    color = micFg
                                 )
                             }
+                        }
 
-                            if (draftText.length > 120 || draftText.contains('\n')) {
-                                IconButton(
-                                    onClick = { isComposerExpanded = !isComposerExpanded },
-                                    modifier = Modifier.size(24.dp)
+                        val reportBg by animateColorAsState(
+                            targetValue = if (settings.deliveryReportsEnabled) {
+                                MaterialTheme.colorScheme.secondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHigh
+                            },
+                            animationSpec = tween(180),
+                            label = "dock_report_bg"
+                        )
+                        val reportFg = if (settings.deliveryReportsEnabled) {
+                            MaterialTheme.colorScheme.onSecondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = reportBg,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .clickable { onToggleDeliveryReport(!settings.deliveryReportsEnabled) }
+                                .testTag("conversation_delivery_report_toggle")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.DoneAll,
+                                    contentDescription = s.settingsDeliveryReportTitle,
+                                    tint = reportFg,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = s.convToolDeliveryReport,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (settings.deliveryReportsEnabled) FontWeight.Bold else FontWeight.Medium,
+                                    color = reportFg,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .clickable { showKeystoreSecurityDialog = true }
+                                .testTag("conversation_keystore_dock_chip")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.EnhancedEncryption,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Text(
+                                    text = if (draftText.isNotEmpty()) {
+                                        "${s.charPartsCounter(draftText.length, partCount)}"
+                                    } else {
+                                        "KS256"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    // Pending Photo / Document Attachment Chip
+                    val attached = pendingAttachment
+                    AnimatedVisibility(
+                        visible = attached != null,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        if (attached != null) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = if (isComposerExpanded) Icons.Filled.UnfoldLess else Icons.Filled.UnfoldMore,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(16.dp)
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.primary),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (attached.isPhoto) Icons.Filled.PhotoLibrary else Icons.Filled.Description,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = attached.fileName,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = if (attached.sizeLabel.isNotEmpty()) {
+                                                "${s.attachReadyLabel} • ${attached.sizeLabel}"
+                                            } else {
+                                                s.attachReadyLabel
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { pendingAttachment = null },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Close,
+                                            contentDescription = s.btnClose,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // Compact 38dp Circular Android Phone Send SMS Button (long-press to Schedule)
-                    val canSend = draftText.isNotBlank() || pendingAttachment != null
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (canSend) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant
-                                }
-                            )
-                            .combinedClickable(
-                                enabled = canSend,
-                                onClick = {
-                                    val currentAtt = pendingAttachment
-                                    val textToSend = draftText
-                                    if (currentAtt != null) {
-                                        val label = if (currentAtt.sizeLabel.isNotEmpty()) {
-                                            "${currentAtt.fileName} (${currentAtt.sizeLabel})"
-                                        } else {
-                                            currentAtt.fileName
-                                        }
-                                        pendingAttachment = null
-                                        draftText = ""
-                                        onSendAttachment(
-                                            currentAtt.uri,
-                                            currentAtt.mimeType,
-                                            label,
-                                            textToSend
-                                        )
-                                    } else {
-                                        draftText = ""
-                                        onSendDirectMessage(textToSend, isSecretBurnArmed, !hasSmsPermission)
-                                    }
-                                },
-                                onLongClick = {
-                                    if (draftText.isNotBlank()) {
-                                        onScheduleDraft(draftText)
-                                    }
-                                }
-                            )
-                            .testTag("conversation_send_button"),
-                        contentAlignment = Alignment.Center
+                    // Compact Android 17 Google Messages Composer Row
+                    var isComposerExpanded by remember { mutableStateOf(false) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = s.btnSendCount(1),
-                            tint = if (canSend) {
-                                Color.White
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            },
-                            modifier = Modifier.size(17.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .clickable { showAttachmentSheet = true }
+                                .testTag("conversation_attach_button"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = s.attachSheetTitle,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            tonalElevation = 0.dp,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 40.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 10.dp, end = 8.dp, top = 5.dp, bottom = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .clickable {
+                                            if (detectedSims.size > 1) {
+                                                val currentIdx = detectedSims.indexOfFirst { it.subscriptionId == activeSim?.subscriptionId }
+                                                val nextSim = detectedSims[(currentIdx + 1) % detectedSims.size]
+                                                onSelectSim(nextSim.subscriptionId)
+                                            }
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.SimCard,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                        Text(
+                                            text = activeSim?.let { "SIM ${it.slotIndex + 1}" } ?: "SMS",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(vertical = 2.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (draftText.isEmpty()) {
+                                        Text(
+                                            text = s.convInputPlaceholder,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    BasicTextField(
+                                        value = draftText,
+                                        onValueChange = { draftText = it },
+                                        maxLines = if (isComposerExpanded) Int.MAX_VALUE else 6,
+                                        textStyle = MaterialTheme.typography.bodySmall.copy(
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontSize = 14.sp
+                                        ),
+                                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("conversation_message_input")
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isListeningVoice) MaterialTheme.colorScheme.errorContainer
+                                            else Color.Transparent
+                                        )
+                                        .clickable {
+                                            if (!hasMicPermission) {
+                                                onRequestMicPermission()
+                                                return@clickable
+                                            }
+                                            if (isListeningVoice) {
+                                                voiceHelper.stopListening()
+                                            } else {
+                                                voiceHelper.startListening(settings.language)
+                                            }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (isListeningVoice) Icons.Filled.Stop else Icons.Filled.Mic,
+                                        contentDescription = s.voiceDictateBtn,
+                                        tint = if (isListeningVoice) MaterialTheme.colorScheme.onErrorContainer
+                                        else MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+
+                                if (draftText.length > 120 || draftText.contains('\n')) {
+                                    IconButton(
+                                        onClick = { isComposerExpanded = !isComposerExpanded },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isComposerExpanded) Icons.Filled.UnfoldLess else Icons.Filled.UnfoldMore,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        val canSend = draftText.isNotBlank() || pendingAttachment != null
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (canSend) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceContainerHigh
+                                    }
+                                )
+                                .combinedClickable(
+                                    enabled = canSend,
+                                    onClick = {
+                                        val currentAtt = pendingAttachment
+                                        val textToSend = draftText
+                                        if (currentAtt != null) {
+                                            val label = if (currentAtt.sizeLabel.isNotEmpty()) {
+                                                "${currentAtt.fileName} (${currentAtt.sizeLabel})"
+                                            } else {
+                                                currentAtt.fileName
+                                            }
+                                            pendingAttachment = null
+                                            draftText = ""
+                                            onSendAttachment(
+                                                currentAtt.uri,
+                                                currentAtt.mimeType,
+                                                label,
+                                                textToSend
+                                            )
+                                        } else {
+                                            draftText = ""
+                                            onSendDirectMessage(textToSend, isSecretBurnArmed, !hasSmsPermission)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (draftText.isNotBlank()) {
+                                            onScheduleDraft(draftText)
+                                        }
+                                    }
+                                )
+                                .testTag("conversation_send_button"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = s.btnSendCount(1),
+                                tint = if (canSend) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1934,16 +1870,11 @@ private fun SelectionTopChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(50)
     Surface(
         shape = shape,
-        color = if (enabled) accentColor.copy(alpha = 0.13f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        color = if (enabled) MaterialTheme.colorScheme.surfaceContainerLowest else MaterialTheme.colorScheme.surfaceContainer,
         modifier = modifier
-            .border(
-                1.dp,
-                if (enabled) accentColor.copy(alpha = 0.35f) else Color.Transparent,
-                shape
-            )
             .clip(shape)
             .clickable(enabled = enabled, onClick = onClick)
     ) {
@@ -1955,7 +1886,7 @@ private fun SelectionTopChip(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = if (enabled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                tint = if (enabled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(5.dp))
@@ -1963,7 +1894,7 @@ private fun SelectionTopChip(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = if (enabled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                color = if (enabled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1983,7 +1914,7 @@ private fun SelectionBottomActionButton(
     val shape = RoundedCornerShape(16.dp)
     Surface(
         shape = shape,
-        color = if (enabled) accentColor.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        color = if (enabled) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = modifier
             .clip(shape)
             .clickable(enabled = enabled, onClick = onClick)
@@ -1996,14 +1927,14 @@ private fun SelectionBottomActionButton(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = if (enabled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                tint = if (enabled) accentColor else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -2055,7 +1986,7 @@ private fun PremiumChatBubble(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(
-                if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
+                if (isSelected) MaterialTheme.colorScheme.primaryContainer
                 else Color.Transparent
             )
             .padding(horizontal = if (isSelectionMode) 4.dp else 0.dp, vertical = if (isSelected) 3.dp else 0.dp),
@@ -2066,7 +1997,7 @@ private fun PremiumChatBubble(
             Icon(
                 imageVector = if (isSelected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
                 contentDescription = null,
-                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .padding(end = 8.dp)
                     .size(22.dp)
@@ -2075,14 +2006,9 @@ private fun PremiumChatBubble(
         if (message.isSecretBurnAfterRead) {
             Surface(
                 shape = bubbleShape,
-                color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.78f),
+                color = MaterialTheme.colorScheme.tertiaryContainer,
                 modifier = Modifier
                     .widthIn(max = scaledMaxWidth)
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.55f),
-                        bubbleShape
-                    )
                     .clip(bubbleShape)
                     .combinedClickable(
                         onClick = onTapSecret,
@@ -2101,20 +2027,20 @@ private fun PremiumChatBubble(
                         Icon(
                             imageVector = Icons.Filled.LocalFireDepartment,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.size(16.dp)
                         )
                         Icon(
                             imageVector = Icons.Filled.Lock,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
                             text = s.filterSecret,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.tertiary
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
                     }
                     Text(
@@ -2123,12 +2049,12 @@ private fun PremiumChatBubble(
                             fontSize = scaledBodyFontSize,
                             lineHeight = scaledBodyLineHeight
                         ),
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                     Text(
                         text = timeText,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
                         modifier = Modifier.align(Alignment.End)
                     )
                 }
@@ -2139,11 +2065,6 @@ private fun PremiumChatBubble(
                     .widthIn(max = scaledMaxWidth)
                     .clip(bubbleShape)
                     .background(MaterialTheme.colorScheme.primary)
-                    .border(
-                        width = 0.8.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                        shape = bubbleShape
-                    )
                     .combinedClickable(
                         onClick = {
                             if (!isSelectionMode && detectedPhoneNumbers.size == 1 && message.body.trim().length <= 18) {
@@ -2250,19 +2171,14 @@ private fun PremiumChatBubble(
             }
         } else {
             val highlightColor = MaterialTheme.colorScheme.primary
-            val highlightBg = highlightColor.copy(alpha = 0.18f)
+            val highlightBg = MaterialTheme.colorScheme.primaryContainer
             Surface(
                 shape = bubbleShape,
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 1.dp,
-                shadowElevation = 1.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
                 modifier = Modifier
                     .widthIn(max = scaledMaxWidth)
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.48f),
-                        bubbleShape
-                    )
                     .clip(bubbleShape)
                     .combinedClickable(
                         onClick = {
@@ -2307,13 +2223,13 @@ private fun PremiumChatBubble(
                             if (message.status == MessageStatus.BLOCKED_AD) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.14f)
+                                    color = MaterialTheme.colorScheme.errorContainer
                                 ) {
                                     Text(
                                         text = "ADS",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = MaterialTheme.colorScheme.error,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                     )
                                 }
@@ -2344,7 +2260,7 @@ private fun PremiumChatBubble(
                             text = message.body,
                             query = highlightQuery,
                             phoneColor = MaterialTheme.colorScheme.primary,
-                            phoneBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                            phoneBg = MaterialTheme.colorScheme.primaryContainer,
                             highlightColor = highlightColor,
                             highlightBg = highlightBg
                         ),
@@ -2377,7 +2293,7 @@ private fun PremiumChatBubble(
             Icon(
                 imageVector = if (isSelected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
                 contentDescription = null,
-                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .padding(start = 8.dp)
                     .size(22.dp)
@@ -2406,24 +2322,21 @@ internal fun DetectedPhoneNumbersBubbleBar(
     ) {
         phoneNumbers.forEach { phone ->
             val containerBg = if (isOutgoingBubble) {
-                Color.Black.copy(alpha = 0.22f)
+                MaterialTheme.colorScheme.onPrimary
             } else {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.50f)
+                MaterialTheme.colorScheme.primaryContainer
             }
-            val borderCol = if (isOutgoingBubble) {
-                Color.White.copy(alpha = 0.26f)
+            val numberTextColor = if (isOutgoingBubble) {
+                MaterialTheme.colorScheme.primary
             } else {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
+                MaterialTheme.colorScheme.onPrimaryContainer
             }
-            val numberTextColor = if (isOutgoingBubble) Color.White else MaterialTheme.colorScheme.primary
 
             Surface(
                 onClick = { onOpenOptions(phone) },
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(12.dp),
                 color = containerBg,
-                modifier = Modifier
-                    .border(0.8.dp, borderCol, RoundedCornerShape(10.dp))
-                    .testTag("bubble_phone_pill_$phone")
+                modifier = Modifier.testTag("bubble_phone_pill_$phone")
             ) {
                 Row(
                     modifier = Modifier.padding(start = 8.dp, end = 5.dp, top = 4.dp, bottom = 4.dp),
@@ -2433,7 +2346,7 @@ internal fun DetectedPhoneNumbersBubbleBar(
                     Icon(
                         imageVector = Icons.Filled.Call,
                         contentDescription = null,
-                        tint = numberTextColor.copy(alpha = 0.85f),
+                        tint = numberTextColor,
                         modifier = Modifier.size(12.dp)
                     )
                     Text(

@@ -50,6 +50,11 @@ interface AppStrings {
     val drawerTrashSub: String
     val drawerSettings: String
     val drawerSettingsSub: String
+    val drawerUpgrade: String
+    val drawerUpgradeSub: String
+    val drawerUpgradeAvailableBadge: String
+    val upgradeScreenTitle: String
+    val upgradeScreenSubtitle: String
     val drawerDarkMode: String
     val drawerDarkModeSub: String
     val drawerLanguage: String

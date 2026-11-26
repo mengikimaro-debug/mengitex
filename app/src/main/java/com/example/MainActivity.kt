@@ -65,6 +65,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -132,12 +133,12 @@ import com.example.ui.screens.ContactsScreen
 import com.example.ui.screens.ConversationScreen
 import com.example.ui.screens.HiddenLogsScreen
 import com.example.ui.screens.InboxAndReportsScreen
-import com.example.ui.screens.NotificationManagerScreen
 import com.example.ui.screens.ScheduleScreen
 import com.example.ui.screens.SecurityCenterScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.TemplatesScreen
 import com.example.ui.screens.TrashScreen
+import com.example.ui.screens.UpgradeScreen
 import com.example.ui.screens.UsageDashboardScreen
 import com.example.ui.theme.SiriSmsTheme
 import kotlinx.coroutines.launch
@@ -424,70 +425,6 @@ private fun MengiTexAppRoot(
         viewModel.refreshSystemEnvironment()
     }
 
-    // 1b. Dedicated POST_NOTIFICATIONS launcher for Notification Manager
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        viewModel.refreshSystemEnvironment()
-        viewModel.showBanner(
-            if (uiState.settings.language == AppLanguage.EN) {
-                if (granted) "Notification permission granted." else "Notification permission denied — enable in Android Settings."
-            } else {
-                if (granted) "Ruhusa ya Arifa (Notifications) imewashwa ✓" else "Ruhusa ya Arifa imekataliwa — iwashe kwenye Mipangilio ya Android."
-            }
-        )
-    }
-
-    // 1c. Real Android Ringtone Picker launcher for Notification Manager
-    val ringtonePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val pickedUri: Uri? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            }
-            val title = MengiTexNotificationManager.resolveRingtoneTitle(
-                context = context,
-                uri = pickedUri,
-                isEnglish = uiState.settings.language == AppLanguage.EN
-            )
-            viewModel.setNotifRingtone(pickedUri?.toString().orEmpty(), title)
-        }
-    }
-
-    val requestNotificationPermission: () -> Unit = {
-        onWillLaunchExternalSystemUi()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            MengiTexNotificationManager.openSystemAppNotificationSettings(context)
-        }
-    }
-
-    val launchRingtonePicker: () -> Unit = {
-        onWillLaunchExternalSystemUi()
-        val existingUri = uiState.settings.notifRingtoneUri
-            .takeIf { it.isNotBlank() }
-            ?.let { runCatching { Uri.parse(it) }.getOrNull() }
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        val pickerIntent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
-            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
-            putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, existingUri)
-            putExtra(
-                RingtoneManager.EXTRA_RINGTONE_TITLE,
-                if (uiState.settings.language == AppLanguage.EN) "Select MengiTex Alert Tone"
-                else "Chagua Mlio wa Arifa wa MengiTex"
-            )
-        }
-        runCatching { ringtonePickerLauncher.launch(pickerIntent) }
-            .onFailure { MengiTexNotificationManager.openSystemAppNotificationSettings(context) }
-    }
-
     // 2. Dedicated Contacts permission launcher
     val contactsPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -615,6 +552,52 @@ private fun MengiTexAppRoot(
         permissionsLauncher.launch(perms.toTypedArray())
     }
 
+    // Automatic by Android System: register notification channels & auto-request missing runtime permissions + Default SMS role once per install
+    LaunchedEffect(uiState.isLocked) {
+        if (uiState.isLocked) return@LaunchedEffect
+        MengiTexNotificationManager.ensureAllChannelsCreated(context, uiState.settings)
+        val sysPrefs = context.getSharedPreferences("mengitex_auto_system_prefs", Context.MODE_PRIVATE)
+        val missingPerms = buildList {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                add(Manifest.permission.SEND_SMS)
+            }
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                add(Manifest.permission.RECEIVE_SMS)
+            }
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                add(Manifest.permission.READ_SMS)
+            }
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                add(Manifest.permission.READ_CONTACTS)
+            }
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                add(Manifest.permission.READ_PHONE_STATE)
+            }
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                add(Manifest.permission.RECORD_AUDIO)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        if (missingPerms.isNotEmpty() && !sysPrefs.getBoolean("auto_runtime_perms_requested", false)) {
+            sysPrefs.edit().putBoolean("auto_runtime_perms_requested", true).apply()
+            onWillLaunchExternalSystemUi()
+            permissionsLauncher.launch(missingPerms.toTypedArray())
+        } else if (!DefaultAppRoleHelper.isDefaultSmsApp(context) &&
+            !sysPrefs.getBoolean("auto_default_sms_requested", false)
+        ) {
+            sysPrefs.edit().putBoolean("auto_default_sms_requested", true).apply()
+            val roleIntent = DefaultAppRoleHelper.createDefaultSmsRoleIntent(context)
+            if (roleIntent != null) {
+                onWillLaunchExternalSystemUi()
+                runCatching { defaultSmsRoleLauncher.launch(roleIntent) }
+            }
+        }
+    }
+
     val requestContactsPermission: () -> Unit = {
         onWillLaunchExternalSystemUi()
         contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
@@ -681,24 +664,6 @@ private fun MengiTexAppRoot(
         }
     }
 
-    val openSystemBubbleSettings: () -> Unit = {
-        onWillLaunchExternalSystemUi()
-        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            Intent(Settings.ACTION_APP_NOTIFICATION_BUBBLE_SETTINGS).apply {
-                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-            }
-        } else {
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = android.net.Uri.fromParts("package", context.packageName, null)
-            }
-        }
-        runCatching { context.startActivity(intent) }
-    }
-
     // Opt-in Strict Anti-Screenshot / Anti-Recording Flag (manual opt-in so live screen streaming works cleanly)
     LaunchedEffect(uiState.settings.blockScreenshotsAndRecents) {
         val window = (context as? Activity)?.window ?: return@LaunchedEffect
@@ -762,6 +727,8 @@ private fun MengiTexAppRoot(
                                 hiddenFilesCount = uiState.vaultStats.totalEncryptedFiles,
                                 totalMessagesCount = activeMessages.size,
                                 isDefaultSmsApp = uiState.isDefaultSmsApp,
+                                hasUpgradeAvailable = uiState.hasUpgradeAvailable,
+                                latestUpgradeTag = uiState.latestUpgradeTag,
                                 onSecurityLevelChange = viewModel::setSecurityLevel,
                                 onNavigateDestination = { dest ->
                                     scope.launch { drawerState.close() }
@@ -791,104 +758,94 @@ private fun MengiTexAppRoot(
                                     exit = fadeOut(tween(160))
                                 ) {
                                     Surface(
-                                        shape = RoundedCornerShape(24.dp),
-                                        color = MaterialTheme.colorScheme.surface,
-                                        tonalElevation = 1.dp,
-                                        shadowElevation = 2.dp,
+                                        color = MaterialTheme.colorScheme.background,
+                                        tonalElevation = 0.dp,
+                                        shadowElevation = 0.dp,
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .statusBarsPadding()
-                                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                                            .border(
-                                                width = 1.dp,
-                                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
-                                                shape = RoundedCornerShape(24.dp)
-                                            )
                                     ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
+                                        Column(modifier = Modifier.fillMaxWidth()) {
                                             Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 8.dp, vertical = 8.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
-                                                Surface(
-                                                    onClick = { scope.launch { drawerState.open() } },
-                                                    shape = RoundedCornerShape(14.dp),
-                                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
-                                                    modifier = Modifier
-                                                        .size(42.dp)
-                                                        .border(
-                                                            1.dp,
-                                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                                                            RoundedCornerShape(14.dp)
-                                                        )
-                                                        .testTag("top_bar_open_drawer_button")
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                                 ) {
-                                                    Box(contentAlignment = Alignment.Center) {
+                                                    IconButton(
+                                                        onClick = { scope.launch { drawerState.open() } },
+                                                        modifier = Modifier
+                                                            .size(48.dp)
+                                                            .testTag("top_bar_open_drawer_button")
+                                                    ) {
                                                         Icon(
                                                             imageVector = Icons.Filled.Menu,
                                                             contentDescription = s.cdOpenDrawer,
-                                                            tint = MaterialTheme.colorScheme.primary,
-                                                            modifier = Modifier.size(21.dp)
+                                                            tint = MaterialTheme.colorScheme.onSurface,
+                                                            modifier = Modifier.size(24.dp)
                                                         )
                                                     }
-                                                }
 
-                                                AnimatedContent(
-                                                    targetState = uiState.selectedTab,
-                                                    transitionSpec = {
-                                                        (fadeIn(tween(200)) + slideInVertically { -it / 3 }) togetherWith
-                                                            (fadeOut(tween(150)) + slideOutVertically { it / 3 })
-                                                    },
-                                                    label = "top_bar_title_anim"
-                                                ) { tab ->
-                                                    if (tab == MainTab.MESSAGES) {
-                                                        Row(
-                                                            verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                                            modifier = Modifier.testTag("top_bar_brand_logo")
-                                                        ) {
-                                                            MengiTexLogoMark(
-                                                                size = 36.dp,
-                                                                cornerRadius = 12.dp,
-                                                                showGlow = false
-                                                            )
-                                                            Column {
+                                                    AnimatedContent(
+                                                        targetState = uiState.selectedTab,
+                                                        transitionSpec = {
+                                                            (fadeIn(tween(200)) + slideInVertically { -it / 3 }) togetherWith
+                                                                (fadeOut(tween(150)) + slideOutVertically { it / 3 })
+                                                        },
+                                                        label = "top_bar_title_anim"
+                                                    ) { tab ->
+                                                        if (tab == MainTab.MESSAGES) {
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                                modifier = Modifier.testTag("top_bar_brand_logo")
+                                                            ) {
+                                                                MengiTexLogoMark(
+                                                                    size = 34.dp,
+                                                                    cornerRadius = 11.dp,
+                                                                    showGlow = false
+                                                                )
                                                                 Text(
                                                                     text = "MengiTex",
                                                                     style = MaterialTheme.typography.titleLarge,
-                                                                    fontWeight = FontWeight.ExtraBold
-                                                                )
-                                                                Text(
-                                                                    text = "Keystore AES-256",
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                    fontWeight = FontWeight.SemiBold,
-                                                                    color = MaterialTheme.colorScheme.primary
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = MaterialTheme.colorScheme.onSurface
                                                                 )
                                                             }
-                                                        }
-                                                    } else {
-                                                        Column {
+                                                        } else {
                                                             Text(
                                                                 text = s.contactsTitle,
                                                                 style = MaterialTheme.typography.titleLarge,
-                                                                fontWeight = FontWeight.ExtraBold
-                                                            )
-                                                            Text(
-                                                                text = "Contact Pop View",
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                fontWeight = FontWeight.SemiBold,
-                                                                color = MaterialTheme.colorScheme.primary
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MaterialTheme.colorScheme.onSurface
                                                             )
                                                         }
                                                     }
                                                 }
+
+                                                Surface(
+                                                    shape = RoundedCornerShape(50),
+                                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                                    modifier = Modifier.padding(end = 8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "AES-256",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                                    )
+                                                }
                                             }
+                                            HorizontalDivider(
+                                                thickness = 1.dp,
+                                                color = MaterialTheme.colorScheme.surfaceContainerHigh
+                                            )
                                         }
                                     }
                                 }
@@ -1090,74 +1047,6 @@ private fun MengiTexAppRoot(
                                             onBack = viewModel::closeDestination
                                         )
 
-                                        DrawerDestination.NOTIFICATION_MANAGER -> NotificationManagerScreen(
-                                            settings = uiState.settings,
-                                            hasNotificationPermission = uiState.hasNotificationPermission,
-                                            activeNotificationCount = uiState.activeNotificationCount,
-                                            recentMessages = activeMessages,
-                                            onBack = viewModel::closeDestination,
-                                            onRequestNotificationPermission = requestNotificationPermission,
-                                            onMasterToggle = viewModel::setNotificationsMasterEnabled,
-                                            onSendTestNotification = viewModel::sendTestNotificationNow,
-                                            onClearAllNotifications = viewModel::clearAllActiveNotificationsNow,
-                                            onPersonalSmsToggle = viewModel::setNotifyPersonalSms,
-                                            onTransactionsOtpToggle = viewModel::setNotifyTransactionsOtp,
-                                            onBubbleNotificationsToggle = viewModel::setBubbleNotificationsEnabled,
-                                            onInAppPopBannerToggle = viewModel::setInAppPopBannerEnabled,
-                                            onDeliveryReportsNotifToggle = viewModel::setNotifyDeliveryReports,
-                                            onSilentUnknownToggle = viewModel::setSilentUnknownSms,
-                                            onSoundToggle = viewModel::setNotifSoundEnabled,
-                                            onPickRingtone = launchRingtonePicker,
-                                            onSelectVibratePattern = viewModel::setNotifVibratePattern,
-                                            onHeadsUpToggle = viewModel::setNotifHeadsUpEnabled,
-                                            onLedToggle = viewModel::setNotifLedEnabled,
-                                            onBadgeToggle = viewModel::setNotifBadgeEnabled,
-                                            onSelectPreviewMode = viewModel::setNotifPreviewMode,
-                                            onActionPopReplyToggle = viewModel::setNotifActionPopReplyEnabled,
-                                            onActionMarkReadToggle = viewModel::setNotifActionMarkReadEnabled,
-                                            onActionMuteToggle = viewModel::setNotifActionMuteEnabled,
-                                            onQuietHoursToggle = viewModel::setQuietHoursEnabled,
-                                            onQuietHoursRangeChange = viewModel::setQuietHoursRange,
-                                            onQuietHoursAllowTxnToggle = viewModel::setQuietHoursAllowTransactions,
-                                            onMuteSender = viewModel::muteNotificationSender,
-                                            onUnmuteSender = viewModel::unmuteNotificationSender,
-                                            onUnmuteAllSenders = viewModel::clearAllMutedNotificationSenders,
-                                            onOpenSystemAppNotifs = {
-                                                onWillLaunchExternalSystemUi()
-                                                MengiTexNotificationManager.openSystemAppNotificationSettings(context)
-                                            },
-                                            onOpenSystemBubbles = openSystemBubbleSettings,
-                                            onOpenSystemChannel = { channelId ->
-                                                onWillLaunchExternalSystemUi()
-                                                MengiTexNotificationManager.openSystemChannelSettings(
-                                                    context = context,
-                                                    channelId = channelId,
-                                                    settings = uiState.settings
-                                                )
-                                            },
-                                            onApplyPreset = viewModel::applyNotificationPreset,
-                                            onSecretVaultToggle = viewModel::setNotifySecretVault,
-                                            onScheduledSmsToggle = viewModel::setNotifyScheduledSms,
-                                            onBlockedSpamToggle = viewModel::setNotifyBlockedSpam,
-                                            onWakeScreenToggle = viewModel::setNotifWakeScreenEnabled,
-                                            onResetRingtoneDefault = viewModel::resetNotifRingtoneToDefault,
-                                            onTestVibration = viewModel::testNotifVibrationNow,
-                                            onSelectLedColor = viewModel::setNotifLedColorArgb,
-                                            onSelectPriorityLevel = viewModel::setNotifPriorityLevel,
-                                            onOnlyAlertOnceToggle = viewModel::setNotifOnlyAlertOnce,
-                                            onGroupBySenderToggle = viewModel::setNotifGroupBySender,
-                                            onRepeatSettingsChange = viewModel::setNotifRepeatSettings,
-                                            onInAppPopDurationChange = viewModel::setInAppPopDurationSeconds,
-                                            onActionCopyOtpToggle = viewModel::setNotifActionCopyOtpEnabled,
-                                            onActionCallToggle = viewModel::setNotifActionCallEnabled,
-                                            onActionDeleteToggle = viewModel::setNotifActionDeleteEnabled,
-                                            onQuietHoursAllowVipToggle = viewModel::setQuietHoursAllowVip,
-                                            onAddVipSender = viewModel::addVipNotificationSender,
-                                            onRemoveVipSender = viewModel::removeVipNotificationSender,
-                                            onClearAllVipSenders = viewModel::clearAllVipNotificationSenders,
-                                            onResetAllSettings = viewModel::resetAllNotificationSettings
-                                        )
-
                                         DrawerDestination.TRASH -> TrashScreen(
                                             trashedMessages = trashedMessages,
                                             trashedTemplates = trashedTemplates,
@@ -1253,20 +1142,10 @@ private fun MengiTexAppRoot(
                                         DrawerDestination.SETTINGS -> SettingsScreen(
                                             settings = uiState.settings,
                                             detectedSims = uiState.detectedSims,
-                                            hasContactsPermission = uiState.hasContactsPermission,
-                                            hasStorageFolderAccess = uiState.hasStorageFolderAccess,
-                                            hasMicPermission = uiState.hasMicPermission,
-                                            hasSmsPermission = uiState.hasSmsPermission,
-                                            isDefaultSmsApp = uiState.isDefaultSmsApp,
-                                            isCallScreeningRoleHeld = uiState.isCallScreeningRoleHeld,
                                             onBack = viewModel::closeDestination,
                                             onLanguageChange = viewModel::setLanguage,
-                                            onBubbleNotificationsChange = viewModel::setBubbleNotificationsEnabled,
-                                            onDeliveryReportsChange = viewModel::setDeliveryReportsEnabled,
                                             onAutoBlockAdsChange = viewModel::setAutoBlockAdsEnabled,
                                             onAutoSweepAdsNow = viewModel::autoSweepExistingAdsNow,
-                                            onOpenSystemBubbleSettings = openSystemBubbleSettings,
-                                            onDarkModeChange = viewModel::setDarkMode,
                                             onThemeModeChange = viewModel::setThemeMode,
                                             onDimLightChange = viewModel::setDimLightEnabled,
                                             onDimLightLevelChange = viewModel::setDimLightLevel,
@@ -1274,21 +1153,22 @@ private fun MengiTexAppRoot(
                                             onOpenIconStealthDialog = { showIconStealthDialog = true },
                                             onSelectSim = viewModel::selectSim,
                                             onRefreshSims = viewModel::refreshSystemEnvironment,
-                                            onRequestDefaultSmsApp = requestDefaultSmsRole,
-                                            onRequestCallScreeningRole = requestCallScreeningRole,
-                                            onSyncPhoneSms = viewModel::importPhoneSystemSmsNow,
-                                            onRequestContactsPermission = requestContactsPermission,
-                                            onRequestStoragePermission = requestStoragePermission,
-                                            onRequestMicPermission = requestMicPermission,
-                                            onRequestSmsPermission = requestSmsPermissions,
-                                            onRequestAllPermissions = requestAllPermissions,
                                             onOpenSecurityCenter = { viewModel.openDestination(DrawerDestination.SECURITY) },
                                             onOpenBackupRestore = { viewModel.openDestination(DrawerDestination.BACKUP_RESTORE) },
-                                            onOpenNotificationManager = { viewModel.openDestination(DrawerDestination.NOTIFICATION_MANAGER) },
+                                            onOpenUpgradeCenter = { viewModel.openDestination(DrawerDestination.UPGRADE) },
                                             onGithubRepoChange = viewModel::setGithubUpdateRepo,
                                             onGithubChannelChange = viewModel::setGithubUpdateChannel,
                                             onGithubAutoCheckChange = viewModel::setGithubAutoCheckUpdates,
                                             onGithubCacheRelease = viewModel::cacheGithubLatestRelease
+                                        )
+
+                                        DrawerDestination.UPGRADE -> UpgradeScreen(
+                                            settings = uiState.settings,
+                                            onBack = viewModel::closeDestination,
+                                            onUpdateRepoChange = viewModel::setGithubUpdateRepo,
+                                            onUpdateChannelChange = viewModel::setGithubUpdateChannel,
+                                            onAutoCheckChange = viewModel::setGithubAutoCheckUpdates,
+                                            onCacheLatestRelease = viewModel::cacheGithubLatestRelease
                                         )
 
                                         DrawerDestination.NONE -> {
@@ -1467,8 +1347,8 @@ private fun IconModeOptionRow(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(

@@ -14,7 +14,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -79,9 +78,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -104,9 +103,9 @@ import com.example.service.ContactsLoader
 import com.example.service.SmsDispatchManager
 import com.example.service.SmsStealthReceiver
 import com.example.ui.i18n.AppLanguage
-import com.example.ui.screens.avatarGradientForKey
 import com.example.ui.screens.extractInitials
 import com.example.ui.theme.SiriSmsTheme
+import com.example.ui.theme.android17AvatarColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -520,8 +519,9 @@ private fun BubbleChatContent(
         }
     }
 
-    val avatarColors = remember(activeCanonicalKey) {
-        avatarGradientForKey(activeCanonicalKey.ifBlank { activeSenderName.ifBlank { "MengiTex" } })
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val (avatarBg, avatarFg) = remember(activeCanonicalKey, activeSenderName, isDark) {
+        android17AvatarColors(activeCanonicalKey.ifBlank { activeSenderName.ifBlank { "MengiTex" } }, isDark)
     }
 
     Surface(
@@ -567,7 +567,7 @@ private fun BubbleChatContent(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(Brush.linearGradient(avatarColors)),
+                                .background(avatarBg),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -576,21 +576,20 @@ private fun BubbleChatContent(
                                 ),
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = avatarFg
                             )
                         }
                         Box(
                             modifier = Modifier
                                 .size(17.dp)
                                 .clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(Color(0xFF2563EB), Color(0xFF7C3AED))))
-                                .border(1.5.dp, MaterialTheme.colorScheme.background, CircleShape),
+                                .background(MaterialTheme.colorScheme.primary),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Filled.MarkChatUnread,
                                 contentDescription = "Pop Bubble",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(9.dp)
                             )
                         }
@@ -636,7 +635,7 @@ private fun BubbleChatContent(
                         Text(
                             text = subLabel,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                            color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -722,7 +721,9 @@ private fun BubbleChatContent(
                         key = { "${it.isBlockedAdThread}_${it.canonicalKey}" }
                     ) { thread ->
                         val isSelected = thread.canonicalKey == activeCanonicalKey
-                        val chipColors = remember(thread.canonicalKey) { avatarGradientForKey(thread.canonicalKey) }
+                        val (chipBg, chipFg) = remember(thread.canonicalKey, isDark) {
+                            android17AvatarColors(thread.canonicalKey, isDark)
+                        }
                         Surface(
                             onClick = {
                                 activeSenderName = thread.displayName
@@ -733,17 +734,8 @@ private fun BubbleChatContent(
                             color = if (isSelected) {
                                 MaterialTheme.colorScheme.primaryContainer
                             } else {
-                                MaterialTheme.colorScheme.surface
-                            },
-                            modifier = Modifier.border(
-                                width = if (isSelected) 1.5.dp else 1.dp,
-                                color = if (isSelected) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                                },
-                                shape = RoundedCornerShape(16.dp)
-                            )
+                                MaterialTheme.colorScheme.surfaceContainerLow
+                            }
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
@@ -754,14 +746,14 @@ private fun BubbleChatContent(
                                     modifier = Modifier
                                         .size(24.dp)
                                         .clip(CircleShape)
-                                        .background(Brush.linearGradient(chipColors)),
+                                        .background(chipBg),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = extractInitials(thread.displayName),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = chipFg
                                     )
                                 }
                                 Column {
@@ -829,11 +821,9 @@ private fun BubbleChatContent(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier
-                            .weight(1f)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.weight(1f)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
@@ -909,7 +899,9 @@ private fun BubbleChatContent(
                         items = filteredDirectoryThreads,
                         key = { "${it.isBlockedAdThread}_${it.canonicalKey}" }
                     ) { thread ->
-                        val rowAvatarColors = remember(thread.canonicalKey) { avatarGradientForKey(thread.canonicalKey) }
+                        val (rowAvatarBg, rowAvatarFg) = remember(thread.canonicalKey, isDark) {
+                            android17AvatarColors(thread.canonicalKey, isDark)
+                        }
                         val timeFormatted = remember(thread.latestMessage.timestamp) {
                             SimpleDateFormat("dd MMM HH:mm", Locale.getDefault()).format(Date(thread.latestMessage.timestamp))
                         }
@@ -919,19 +911,13 @@ private fun BubbleChatContent(
                                 activePhoneNumber = thread.phoneNumber
                                 showAllConversationsDirectory = false
                             },
-                            shape = RoundedCornerShape(18.dp),
-                            color = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    width = if (thread.unreadCount > 0) 1.25.dp else 1.dp,
-                                    color = if (thread.unreadCount > 0) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
-                                    } else {
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
-                                    },
-                                    shape = RoundedCornerShape(18.dp)
-                                )
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (thread.unreadCount > 0) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerLow
+                            },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier
@@ -944,14 +930,14 @@ private fun BubbleChatContent(
                                     modifier = Modifier
                                         .size(42.dp)
                                         .clip(CircleShape)
-                                        .background(Brush.linearGradient(rowAvatarColors)),
+                                        .background(rowAvatarBg),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = extractInitials(thread.displayName),
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = rowAvatarFg
                                     )
                                 }
                                 Column(
@@ -980,13 +966,13 @@ private fun BubbleChatContent(
                                             if (thread.isBlockedAdThread) {
                                                 Surface(
                                                     shape = RoundedCornerShape(6.dp),
-                                                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.14f)
+                                                    color = MaterialTheme.colorScheme.errorContainer
                                                 ) {
                                                     Text(
                                                         text = "ADS",
                                                         style = MaterialTheme.typography.labelSmall,
                                                         fontWeight = FontWeight.ExtraBold,
-                                                        color = MaterialTheme.colorScheme.error,
+                                                        color = MaterialTheme.colorScheme.onErrorContainer,
                                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                                     )
                                                 }
@@ -1002,7 +988,7 @@ private fun BubbleChatContent(
                                         Text(
                                             text = thread.phoneNumber,
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                            color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -1143,17 +1129,11 @@ private fun BubbleChatContent(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 38.dp)
-                            .border(
-                                1.dp,
-                                if (replyText.isNotEmpty()) MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
-                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                                RoundedCornerShape(20.dp)
-                            )
                     ) {
                         Row(
                             modifier = Modifier
@@ -1164,7 +1144,7 @@ private fun BubbleChatContent(
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(50),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                color = MaterialTheme.colorScheme.primaryContainer
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
@@ -1228,11 +1208,9 @@ private fun BubbleChatContent(
                             .clip(CircleShape)
                             .background(
                                 if (canSend) {
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFF2563EB), Color(0xFF4F46E5), Color(0xFF7C3AED))
-                                    )
+                                    MaterialTheme.colorScheme.primary
                                 } else {
-                                    SolidColor(MaterialTheme.colorScheme.surfaceVariant)
+                                    MaterialTheme.colorScheme.surfaceContainerHighest
                                 }
                             )
                             .clickable(enabled = canSend) {
@@ -1245,7 +1223,7 @@ private fun BubbleChatContent(
                                         phoneNumber = targetDest,
                                         plainBody = text,
                                         status = MessageStatus.SENDING,
-                                        statusNote = if (isSw) "Imejibiwa kupitia Bubble" else "Replied via Bubble",
+                                        statusNote = if (isSw) "Imejibiwa kupitia kiputo" else "Replied via Bubble",
                                         simSlotLabel = "SIM",
                                         simSubId = selectedSimSubId,
                                         partCount = parts
@@ -1293,20 +1271,13 @@ private fun BubbleChatContent(
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Surface(
-                shape = RoundedCornerShape(26.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 10.dp,
-                shadowElevation = 22.dp,
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 18.dp)
-                    .border(
-                        width = 1.5.dp,
-                        brush = Brush.linearGradient(
-                            listOf(Color(0xFF2563EB), Color(0xFF7C3AED))
-                        ),
-                        shape = RoundedCornerShape(26.dp)
-                    )
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -1318,7 +1289,7 @@ private fun BubbleChatContent(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = if (isSw) "Chaguo za Ujumbe (Pop View)" else "Message Options (Pop View)",
+                            text = if (isSw) "Chaguo za Ujumbe" else "Message Options (Pop View)",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.ExtraBold,
                             color = MaterialTheme.colorScheme.primary
@@ -1329,8 +1300,8 @@ private fun BubbleChatContent(
                     }
 
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
@@ -1503,9 +1474,7 @@ private fun BubbleMessageRow(
                 modifier = Modifier
                     .widthIn(max = 285.dp)
                     .clip(bubbleShape)
-                    .background(
-                        Brush.linearGradient(listOf(Color(0xFF1E40AF), Color(0xFF2563EB)))
-                    )
+                    .background(MaterialTheme.colorScheme.primary)
                     .combinedClickable(
                         onClick = {},
                         onLongClick = onLongPress
@@ -1516,10 +1485,10 @@ private fun BubbleMessageRow(
                     Text(
                         text = body,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                     if (detectedPhones.isNotEmpty()) {
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.22f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.primaryContainer)
                         detectedPhones.forEach { num ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1530,7 +1499,7 @@ private fun BubbleMessageRow(
                                     text = num,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onPrimary
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Surface(
@@ -1549,13 +1518,13 @@ private fun BubbleMessageRow(
                                     Surface(
                                         onClick = { onCopyText(num) },
                                         shape = RoundedCornerShape(7.dp),
-                                        color = Color.White.copy(alpha = 0.22f)
+                                        color = MaterialTheme.colorScheme.primaryContainer
                                     ) {
                                         Text(
                                             text = "Copy",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                         )
                                     }
@@ -1581,7 +1550,7 @@ private fun BubbleMessageRow(
                         )
                         else -> Triple(
                             Icons.Filled.Done,
-                            Color(0xE6FFFFFF),
+                            MaterialTheme.colorScheme.onPrimary,
                             if (isSw) "Imetumwa" else "Sent"
                         )
                     }
@@ -1593,7 +1562,7 @@ private fun BubbleMessageRow(
                         Text(
                             text = timeText,
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xCCFFFFFF)
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                         Text(
                             text = "• $deliveryReportLabel",
@@ -1615,14 +1584,9 @@ private fun BubbleMessageRow(
         } else {
             Surface(
                 shape = bubbleShape,
-                color = MaterialTheme.colorScheme.surface,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier
                     .widthIn(max = 285.dp)
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.42f),
-                        bubbleShape
-                    )
                     .clip(bubbleShape)
                     .combinedClickable(
                         onClick = {},
@@ -1650,13 +1614,13 @@ private fun BubbleMessageRow(
                         if (status == MessageStatus.BLOCKED_AD) {
                             Surface(
                                 shape = RoundedCornerShape(5.dp),
-                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.14f)
+                                color = MaterialTheme.colorScheme.errorContainer
                             ) {
                                 Text(
                                     text = "ADS",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.error,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }
@@ -1668,7 +1632,7 @@ private fun BubbleMessageRow(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     if (detectedPhones.isNotEmpty()) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         detectedPhones.forEach { num ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),

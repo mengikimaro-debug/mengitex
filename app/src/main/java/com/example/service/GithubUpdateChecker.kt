@@ -304,7 +304,7 @@ object GithubUpdateChecker {
             val release = GithubReleaseInfo(
                 tagName = "v$currentVersion-OTA",
                 releaseName = "Direct Turbo APK ($fileName)",
-                bodyNotes = "Faili la APK la moja kwa moja lipo tayari kupakuliwa kwa kasi ya Turbo na kuji-install ndani ya app.",
+                bodyNotes = "Faili la programu lipo tayari kupakuliwa na kusakinishwa moja kwa moja.",
                 htmlUrl = trimmedInput,
                 publishedAt = "Live APK",
                 isPrerelease = false,
@@ -386,8 +386,8 @@ object GithubUpdateChecker {
                         owner = owner,
                         currentVersion = currentVersion,
                         token = token,
-                        noticeSw = "Repo '$slug' imeunganishwa. Kifurushi cha OTA cha MengiTex kiko tayari kupakuliwa kwa kasi ya Turbo na kuji-install.",
-                        noticeEn = "Connected to '$slug'. MengiTex Turbo OTA package is ready for fast download and self-install."
+                        noticeSw = "Hazina '$slug' imeunganishwa. Kifurushi cha MengiTex kiko tayari kupakuliwa na kusakinishwa.",
+                        noticeEn = "Connected to '$slug'. MengiTex package is ready for fast download and install."
                     )
                 }
 
@@ -402,8 +402,8 @@ object GithubUpdateChecker {
                         owner = owner,
                         currentVersion = currentVersion,
                         token = token,
-                        noticeSw = "Injini ya MengiTex Turbo Self-Installer iko tayari kwa '$slug'. Bonyeza 'Pakua & Ji-Install Sasa' kusasisha moja kwa moja.",
-                        noticeEn = "MengiTex Turbo Self-Installer is ready for '$slug'. Tap 'Turbo Download & Self-Install' to update directly."
+                        noticeSw = "Kisakinishi cha MengiTex kiko tayari kwa '$slug'. Bonyeza kusasisha moja kwa moja.",
+                        noticeEn = "MengiTex installer is ready for '$slug'. Tap to update directly."
                     )
                 }
             }
@@ -414,8 +414,8 @@ object GithubUpdateChecker {
                 owner = owner,
                 currentVersion = currentVersion,
                 token = token,
-                noticeSw = "Hali ya Turbo Offline-Ready: Kifurushi cha MengiTex APK kiko tayari kupakuliwa na kuji-install moja kwa moja.",
-                noticeEn = "Turbo Offline-Ready Mode: MengiTex APK package is ready to download and self-install directly."
+                noticeSw = "Hali ya nje ya mtandao: Kifurushi cha MengiTex kiko tayari kupakuliwa na kusakinishwa moja kwa moja.",
+                noticeEn = "Offline-ready mode: MengiTex package is ready to download and install directly."
             )
         }
     }
@@ -438,7 +438,7 @@ object GithubUpdateChecker {
             if (altCommits is GithubUpdateCheckResult.Success) {
                 return altCommits.copy(
                     latestRelease = altCommits.latestRelease.copy(discoveredUserRepos = discoveredRepos),
-                    statusNoticeSw = "Imeunganishwa moja kwa moja na repo yako: $matchingRepo",
+                    statusNoticeSw = "Imeunganishwa moja kwa moja na hazina yako: $matchingRepo",
                     statusNoticeEn = "Connected directly to your repository: $matchingRepo"
                 )
             }
@@ -451,7 +451,7 @@ object GithubUpdateChecker {
             releaseName = "MengiTex v$baseVer • Hyper 10x Edition",
             bodyNotes = "• 10-Stream (10x) Hyper-Speed Downloader (256KB Buffer & Live MB/s)\n" +
                 "• 4-Stage Auto Self-Installer (SHA-256 Verified & Zero Data Loss)\n" +
-                "• 6G Frame-0 Instant Chat, Dual-SIM & Smart Ad Blocker (07/06/+255 Safe)\n" +
+                "• Instant Chat, Dual-SIM & Smart Ad Blocker (07/06/+255 Safe)\n" +
                 "• Hyper-Turbo 600K+ XML/SMS Backup & 3-Tier Auto-Recovery Shield",
             htmlUrl = "https://github.com/$slug/releases",
             publishedAt = "v$baseVer Upgrade",
@@ -1057,8 +1057,8 @@ object GithubUpdateChecker {
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 3,
-                    stageSw = "Hatua 3/4: App inaji-install (${release.tagName}) bila kupoteza SMS...",
-                    stageEn = "Stage 3/4: Self-installing (${release.tagName}) with zero data loss...",
+                    stageSw = "Hatua 3/4: Inasakinisha (${release.tagName}) bila kupoteza ujumbe...",
+                    stageEn = "Stage 3/4: Installing (${release.tagName}) with zero data loss...",
                     percent = 76,
                     sha256Short = shaHex
                 )
@@ -1082,8 +1082,8 @@ object GithubUpdateChecker {
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 4,
-                    stageSw = "Hatua 4/4: MengiTex v$cleanInstalledTag imeji-install kikamilifu ✓",
-                    stageEn = "Stage 4/4: MengiTex v$cleanInstalledTag self-installed successfully ✓",
+                    stageSw = "Hatua 4/4: MengiTex v$cleanInstalledTag imesakinishwa kikamilifu ✓",
+                    stageEn = "Stage 4/4: MengiTex v$cleanInstalledTag installed successfully ✓",
                     percent = 100,
                     sha256Short = shaHex
                 )

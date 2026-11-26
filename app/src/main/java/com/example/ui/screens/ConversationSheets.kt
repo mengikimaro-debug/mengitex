@@ -7,7 +7,6 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.ContactsContract
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,9 +73,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -92,6 +91,7 @@ import com.example.security.VaultCryptoManager
 import com.example.service.ContactsLoader
 import com.example.service.DetectedSimCard
 import com.example.ui.i18n.LocalAppStrings
+import com.example.ui.theme.android17AvatarColors
 
 /**
  * 2026 Next-Gen Contact Profile Bottom Sheet opened by tapping the person's header/avatar
@@ -121,7 +121,10 @@ fun ContactProfileModalSheet(
     val contactKeystoreFingerprint = remember(normPhone, contactName) {
         VaultCryptoManager.computeKeystoreFingerprint("CONTACT_${normPhone}_$contactName")
     }
-    val avatarColors = remember(normPhone) { avatarGradientForKey(normPhone) }
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val (avatarBg, avatarFg) = remember(normPhone, isDark) {
+        android17AvatarColors(normPhone, isDark)
+    }
     var showRenameDialog by remember { mutableStateOf(false) }
 
     Dialog(
@@ -130,22 +133,12 @@ fun ContactProfileModalSheet(
     ) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 10.dp,
-            shadowElevation = 22.dp,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 20.dp)
-                .border(
-                    width = 1.5.dp,
-                    brush = Brush.linearGradient(
-                        listOf(
-                            Color(0xFF2563EB).copy(alpha = 0.65f),
-                            Color(0xFF7C3AED).copy(alpha = 0.65f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(28.dp)
-                )
                 .testTag("contact_profile_pop_view")
         ) {
             Column(
@@ -184,38 +177,27 @@ fun ContactProfileModalSheet(
                     modifier = Modifier
                         .size(86.dp)
                         .clip(CircleShape)
-                        .background(Brush.linearGradient(avatarColors))
-                        .border(
-                            width = 3.dp,
-                            brush = Brush.linearGradient(
-                                listOf(
-                                    Color(0xFF2563EB),
-                                    Color(0xFF7C3AED)
-                                )
-                            ),
-                            shape = CircleShape
-                        ),
+                        .background(avatarBg),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = extractInitials(contactName),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = avatarFg
                     )
                 }
                 Box(
                     modifier = Modifier
                         .size(26.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .border(2.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                        .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Lock,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(13.dp)
                     )
                 }
@@ -336,7 +318,7 @@ fun ContactProfileModalSheet(
             ) {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(
@@ -358,7 +340,7 @@ fun ContactProfileModalSheet(
                 }
                 Surface(
                     shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(
@@ -383,14 +365,8 @@ fun ContactProfileModalSheet(
             // AES-256 Vault Security Card
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                        RoundedCornerShape(20.dp)
-                    )
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier.padding(14.dp),
@@ -401,13 +377,13 @@ fun ContactProfileModalSheet(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+                            .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.EnhancedEncryption,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -416,12 +392,12 @@ fun ContactProfileModalSheet(
                             text = s.convProfileEncryptionTitle,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
                             text = "${s.convProfileEncryptionSub} • $contactKeystoreFingerprint",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
@@ -430,7 +406,7 @@ fun ContactProfileModalSheet(
             // Save / Label Contact Name Button
             Surface(
                 shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(18.dp))
@@ -512,9 +488,8 @@ private fun ProfileQuickActionTile(
     val shape = RoundedCornerShape(18.dp)
     Surface(
         shape = shape,
-        color = accentColor.copy(alpha = 0.11f),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = modifier
-            .border(1.dp, accentColor.copy(alpha = 0.25f), shape)
             .clip(shape)
             .clickable(onClick = onClick)
     ) {
@@ -580,22 +555,12 @@ fun MessageLongPressActionSheet(
     ) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 10.dp,
-            shadowElevation = 22.dp,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 20.dp)
-                .border(
-                    width = 1.5.dp,
-                    brush = Brush.linearGradient(
-                        listOf(
-                            Color(0xFF2563EB).copy(alpha = 0.65f),
-                            Color(0xFF7C3AED).copy(alpha = 0.65f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(28.dp)
-                )
                 .testTag("message_hold_pop_view")
         ) {
             Column(
@@ -643,7 +608,7 @@ fun MessageLongPressActionSheet(
             // Selected Message Preview Card (with native SelectionContainer so user can also highlight text directly)
             Surface(
                 shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -677,7 +642,7 @@ fun MessageLongPressActionSheet(
             }
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -755,14 +720,8 @@ fun MessageLongPressActionSheet(
             if (detectedPhones.isNotEmpty()) {
                 Surface(
                     shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                            RoundedCornerShape(18.dp)
-                        )
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -846,7 +805,7 @@ fun MessageLongPressActionSheet(
             // Secondary List Actions: Quote & Reply, Select & Copy Partial Text, Edit in Composer, Select Multiple, Schedule, Info, Delete
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
@@ -860,7 +819,7 @@ fun MessageLongPressActionSheet(
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
+                            color = MaterialTheme.colorScheme.outlineVariant
                         )
                         HoldSheetActionRow(
                             icon = Icons.Filled.ContentCopy,
@@ -871,7 +830,7 @@ fun MessageLongPressActionSheet(
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
+                            color = MaterialTheme.colorScheme.outlineVariant
                         )
                         HoldSheetActionRow(
                             icon = Icons.Filled.Edit,
@@ -882,7 +841,7 @@ fun MessageLongPressActionSheet(
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
+                            color = MaterialTheme.colorScheme.outlineVariant
                         )
                         HoldSheetActionRow(
                             icon = Icons.Filled.ScheduleSend,
@@ -893,7 +852,7 @@ fun MessageLongPressActionSheet(
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
+                            color = MaterialTheme.colorScheme.outlineVariant
                         )
                     }
                     HoldSheetActionRow(
@@ -905,7 +864,7 @@ fun MessageLongPressActionSheet(
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
+                        color = MaterialTheme.colorScheme.outlineVariant
                     )
                     HoldSheetActionRow(
                         icon = Icons.Filled.Info,
@@ -916,7 +875,7 @@ fun MessageLongPressActionSheet(
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
+                        color = MaterialTheme.colorScheme.outlineVariant
                     )
                     HoldSheetActionRow(
                         icon = Icons.Filled.DeleteOutline,
@@ -990,19 +949,14 @@ fun PhoneNumberQuickActionSheet(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 8.dp,
-            shadowElevation = 14.dp,
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 310.dp)
                 .padding(horizontal = 24.dp)
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                    shape = RoundedCornerShape(20.dp)
-                )
                 .testTag("phone_number_pop_view")
         ) {
             Column(
@@ -1112,8 +1066,8 @@ fun PhoneNumberQuickActionSheet(
                 }
 
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f),
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column {
@@ -1129,12 +1083,12 @@ fun PhoneNumberQuickActionSheet(
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 12.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
+                            color = MaterialTheme.colorScheme.outlineVariant
                         )
                         HoldSheetActionRow(
                             icon = Icons.Filled.Sms,
                             title = if (isSw) "Tuma SMS" else "Send SMS",
-                            tint = Color(0xFF0EA5E9),
+                            tint = MaterialTheme.colorScheme.secondary,
                             testTag = "phone_sheet_action_sms",
                             onClick = {
                                 onDismiss()
@@ -1144,7 +1098,7 @@ fun PhoneNumberQuickActionSheet(
                         )
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 12.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
+                            color = MaterialTheme.colorScheme.outlineVariant
                         )
                         HoldSheetActionRow(
                             icon = Icons.Filled.PersonAdd,
@@ -1220,15 +1174,9 @@ fun SelectAndCopyPartialTextDialog(
                 )
 
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                            RoundedCornerShape(16.dp)
-                        )
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     SelectionContainer(
                         modifier = Modifier.padding(14.dp)
@@ -1312,7 +1260,7 @@ fun SelectAndCopyPartialTextDialog(
                                     onDismiss()
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                                color = MaterialTheme.colorScheme.primaryContainer,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -1420,13 +1368,13 @@ fun ForwardMessageModalSheet(
             // Forwarded Text Preview
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = messageBody,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
@@ -1435,15 +1383,9 @@ fun ForwardMessageModalSheet(
 
             // Search or Manual Number Input
             Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
-                        RoundedCornerShape(18.dp)
-                    )
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
@@ -1549,23 +1491,20 @@ fun ForwardMessageModalSheet(
                 ) { contact ->
                     val norm = ContactsLoader.normalizePhone(contact.phoneNumber)
                     val isSelected = selected.any { ContactsLoader.normalizePhone(it.phoneNumber) == norm }
-                    val avatarColors = remember(contact.phoneNumber) { avatarGradientForKey(contact.phoneNumber) }
+                    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+                    val (avatarBg, avatarFg) = remember(contact.phoneNumber, isDark) {
+                        android17AvatarColors(contact.phoneNumber, isDark)
+                    }
                     val rowShape = RoundedCornerShape(18.dp)
                     Surface(
                         shape = rowShape,
                         color = if (isSelected) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                            MaterialTheme.colorScheme.primaryContainer
                         } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                            MaterialTheme.colorScheme.surfaceContainerLow
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                                shape = rowShape
-                            )
                             .clip(rowShape)
                             .clickable {
                                 if (isSelected) {
@@ -1586,14 +1525,14 @@ fun ForwardMessageModalSheet(
                                     modifier = Modifier
                                         .size(40.dp)
                                         .clip(CircleShape)
-                                        .background(Brush.linearGradient(avatarColors)),
+                                        .background(avatarBg),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = extractInitials(contact.name),
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = avatarFg
                                     )
                                 }
                                 if (isSelected) {
@@ -1601,14 +1540,13 @@ fun ForwardMessageModalSheet(
                                         modifier = Modifier
                                             .size(16.dp)
                                             .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.primary)
-                                            .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                                            .background(MaterialTheme.colorScheme.primary),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Filled.Check,
                                             contentDescription = null,
-                                            tint = Color.White,
+                                            tint = MaterialTheme.colorScheme.onPrimary,
                                             modifier = Modifier.size(10.dp)
                                         )
                                     }
@@ -1633,7 +1571,7 @@ fun ForwardMessageModalSheet(
                 }
             }
 
-            // Bottom Forward Now Gradient CTA
+            // Bottom Forward Now CTA
             val canForward = selected.isNotEmpty()
             val ctaShape = RoundedCornerShape(20.dp)
             Box(
@@ -1642,14 +1580,9 @@ fun ForwardMessageModalSheet(
                     .clip(ctaShape)
                     .background(
                         if (canForward) {
-                            Brush.linearGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.secondary
-                                )
-                            )
+                            MaterialTheme.colorScheme.primary
                         } else {
-                            SolidColor(MaterialTheme.colorScheme.surfaceVariant)
+                            MaterialTheme.colorScheme.surfaceContainerHighest
                         }
                     )
                     .clickable(enabled = canForward) {
@@ -1666,14 +1599,14 @@ fun ForwardMessageModalSheet(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = null,
-                        tint = if (canForward) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (canForward) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
                         text = s.convForwardSendBtn(selected.size),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = if (canForward) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (canForward) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1733,15 +1666,9 @@ fun KeystoreChatSecurityDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-                            RoundedCornerShape(16.dp)
-                        )
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier.padding(12.dp),
@@ -1751,7 +1678,7 @@ fun KeystoreChatSecurityDialog(
                             text = chatTitle,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
                             text = fingerprint,
@@ -1774,8 +1701,8 @@ fun KeystoreChatSecurityDialog(
                 }
 
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(

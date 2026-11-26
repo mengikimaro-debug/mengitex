@@ -100,6 +100,8 @@ import com.example.ui.components.MengiTexLogoMark
 import com.example.ui.components.NextGenFilterPill
 import com.example.ui.components.NextGenGlassSurface
 import com.example.ui.components.NextGenGradientFab
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.example.ui.theme.android17AvatarColors
 import com.example.ui.i18n.AppLanguage
 import com.example.ui.i18n.LocalAppStrings
 import java.text.SimpleDateFormat
@@ -459,11 +461,12 @@ fun InboxAndReportsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 2026 Smart Liquid-Glass Search Capsule
-            NextGenGlassSurface(
-                shape = RoundedCornerShape(24.dp),
-                highlighted = trimmedQuery.isNotEmpty(),
-                tonalAlpha = 0.88f,
+            // Android 17 Material 3 Pill SearchBar (borderless solid surfaceContainerHigh)
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -471,7 +474,7 @@ fun InboxAndReportsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 13.dp),
+                        .padding(horizontal = 18.dp, vertical = 13.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -627,16 +630,11 @@ fun InboxAndReportsScreen(
                 exit = fadeOut()
             ) {
                 Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
-                            RoundedCornerShape(18.dp)
-                        )
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
@@ -648,15 +646,15 @@ fun InboxAndReportsScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.14f)),
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.errorContainer),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Block,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -674,8 +672,8 @@ fun InboxAndReportsScreen(
                             }
                         }
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF10B981).copy(alpha = 0.14f)
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -685,14 +683,14 @@ fun InboxAndReportsScreen(
                                 Icon(
                                     imageVector = Icons.Filled.VerifiedUser,
                                     contentDescription = null,
-                                    tint = Color(0xFF10B981),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = s.adBlockerProtectedChip,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF10B981)
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             }
                         }
@@ -742,16 +740,11 @@ fun InboxAndReportsScreen(
                 exit = fadeOut()
             ) {
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                            RoundedCornerShape(20.dp)
-                        )
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
@@ -786,17 +779,17 @@ fun InboxAndReportsScreen(
                                 Text(
                                     text = s.defaultSmsBannerSub,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
                             IconButton(
                                 onClick = { dismissedDefaultBanner = true },
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(28.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Close,
                                     contentDescription = s.btnCancel,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
@@ -835,7 +828,7 @@ fun InboxAndReportsScreen(
                     repeat(5) {
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(72.dp)
@@ -849,9 +842,9 @@ fun InboxAndReportsScreen(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(44.dp)
+                                        .size(46.dp)
                                         .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 )
                                 Column(
                                     modifier = Modifier.weight(1f),
@@ -862,14 +855,14 @@ fun InboxAndReportsScreen(
                                             .fillMaxWidth(0.45f)
                                             .height(12.dp)
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.22f))
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                     )
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth(0.78f)
                                             .height(10.dp)
                                             .clip(RoundedCornerShape(6.dp))
-                                            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.14f))
+                                            .background(MaterialTheme.colorScheme.surfaceContainer)
                                     )
                                 }
                             }
@@ -890,15 +883,14 @@ fun InboxAndReportsScreen(
                         if (activeFilter == InboxFilter.UNKNOWN_SILENT || activeFilter == InboxFilter.BLOCKED_ADS) {
                             Box(
                                 modifier = Modifier
-                                    .size(76.dp)
+                                    .size(72.dp)
                                     .clip(CircleShape)
                                     .background(
-                                        Brush.linearGradient(
-                                            listOf(
-                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
-                                            )
-                                        )
+                                        if (activeFilter == InboxFilter.BLOCKED_ADS) {
+                                            MaterialTheme.colorScheme.secondaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        }
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -909,15 +901,19 @@ fun InboxAndReportsScreen(
                                         Icons.Filled.NotificationsOff
                                     },
                                     contentDescription = null,
-                                    tint = if (activeFilter == InboxFilter.BLOCKED_ADS) Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(34.dp)
+                                    tint = if (activeFilter == InboxFilter.BLOCKED_ADS) {
+                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    },
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
                         } else {
                             MengiTexLogoMark(
-                                size = 76.dp,
-                                cornerRadius = 22.dp,
-                                showGlow = true,
+                                size = 72.dp,
+                                cornerRadius = 20.dp,
+                                showGlow = false,
                                 modifier = Modifier.testTag("inbox_empty_brand_logo")
                             )
                         }
@@ -952,8 +948,8 @@ fun InboxAndReportsScreen(
                 }
             } else {
                 LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(
@@ -1006,16 +1002,18 @@ fun InboxAndReportsScreen(
                             key = { "contact_match_${it.id}" },
                             contentType = { "contact_search_match" }
                         ) { contact ->
-                            val avatarColors = remember(contact.phoneNumber) { avatarGradientForKey(contact.phoneNumber) }
+                            val isDark = isSystemInDarkTheme()
+                            val (avatarBg, avatarFg) = remember(contact.phoneNumber, isDark) {
+                                android17AvatarColors(contact.phoneNumber, isDark)
+                            }
                             val rowShape = RoundedCornerShape(20.dp)
                             val highlightColor = MaterialTheme.colorScheme.primary
-                            val highlightBg = highlightColor.copy(alpha = 0.16f)
+                            val highlightBg = MaterialTheme.colorScheme.primaryContainer
                             Surface(
                                 shape = rowShape,
-                                color = MaterialTheme.colorScheme.surface,
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), rowShape)
                                     .clip(rowShape)
                                     .clickable { onOpenConversation(contact.name, contact.phoneNumber) }
                             ) {
@@ -1028,9 +1026,9 @@ fun InboxAndReportsScreen(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(44.dp)
+                                            .size(46.dp)
                                             .clip(CircleShape)
-                                            .background(Brush.linearGradient(avatarColors))
+                                            .background(avatarBg)
                                             .clickable {
                                                 inspectedProfileTarget = contact.name to contact.phoneNumber
                                             },
@@ -1040,7 +1038,7 @@ fun InboxAndReportsScreen(
                                             text = extractInitials(contact.name),
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White
+                                            color = avatarFg
                                         )
                                     }
                                     Column(modifier = Modifier.weight(1f)) {
@@ -1281,37 +1279,31 @@ private fun PremiumConversationRow(
     val s = LocalAppStrings.current
     val previewMsg = thread.matchedMessage ?: thread.latestMessage
     val hasUnread = thread.unreadCount > 0
-    val avatarColors = remember(thread.normalizedPhone) { avatarGradientForKey(thread.normalizedPhone) }
+    val isDark = isSystemInDarkTheme()
+    val (avatarBg, avatarFg) = remember(thread.normalizedPhone, isDark) {
+        android17AvatarColors(thread.normalizedPhone, isDark)
+    }
     val formattedTime = remember(previewMsg.timestamp, s.convYesterday) {
         formatSmartConversationTime(previewMsg.timestamp, s.convYesterday)
     }
     val highlightColor = MaterialTheme.colorScheme.primary
-    val highlightBg = highlightColor.copy(alpha = 0.16f)
+    val highlightBg = MaterialTheme.colorScheme.primaryContainer
 
-    val cardShape = RoundedCornerShape(22.dp)
+    val rowShape = RoundedCornerShape(20.dp)
+    val rowBg = when {
+        isSelected -> MaterialTheme.colorScheme.primaryContainer
+        hasUnread -> MaterialTheme.colorScheme.surfaceContainer
+        else -> MaterialTheme.colorScheme.surfaceContainerLow
+    }
+
     Surface(
-        shape = cardShape,
-        color = if (isSelected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)
-        } else {
-            MaterialTheme.colorScheme.surface
-        },
-        tonalElevation = if (isSelected) 4.dp else if (hasUnread) 3.dp else 1.dp,
-        shadowElevation = if (isSelected || hasUnread) 2.dp else 0.5.dp,
+        shape = rowShape,
+        color = rowBg,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
         modifier = Modifier
             .fillMaxWidth()
-            .border(
-                width = if (isSelected) 1.75.dp else if (hasUnread) 1.25.dp else 1.dp,
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.primary
-                } else if (hasUnread) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
-                } else {
-                    MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
-                },
-                shape = cardShape
-            )
-            .clip(cardShape)
+            .clip(rowShape)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -1321,11 +1313,11 @@ private fun PremiumConversationRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 13.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Tappable Gradient Monogram Avatar — shows checkmark in selection mode or opens Contact Profile
+            // Android 17 Solid Tonal Monogram Circle Avatar (no gradient, no extra badge clutter)
             Box(
                 contentAlignment = Alignment.BottomEnd,
                 modifier = Modifier
@@ -1335,24 +1327,9 @@ private fun PremiumConversationRow(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(52.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
-                        .then(
-                            if (isSelected) {
-                                Modifier.background(MaterialTheme.colorScheme.primary)
-                            } else {
-                                Modifier.background(Brush.linearGradient(avatarColors))
-                            }
-                        )
-                        .then(
-                            if (isSelected || hasUnread) {
-                                Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                            } else if (isSelectionMode) {
-                                Modifier.border(1.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), CircleShape)
-                            } else {
-                                Modifier
-                            }
-                        ),
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary else avatarBg),
                     contentAlignment = Alignment.Center
                 ) {
                     if (isSelected) {
@@ -1360,63 +1337,47 @@ private fun PremiumConversationRow(
                             imageVector = Icons.Filled.Check,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     } else if (thread.isSilentUnknownThread && thread.displayName == thread.phoneNumber) {
                         Icon(
                             imageVector = Icons.Filled.NotificationsOff,
                             contentDescription = s.contactDetailsViewProfileCd,
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
+                            tint = avatarFg,
+                            modifier = Modifier.size(21.dp)
                         )
                     } else {
                         Text(
                             text = extractInitials(thread.displayName),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = avatarFg
                         )
                     }
                 }
                 if (thread.hasSecretMessage && !isSelected) {
                     Box(
                         modifier = Modifier
-                            .size(19.dp)
+                            .size(18.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.tertiary)
-                            .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                            .background(MaterialTheme.colorScheme.tertiaryContainer)
+                            .border(1.5.dp, rowBg, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.LocalFireDepartment,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.size(11.dp)
-                        )
-                    }
-                } else if (!isSelected) {
-                    Box(
-                        modifier = Modifier
-                            .size(18.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surface)
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = s.contactDetailsViewProfileCd,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(13.dp)
                         )
                     }
                 }
             }
 
-            // Name, Time, Preview & Subtle Status Tick
+            // Name, Time, Preview & Clean Unread Count Pill
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1445,13 +1406,13 @@ private fun PremiumConversationRow(
                             if (thread.isBlockedAdThread) {
                                 Surface(
                                     shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.14f)
+                                    color = MaterialTheme.colorScheme.errorContainer
                                 ) {
                                     Text(
                                         text = "ADS",
                                         style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                                     )
                                 }
@@ -1466,7 +1427,7 @@ private fun PremiumConversationRow(
                                     highlightBg = highlightBg
                                 ),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -1477,15 +1438,15 @@ private fun PremiumConversationRow(
                     if (onAllowBlockedAd != null) {
                         Surface(
                             onClick = onAllowBlockedAd,
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF10B981).copy(alpha = 0.16f)
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Text(
                                 text = s.adBlockerAllowSenderBtn,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF10B981),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
                     } else {
@@ -1557,7 +1518,7 @@ private fun PremiumConversationRow(
                                 highlightColor = highlightColor,
                                 highlightBg = highlightBg
                             ),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = if (hasUnread) FontWeight.SemiBold else FontWeight.Normal,
                             color = if (hasUnread) {
                                 MaterialTheme.colorScheme.onSurface
@@ -1575,7 +1536,7 @@ private fun PremiumConversationRow(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
                                 .background(MaterialTheme.colorScheme.primary)
-                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -1589,7 +1550,7 @@ private fun PremiumConversationRow(
                         Icon(
                             imageVector = Icons.Filled.NotificationsOff,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(15.dp)
                         )
                     }
@@ -1597,19 +1558,6 @@ private fun PremiumConversationRow(
             }
         }
     }
-}
-
-internal fun avatarGradientForKey(key: String): List<Color> {
-    val palettes = listOf(
-        listOf(Color(0xFF059669), Color(0xFF0F766E)),
-        listOf(Color(0xFF0284C7), Color(0xFF1D4ED8)),
-        listOf(Color(0xFF7C3AED), Color(0xFF4F46E5)),
-        listOf(Color(0xFFD97706), Color(0xFFB45309)),
-        listOf(Color(0xFFE11D48), Color(0xFFBE123C)),
-        listOf(Color(0xFF0D9488), Color(0xFF0369A1))
-    )
-    val index = abs(key.hashCode()) % palettes.size
-    return palettes[index]
 }
 
 internal fun extractInitials(displayName: String): String {

@@ -1,0 +1,1493 @@
+package com.example.ui.screens
+
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SaveAlt
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.security.SecuritySettings
+import com.example.service.GithubDownloadProgress
+import com.example.service.GithubReleaseInfo
+import com.example.service.GithubSelfInstallProgress
+import com.example.service.GithubUpdateChannel
+import com.example.service.GithubUpdateCheckResult
+import com.example.service.GithubUpdateChecker
+import com.example.ui.components.OneUi85SubScreenHeader
+import com.example.ui.i18n.AppLanguage
+import com.example.ui.i18n.LocalAppStrings
+import kotlinx.coroutines.launch
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/**
+ * Full-Screen Android 17 Material 3 Expressive — New Vision Upgrade Hub.
+ * 100% solid opaque tonal containers (zero transparency, zero glow, zero gradients, zero borders).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun UpgradeScreen(
+    settings: SecuritySettings,
+    onBack: () -> Unit,
+    onUpdateRepoChange: (String) -> Unit,
+    onUpdateChannelChange: (GithubUpdateChannel) -> Unit,
+    onAutoCheckChange: (Boolean) -> Unit,
+    onCacheLatestRelease: (GithubReleaseInfo) -> Unit
+) {
+    BackHandler(onBack = onBack)
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val s = LocalAppStrings.current
+    val isSw = settings.language == AppLanguage.SW
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val onPrimaryContainer = MaterialTheme.colorScheme.onPrimaryContainer
+    val secondaryContainer = MaterialTheme.colorScheme.secondaryContainer
+    val onSecondaryContainer = MaterialTheme.colorScheme.onSecondaryContainer
+    val tertiaryColor = MaterialTheme.colorScheme.tertiary
+    val onTertiaryColor = MaterialTheme.colorScheme.onTertiary
+    val tertiaryContainer = MaterialTheme.colorScheme.tertiaryContainer
+    val onTertiaryContainer = MaterialTheme.colorScheme.onTertiaryContainer
+    val errorContainer = MaterialTheme.colorScheme.errorContainer
+    val onErrorContainer = MaterialTheme.colorScheme.onErrorContainer
+
+    var installedVersion by remember(context) {
+        mutableStateOf(GithubUpdateChecker.getInstalledAppVersionName(context))
+    }
+    val installedApkSize = remember(context) {
+        GithubUpdateChecker.getInstalledApkSize(context)
+    }
+    var verifiedShaHex by remember(context) {
+        mutableStateOf(GithubUpdateChecker.getSelfInstalledSha256(context).take(8).uppercase())
+    }
+
+    var isChecking by remember { mutableStateOf(false) }
+    var checkResult by remember { mutableStateOf<GithubUpdateCheckResult?>(null) }
+    var showEditRepoDialog by remember { mutableStateOf(false) }
+    var repoDraft by remember(settings.githubUpdateRepo) {
+        mutableStateOf(settings.githubUpdateRepo)
+    }
+    var tokenDraft by remember {
+        mutableStateOf(GithubUpdateChecker.getSavedGithubToken(context))
+    }
+
+    var isDownloadingApk by remember { mutableStateOf(false) }
+    var isSelfInstalling by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf<GithubDownloadProgress?>(null) }
+    var selfInstallProgress by remember { mutableStateOf<GithubSelfInstallProgress?>(null) }
+    var downloadedApkFile by remember { mutableStateOf<File?>(null) }
+    var selfInstallCompletedTag by remember { mutableStateOf<String?>(null) }
+    var actionFeedback by remember { mutableStateOf<String?>(null) }
+
+    val saveApkLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")
+    ) { uri: Uri? ->
+        val file = downloadedApkFile
+        if (uri != null && file != null) {
+            scope.launch {
+                val res = GithubUpdateChecker.saveApkToSafUri(context, file, uri)
+                if (res.isSuccess) {
+                    val sizeStr = GithubUpdateChecker.formatByteSize(res.getOrDefault(0L))
+                    actionFeedback = if (isSw) {
+                        "Faili (${file.name} • $sizeStr) limehifadhiwa kwenye simu."
+                    } else {
+                        "APK (${file.name} • $sizeStr) saved to your device."
+                    }
+                }
+            }
+        }
+    }
+
+    val runLiveCheck: (String, GithubUpdateChannel) -> Unit = { targetRepo, targetChannel ->
+        if (!isChecking) {
+            isChecking = true
+            actionFeedback = null
+            scope.launch {
+                val res = GithubUpdateChecker.checkLatestRelease(
+                    context = context,
+                    rawRepoInput = targetRepo,
+                    channel = targetChannel
+                )
+                checkResult = res
+                installedVersion = GithubUpdateChecker.getInstalledAppVersionName(context)
+                isChecking = false
+                if (res is GithubUpdateCheckResult.Success) {
+                    onCacheLatestRelease(res.latestRelease)
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (checkResult == null) {
+            runLiveCheck(settings.githubUpdateRepo, settings.githubUpdateChannel)
+        }
+    }
+
+    val openExternalUrl: (String) -> Unit = { url ->
+        val safeUrl = url.trim()
+        if (safeUrl.isNotEmpty() && !safeUrl.startsWith("local://")) {
+            runCatching {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(safeUrl)).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            }
+        }
+    }
+
+    val defaultReadyRelease = remember(installedVersion, installedApkSize, settings.githubUpdateRepo, isSw) {
+        val cleanVer = installedVersion.substringBefore('+').removePrefix("v").removePrefix("V")
+        val notes = if (isSw) {
+            "• Injini ya upakuaji wa mikondo 10 sambamba yenye kasi kubwa\n" +
+                "• Usakinishaji wa moja kwa moja uliothibitishwa kwa SHA-256\n" +
+                "• Kizuia matangazo bora (namba 07/06/+255 na miamala salama)"
+        } else {
+            "• High-speed 10-stream parallel downloader with live speed meter\n" +
+                "• SHA-256 verified automatic in-app self-installer\n" +
+                "• Smart ad blocker keeping personal numbers & transactions safe"
+        }
+        GithubReleaseInfo(
+            tagName = "v$cleanVer",
+            releaseName = "MengiTex v$cleanVer",
+            bodyNotes = notes,
+            htmlUrl = GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo),
+            publishedAt = "v$cleanVer",
+            isPrerelease = false,
+            apkAssetUrl = GithubUpdateChecker.LOCAL_APK_SCHEME,
+            apkAssetName = "MengiTex-v$cleanVer.apk",
+            apkSizeBytes = installedApkSize,
+            isLocalReadyBuild = true
+        )
+    }
+
+    val activeRelease: GithubReleaseInfo = when (val res = checkResult) {
+        is GithubUpdateCheckResult.Success -> res.latestRelease
+        else -> if (settings.githubCachedLatestTag.isNotBlank()) {
+            GithubReleaseInfo(
+                tagName = settings.githubCachedLatestTag,
+                releaseName = settings.githubCachedReleaseName.ifBlank { "MengiTex ${settings.githubCachedLatestTag}" },
+                bodyNotes = settings.githubCachedReleaseNotes,
+                htmlUrl = settings.githubCachedReleaseUrl.ifBlank {
+                    GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo)
+                },
+                publishedAt = settings.githubCachedPublishedAt,
+                isPrerelease = settings.githubUpdateChannel == GithubUpdateChannel.PRE_RELEASE,
+                apkAssetUrl = settings.githubCachedApkUrl.takeIf { it.isNotBlank() }
+                    ?: GithubUpdateChecker.LOCAL_APK_SCHEME,
+                apkAssetName = settings.githubCachedApkName.takeIf { it.isNotBlank() }
+                    ?: defaultReadyRelease.apkAssetName,
+                apkSizeBytes = if (settings.githubCachedApkSizeBytes > 0L) {
+                    settings.githubCachedApkSizeBytes
+                } else {
+                    installedApkSize
+                }
+            )
+        } else {
+            defaultReadyRelease
+        }
+    }
+
+    val isNewerAvailable = remember(installedVersion, activeRelease.tagName, selfInstallCompletedTag) {
+        if (selfInstallCompletedTag != null &&
+            activeRelease.tagName.removePrefix("v").equals(selfInstallCompletedTag!!.removePrefix("v"), ignoreCase = true)
+        ) {
+            false
+        } else {
+            GithubUpdateChecker.isRemoteVersionNewer(installedVersion, activeRelease.tagName)
+        }
+    }
+
+    val executeSelfInstallNow: (GithubReleaseInfo, File) -> Unit = { targetRelease, file ->
+        if (!isSelfInstalling) {
+            isSelfInstalling = true
+            scope.launch {
+                val installRes = GithubUpdateChecker.runInAppSelfInstaller(
+                    context = context,
+                    release = targetRelease,
+                    downloadedFile = file
+                ) { stageProg ->
+                    selfInstallProgress = stageProg
+                    if (stageProg.sha256Short.isNotBlank()) {
+                        verifiedShaHex = stageProg.sha256Short.uppercase()
+                    }
+                }
+                isSelfInstalling = false
+                if (installRes.isSuccess) {
+                    val newVer = installRes.getOrThrow()
+                    installedVersion = newVer
+                    selfInstallCompletedTag = newVer
+                    val savedSha = GithubUpdateChecker.getSelfInstalledSha256(context)
+                    if (savedSha.isNotBlank()) {
+                        verifiedShaHex = savedSha.take(8).uppercase()
+                    }
+                    val sizeLabel = GithubUpdateChecker.formatByteSize(file.length())
+                    actionFeedback = if (isSw) {
+                        "Toleo v$newVer limeboreshwa kikamilifu ($sizeLabel)."
+                    } else {
+                        "Upgraded to v$newVer successfully ($sizeLabel)."
+                    }
+                } else {
+                    val err = installRes.exceptionOrNull()?.localizedMessage ?: "Error"
+                    actionFeedback = if (isSw) "Hitilafu ya kusakinisha: $err" else "Install error: $err"
+                }
+            }
+        }
+    }
+
+    val startDownloadAndInstall: (GithubReleaseInfo) -> Unit = { targetRelease ->
+        if (!isDownloadingApk && !isSelfInstalling) {
+            isDownloadingApk = true
+            selfInstallProgress = null
+            actionFeedback = null
+            downloadProgress = GithubDownloadProgress(
+                bytesDownloaded = 0L,
+                totalBytes = targetRelease.apkSizeBytes.coerceAtLeast(1L),
+                percent = 3,
+                speedBytesPerSec = 0L,
+                activeStreams = 10,
+                streamProgresses = List(10) { 0.08f }
+            )
+            scope.launch {
+                val res = GithubUpdateChecker.downloadReleaseApkInApp(
+                    context = context,
+                    release = targetRelease
+                ) { prog ->
+                    downloadProgress = prog
+                }
+                isDownloadingApk = false
+                if (res.isSuccess) {
+                    val file = res.getOrThrow()
+                    downloadedApkFile = file
+                    executeSelfInstallNow(targetRelease, file)
+                } else {
+                    val err = res.exceptionOrNull()?.localizedMessage ?: "Error"
+                    actionFeedback = if (isSw) "Imeshindwa kupakua: $err" else "Download failed: $err"
+                }
+            }
+        }
+    }
+
+    val lastCheckedLabel = remember(settings.githubLastCheckedMillis, isSw) {
+        if (settings.githubLastCheckedMillis <= 0L) {
+            if (isSw) "Tayari" else "Ready"
+        } else {
+            val fmt = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
+            fmt.format(Date(settings.githubLastCheckedMillis))
+        }
+    }
+
+    val ctaBusy = isDownloadingApk || isSelfInstalling
+    val rawProgressFrac = when {
+        isSelfInstalling -> (selfInstallProgress?.percent ?: 0) / 100f
+        isDownloadingApk -> (downloadProgress?.percent ?: 0) / 100f
+        selfInstallCompletedTag != null -> 1f
+        else -> 0f
+    }.coerceIn(0f, 1f)
+    val animatedProgress by animateFloatAsState(
+        targetValue = rawProgressFrac,
+        animationSpec = tween(160),
+        label = "upgrade_hub_progress"
+    )
+
+    val refreshRotation by rememberInfiniteTransition(label = "upgrade_hub_spin").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "upgrade_hub_spin_angle"
+    )
+
+    val cleanInstalled = installedVersion.substringBefore('+').removePrefix("v").removePrefix("V")
+    val cleanRemote = activeRelease.tagName.removePrefix("v").removePrefix("V")
+    val sizeStr = GithubUpdateChecker.formatByteSize(activeRelease.apkSizeBytes)
+    val recentHistory = (checkResult as? GithubUpdateCheckResult.Success)?.recentReleases.orEmpty()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        OneUi85SubScreenHeader(
+            title = s.upgradeScreenTitle,
+            subtitle = s.upgradeScreenSubtitle,
+            backIcon = Icons.AutoMirrored.Filled.ArrowBack,
+            backContentDescription = s.cdBack,
+            backTestTag = "upgrade_back_button",
+            onBack = onBack,
+            trailingContent = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    IconButton(
+                        onClick = {
+                            runLiveCheck(settings.githubUpdateRepo, settings.githubUpdateChannel)
+                        },
+                        enabled = !isChecking && !ctaBusy,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("upgrade_screen_refresh_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = if (isSw) "Kagua sasa" else "Check now",
+                            tint = primaryColor,
+                            modifier = Modifier
+                                .size(22.dp)
+                                .then(if (isChecking) Modifier.rotate(refreshRotation) else Modifier)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            repoDraft = settings.githubUpdateRepo
+                            tokenDraft = GithubUpdateChecker.getSavedGithubToken(context)
+                            showEditRepoDialog = true
+                        },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("upgrade_screen_source_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Tune,
+                            contentDescription = if (isSw) "Chanzo cha maboresho" else "Upgrade source",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            }
+        )
+
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 640.dp),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 1. Android 17 Solid Hero System Upgrade Card
+                item {
+                    val heroBg = if (isNewerAvailable) tertiaryContainer else primaryContainer
+                    val heroFg = if (isNewerAvailable) onTertiaryContainer else onPrimaryContainer
+                    val heroBadgeBg = if (isNewerAvailable) tertiaryColor else primaryColor
+                    val heroBadgeFg = if (isNewerAvailable) onTertiaryColor else onPrimaryColor
+
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        color = heroBg,
+                        tonalElevation = 0.dp,
+                        shadowElevation = 0.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("upgrade_screen_hero_card")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = heroBadgeBg
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = heroBadgeFg,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Text(
+                                            text = if (isSw) "MFUMO MPYA WA MABORESHO" else "NEW VISION UPGRADE",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            letterSpacing = 0.4.sp,
+                                            color = heroBadgeFg
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLowest
+                                ) {
+                                    Text(
+                                        text = when {
+                                            selfInstallCompletedTag != null -> if (isSw) "Imeboreshwa" else "Upgraded"
+                                            isNewerAvailable -> if (isSw) "Toleo Jipya" else "Upgrade Ready"
+                                            else -> if (isSw) "Kisasa" else "Up to Date"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(heroBadgeBg),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isChecking || ctaBusy) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(28.dp),
+                                            strokeWidth = 3.dp,
+                                            color = heroBadgeFg
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = if (isNewerAvailable) Icons.Filled.SystemUpdate else Icons.Filled.Verified,
+                                            contentDescription = null,
+                                            tint = heroBadgeFg,
+                                            modifier = Modifier.size(30.dp)
+                                        )
+                                    }
+                                }
+
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Text(
+                                        text = "MengiTex v$cleanRemote",
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = heroFg,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val statusSubtitle = when {
+                                        isSelfInstalling -> if (isSw) selfInstallProgress?.stageSw.orEmpty() else selfInstallProgress?.stageEn.orEmpty()
+                                        isDownloadingApk -> {
+                                            val sp = GithubUpdateChecker.formatByteSize(downloadProgress?.speedBytesPerSec ?: 0L)
+                                            val pct = downloadProgress?.percent ?: 0
+                                            if (isSw) {
+                                                if (sp.isNotBlank()) "Inapakua $pct% • $sp/s" else "Inapakua $pct%"
+                                            } else {
+                                                if (sp.isNotBlank()) "Downloading $pct% • $sp/s" else "Downloading $pct%"
+                                            }
+                                        }
+                                        isChecking -> if (isSw) "Inakagua matoleo ya GitHub..." else "Checking GitHub releases..."
+                                        isNewerAvailable -> if (isSw) "Boresha kutoka v$cleanInstalled kwenda v$cleanRemote" else "Upgrade from v$cleanInstalled to v$cleanRemote"
+                                        else -> if (isSw) "Mfumo wako uko kwenye toleo la kisasa" else "Your system is running the latest build"
+                                    }
+                                    Text(
+                                        text = statusSubtitle,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = heroFg,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            val ctaText = when {
+                                isSelfInstalling -> if (isSw) {
+                                    "Inasakinisha ${selfInstallProgress?.percent ?: 0}%..."
+                                } else {
+                                    "Installing ${selfInstallProgress?.percent ?: 0}%..."
+                                }
+                                isDownloadingApk -> if (isSw) {
+                                    "Inapakua ${downloadProgress?.percent ?: 0}%..."
+                                } else {
+                                    "Downloading ${downloadProgress?.percent ?: 0}%..."
+                                }
+                                selfInstallCompletedTag != null -> if (isSw) "Toleo Limeboreshwa" else "Upgrade Completed"
+                                isNewerAvailable -> if (isSw) "Boresha Sasa" else "Upgrade Now"
+                                else -> if (isSw) "Sakinisha Tena" else "Reinstall Build"
+                            }
+
+                            Button(
+                                onClick = { startDownloadAndInstall(activeRelease) },
+                                enabled = !ctaBusy,
+                                shape = RoundedCornerShape(50),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = heroBadgeBg,
+                                    contentColor = heroBadgeFg
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 50.dp)
+                                    .testTag("upgrade_screen_primary_cta_button")
+                            ) {
+                                if (!ctaBusy) {
+                                    Icon(
+                                        imageVector = if (selfInstallCompletedTag != null) Icons.Filled.Check else Icons.Filled.Bolt,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(
+                                    text = ctaText,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 2. Live 4-Stage Pipeline & 10-Stream Engine Card
+                item {
+                    val activeStage = when {
+                        selfInstallCompletedTag != null -> 4
+                        isSelfInstalling -> (selfInstallProgress?.stageIndex ?: 1).coerceIn(1, 4)
+                        isDownloadingApk -> 1
+                        else -> 0
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 0.dp,
+                        shadowElevation = 0.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = when {
+                                        selfInstallCompletedTag != null -> if (isSw) "Maboresho Yamekamilika" else "Upgrade Pipeline Complete"
+                                        isSelfInstalling -> if (isSw) "Uthibitisho na Usakinishaji" else "SHA-256 Verification & Staging"
+                                        isDownloadingApk -> if (isSw) "Injini ya Mikondo 10" else "10-Stream Parallel Engine"
+                                        else -> if (isSw) "Njia ya Maboresho ya Hatua 4" else "4-Stage Upgrade Pipeline"
+                                    },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (ctaBusy || selfInstallCompletedTag != null) {
+                                        "${(animatedProgress * 100).toInt()}%"
+                                    } else {
+                                        if (isSw) "Tayari" else "Ready"
+                                    },
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = primaryColor
+                                )
+                            }
+
+                            val stages = if (isSw) {
+                                listOf("Pakua", "SHA-256", "Andaa", "Tayari")
+                            } else {
+                                listOf("Fetch", "SHA-256", "Stage", "Done")
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                stages.forEachIndexed { idx, stageTitle ->
+                                    val stepNum = idx + 1
+                                    val reached = activeStage >= stepNum
+                                    val current = activeStage == stepNum && selfInstallCompletedTag == null
+                                    val barColor by animateColorAsState(
+                                        targetValue = when {
+                                            selfInstallCompletedTag != null -> primaryColor
+                                            current -> tertiaryColor
+                                            reached -> primaryColor
+                                            else -> MaterialTheme.colorScheme.surfaceContainerHighest
+                                        },
+                                        animationSpec = tween(200),
+                                        label = "upgrade_stage_$idx"
+                                    )
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(CircleShape)
+                                                .background(barColor)
+                                        )
+                                        Text(
+                                            text = stageTitle,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = if (reached) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (reached) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+
+                            AnimatedVisibility(
+                                visible = ctaBusy || selfInstallCompletedTag != null,
+                                enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+                                exit = fadeOut(tween(140)) + shrinkVertically(tween(140))
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    LinearProgressIndicator(
+                                        progress = { animatedProgress },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(7.dp)
+                                            .clip(CircleShape),
+                                        color = if (selfInstallCompletedTag != null) tertiaryColor else primaryColor,
+                                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                        strokeCap = StrokeCap.Round
+                                    )
+                                    val streams = downloadProgress?.streamProgresses.orEmpty()
+                                    if (isDownloadingApk && streams.isNotEmpty()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            streams.take(10).forEach { frac ->
+                                                val clamped = frac.coerceIn(0.08f, 1f)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(5.dp)
+                                                        .clip(CircleShape)
+                                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth(clamped)
+                                                            .height(5.dp)
+                                                            .clip(CircleShape)
+                                                            .background(primaryColor)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Feedback & Error Banners
+                if (!actionFeedback.isNullOrBlank()) {
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = secondaryContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (selfInstallCompletedTag != null) Icons.Filled.CheckCircle else Icons.Filled.DownloadDone,
+                                    contentDescription = null,
+                                    tint = onSecondaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = actionFeedback.orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = onSecondaryContainer,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                val checkErrorMsg = when (val res = checkResult) {
+                    is GithubUpdateCheckResult.Error -> if (isSw) res.messageSw else res.messageEn
+                    is GithubUpdateCheckResult.NoReleasesFound -> if (isSw) {
+                        "Hakuna toleo rasmi lililochapishwa bado kwenye ${res.repoSlug}."
+                    } else {
+                        "No published releases found yet on ${res.repoSlug}."
+                    }
+                    else -> null
+                }
+                if (!checkErrorMsg.isNullOrBlank()) {
+                    item {
+                        val isErr = checkResult is GithubUpdateCheckResult.Error
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = if (isErr) errorContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.ErrorOutline,
+                                    contentDescription = null,
+                                    tint = if (isErr) onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = checkErrorMsg,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isErr) onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                if (isErr && !isChecking) {
+                                    TextButton(
+                                        onClick = {
+                                            runLiveCheck(settings.githubUpdateRepo, settings.githubUpdateChannel)
+                                        }
+                                    ) {
+                                        Text(
+                                            text = if (isSw) "Jaribu" else "Retry",
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. System Telemetry 2x2 Grid
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            UpgradeTelemetryTile(
+                                icon = Icons.Filled.Verified,
+                                label = if (isSw) "Toleo Kwenye Simu" else "Installed Build",
+                                value = "v$cleanInstalled",
+                                accent = primaryColor,
+                                modifier = Modifier.weight(1f)
+                            )
+                            UpgradeTelemetryTile(
+                                icon = Icons.Filled.Storage,
+                                label = if (isSw) "Ukubwa wa Kifurushi" else "Package Size",
+                                value = sizeStr.ifBlank { "APK" },
+                                accent = tertiaryColor,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            UpgradeTelemetryTile(
+                                icon = Icons.Filled.Security,
+                                label = if (isSw) "Ulinzi wa Faili" else "File Integrity",
+                                value = if (verifiedShaHex.isNotBlank()) verifiedShaHex else "SHA-256",
+                                accent = primaryColor,
+                                modifier = Modifier.weight(1f)
+                            )
+                            UpgradeTelemetryTile(
+                                icon = Icons.Filled.Schedule,
+                                label = if (isSw) "Ukaguzi wa Mwisho" else "Last Checked",
+                                value = lastCheckedLabel,
+                                accent = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                // 5. Channel, Auto-Check & Source Controls
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        tonalElevation = 0.dp,
+                        shadowElevation = 0.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = if (isSw) "Mkondo na Chanzo cha Maboresho" else "Upgrade Channel & Source",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    val channels = listOf(
+                                        GithubUpdateChannel.STABLE to (if (isSw) "Rasmi (Imara)" else "Stable"),
+                                        GithubUpdateChannel.PRE_RELEASE to (if (isSw) "Majaribio (Beta)" else "Beta")
+                                    )
+                                    channels.forEach { (ch, label) ->
+                                        val selected = settings.githubUpdateChannel == ch
+                                        val bg by animateColorAsState(
+                                            targetValue = if (selected) primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+                                            animationSpec = tween(140),
+                                            label = "hub_ch_bg"
+                                        )
+                                        val fg by animateColorAsState(
+                                            targetValue = if (selected) onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            animationSpec = tween(140),
+                                            label = "hub_ch_fg"
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .heightIn(min = 40.dp)
+                                                .clip(RoundedCornerShape(50))
+                                                .background(bg)
+                                                .clickable {
+                                                    onUpdateChannelChange(ch)
+                                                    runLiveCheck(settings.githubUpdateRepo, ch)
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                                .testTag("upgrade_hub_channel_${ch.name.lowercase()}"),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = label,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                color = fg,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isSw) "Kagua Kiotomatiki Unapofungua" else "Auto Check on Launch",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = if (isSw) {
+                                            "Tafuta matoleo mapya chinichini app inapowaka"
+                                        } else {
+                                            "Silently check for new releases when opening the app"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Switch(
+                                    checked = settings.githubAutoCheckUpdates,
+                                    onCheckedChange = onAutoCheckChange,
+                                    modifier = Modifier.testTag("upgrade_hub_auto_check_switch")
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHigh)
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainer)
+                                    .clickable {
+                                        repoDraft = settings.githubUpdateRepo
+                                        tokenDraft = GithubUpdateChecker.getSavedGithubToken(context)
+                                        showEditRepoDialog = true
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isSw) "Chanzo cha Maboresho" else "Update Source",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = settings.githubUpdateRepo,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.Filled.Tune,
+                                    contentDescription = if (isSw) "Badili chanzo" else "Edit source",
+                                    tint = primaryColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            if (activeRelease.discoveredUserRepos.isNotEmpty()) {
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    activeRelease.discoveredUserRepos.take(4).forEach { repoName ->
+                                        AssistChip(
+                                            onClick = {
+                                                onUpdateRepoChange(repoName)
+                                                runLiveCheck(repoName, settings.githubUpdateChannel)
+                                            },
+                                            label = {
+                                                Text(
+                                                    text = repoName,
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 6. Release Notes / What's New
+                if (activeRelease.bodyNotes.isNotBlank()) {
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            tonalElevation = 0.dp,
+                            shadowElevation = 0.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = if (isSw) "Yaliyomo Kwenye Toleo • ${activeRelease.releaseName}" else "What's New • ${activeRelease.releaseName}",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = primaryColor
+                                )
+                                val lines = activeRelease.bodyNotes
+                                    .lines()
+                                    .map { it.trim().removePrefix("•").removePrefix("-").trim() }
+                                    .filter { it.isNotBlank() }
+                                lines.forEach { bullet ->
+                                    Row(
+                                        verticalAlignment = Alignment.Top,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(top = 6.dp)
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(primaryColor)
+                                        )
+                                        Text(
+                                            text = bullet,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 7. Quick Package Actions (Save APK, Share APK, Open GitHub)
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        UpgradeQuickToolTile(
+                            icon = Icons.Filled.SaveAlt,
+                            label = if (isSw) "Hifadhi APK" else "Save APK",
+                            enabled = !ctaBusy,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val existing = downloadedApkFile
+                                if (existing != null && existing.exists()) {
+                                    saveApkLauncher.launch(existing.name)
+                                } else if (!isDownloadingApk) {
+                                    isDownloadingApk = true
+                                    scope.launch {
+                                        val res = GithubUpdateChecker.downloadReleaseApkInApp(
+                                            context = context,
+                                            release = activeRelease
+                                        ) { prog -> downloadProgress = prog }
+                                        isDownloadingApk = false
+                                        res.getOrNull()?.let { file ->
+                                            downloadedApkFile = file
+                                            saveApkLauncher.launch(file.name)
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                        UpgradeQuickToolTile(
+                            icon = Icons.Filled.Share,
+                            label = if (isSw) "Shiriki APK" else "Share APK",
+                            enabled = !ctaBusy,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val existing = downloadedApkFile
+                                if (existing != null && existing.exists()) {
+                                    GithubUpdateChecker.shareDownloadedApk(
+                                        context = context,
+                                        apkFile = existing,
+                                        title = if (isSw) "Shiriki faili la programu" else "Share APK"
+                                    )
+                                } else if (!isDownloadingApk) {
+                                    isDownloadingApk = true
+                                    scope.launch {
+                                        val res = GithubUpdateChecker.downloadReleaseApkInApp(
+                                            context = context,
+                                            release = activeRelease
+                                        ) { prog -> downloadProgress = prog }
+                                        isDownloadingApk = false
+                                        res.getOrNull()?.let { file ->
+                                            downloadedApkFile = file
+                                            GithubUpdateChecker.shareDownloadedApk(
+                                                context = context,
+                                                apkFile = file,
+                                                title = if (isSw) "Shiriki faili la programu" else "Share APK"
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                        UpgradeQuickToolTile(
+                            icon = Icons.Filled.OpenInNew,
+                            label = "GitHub",
+                            enabled = true,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val url = activeRelease.htmlUrl.takeIf { it.isNotBlank() && !it.startsWith("local://") }
+                                    ?: GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo)
+                                openExternalUrl(url)
+                            }
+                        )
+                    }
+                }
+
+                // 8. Release History Card (if multiple GitHub releases are present)
+                if (recentHistory.size > 1) {
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(24.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            tonalElevation = 0.dp,
+                            shadowElevation = 0.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.History,
+                                        contentDescription = null,
+                                        tint = primaryColor,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = if (isSw) "Historia ya Matoleo" else "Release History",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                recentHistory.forEach { item ->
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(min = 52.dp)
+                                                .clickable(enabled = !ctaBusy) {
+                                                    startDownloadAndInstall(item)
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = "${item.releaseName} (${item.tagName})",
+                                                    style = MaterialTheme.typography.labelLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                if (item.publishedAt.isNotBlank()) {
+                                                    Text(
+                                                        text = item.publishedAt,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                            Icon(
+                                                imageVector = Icons.Filled.Bolt,
+                                                contentDescription = null,
+                                                tint = primaryColor,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showEditRepoDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditRepoDialog = false },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.SystemUpdate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = {
+                Text(
+                    text = if (isSw) "Chanzo cha Maboresho" else "Upgrade Source",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = if (isSw) {
+                            "Weka hazina ya GitHub (mmiliki/hazina), kiungo cha GitHub, au kiungo cha moja kwa moja cha APK:"
+                        } else {
+                            "Enter a GitHub repository (owner/repo), GitHub URL, or direct APK download URL:"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = repoDraft,
+                        onValueChange = { repoDraft = it },
+                        singleLine = true,
+                        label = {
+                            Text(if (isSw) "Mmiliki/Hazina au Kiungo" else "Owner/Repo or APK URL")
+                        },
+                        placeholder = {
+                            Text(GithubUpdateChecker.DEFAULT_GITHUB_REPO)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = tokenDraft,
+                        onValueChange = { tokenDraft = it },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        leadingIcon = {
+                            Icon(Icons.Filled.Key, contentDescription = null, modifier = Modifier.size(18.dp))
+                        },
+                        label = {
+                            Text(if (isSw) "Ufunguo wa Siri (Hiari)" else "Access Token (Optional)")
+                        },
+                        placeholder = { Text("ghp_...") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(onClick = { repoDraft = GithubUpdateChecker.DEFAULT_GITHUB_REPO }) {
+                            Text(if (isSw) "Rudisha Asili" else "Reset Default")
+                        }
+                        if (tokenDraft.isNotBlank()) {
+                            TextButton(onClick = { tokenDraft = "" }) {
+                                Text(if (isSw) "Futa Ufunguo" else "Clear Token")
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val normalized = GithubUpdateChecker.normalizeRepoSlug(repoDraft)
+                            .ifBlank { GithubUpdateChecker.DEFAULT_GITHUB_REPO }
+                        GithubUpdateChecker.saveGithubToken(context, tokenDraft)
+                        onUpdateRepoChange(normalized)
+                        showEditRepoDialog = false
+                        runLiveCheck(normalized, settings.githubUpdateChannel)
+                    }
+                ) {
+                    Text(if (isSw) "Hifadhi na Kagua" else "Save & Check")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditRepoDialog = false }) {
+                    Text(if (isSw) "Ghairi" else "Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun UpgradeTelemetryTile(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    accent: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun UpgradeQuickToolTile(
+    icon: ImageVector,
+    label: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        modifier = modifier
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}

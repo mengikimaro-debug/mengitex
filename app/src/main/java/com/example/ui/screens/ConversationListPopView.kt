@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -87,18 +86,13 @@ fun ConversationListPopViewDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
-            shape = RoundedCornerShape(26.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 4.dp,
-            shadowElevation = 10.dp,
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                    shape = RoundedCornerShape(26.dp)
-                )
                 .testTag("conversation_list_pop_view")
         ) {
             Column(
@@ -161,14 +155,14 @@ fun ConversationListPopViewDialog(
                         )
                     }
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Text(
                             text = "$activeCount/$totalCount",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -214,7 +208,7 @@ fun ConversationListPopViewDialog(
                     )
                 }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                 // 3. Primary Actions inside Pop View
                 PopActionRowItem(
@@ -226,7 +220,7 @@ fun ConversationListPopViewDialog(
                     },
                     subtitle = if (isSw) "Ujumbe utahamishiwa kwenye Taka mara moja" else "Moves messages to Trash immediately",
                     tint = MaterialTheme.colorScheme.error,
-                    containerBg = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.38f),
+                    containerBg = MaterialTheme.colorScheme.errorContainer,
                     onClick = onDeleteSelected,
                     modifier = Modifier.testTag("pop_view_delete_button")
                 )
@@ -283,7 +277,7 @@ fun ConversationListPopViewDialog(
 
                 // Single-conversation quick extras
                 if (isSingle) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -346,18 +340,13 @@ fun ConversationMultiSelectFloatingBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        shape = RoundedCornerShape(22.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 5.dp,
-        shadowElevation = 8.dp,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 10.dp)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-                shape = RoundedCornerShape(22.dp)
-            )
             .testTag("conversation_multiselect_bar")
     ) {
         Column(
@@ -473,14 +462,21 @@ private fun PopQuickPillButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(13.dp)
-    val bg = if (highlighted) accentColor.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
-    val border = if (highlighted) accentColor.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+    val shape = RoundedCornerShape(14.dp)
+    val bg = when {
+        highlighted && accentColor == MaterialTheme.colorScheme.error -> MaterialTheme.colorScheme.errorContainer
+        highlighted -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val fg = when {
+        highlighted && accentColor == MaterialTheme.colorScheme.error -> MaterialTheme.colorScheme.onErrorContainer
+        highlighted -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onSurface
+    }
     Surface(
         shape = shape,
         color = bg,
         modifier = modifier
-            .border(1.dp, border, shape)
             .clip(shape)
             .clickable(onClick = onClick)
     ) {
@@ -494,7 +490,7 @@ private fun PopQuickPillButton(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = accentColor,
+                tint = if (highlighted) fg else accentColor,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(5.dp))
@@ -502,7 +498,7 @@ private fun PopQuickPillButton(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = if (highlighted) accentColor else MaterialTheme.colorScheme.onSurface,
+                color = fg,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -516,17 +512,18 @@ private fun PopActionRowItem(
     title: String,
     subtitle: String,
     tint: Color,
-    containerBg: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+    containerBg: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(18.dp)
+    val isError = tint == MaterialTheme.colorScheme.error
+    val iconBoxBg = if (isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainerHighest
     Surface(
         shape = shape,
         color = containerBg,
         modifier = modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), shape)
             .clip(shape)
             .clickable(onClick = onClick)
     ) {
@@ -540,14 +537,14 @@ private fun PopActionRowItem(
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(tint.copy(alpha = 0.14f)),
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(iconBoxBg),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = tint,
+                    tint = if (isError) MaterialTheme.colorScheme.onErrorContainer else tint,
                     modifier = Modifier.size(19.dp)
                 )
             }
@@ -556,14 +553,14 @@ private fun PopActionRowItem(
                     text = title,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (tint == MaterialTheme.colorScheme.error) tint else MaterialTheme.colorScheme.onSurface,
+                    color = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -579,12 +576,11 @@ private fun PopMiniActionChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(13.dp)
+    val shape = RoundedCornerShape(14.dp)
     Surface(
         shape = shape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = modifier
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), shape)
             .clip(shape)
             .clickable(onClick = onClick)
     ) {

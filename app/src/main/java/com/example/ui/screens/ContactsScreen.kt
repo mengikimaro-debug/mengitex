@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,6 +81,7 @@ import com.example.ui.components.NextGenIconOrb
 import com.example.ui.components.StaggeredEntrance
 import com.example.ui.components.premiumBounceClickable
 import com.example.ui.i18n.LocalAppStrings
+import com.example.ui.theme.android17AvatarColors
 
 /**
  * Dedicated Contacts tab (2nd bottom bar tab) supporting viewing full contact details,
@@ -128,8 +130,8 @@ fun ContactsScreen(
                 exit = fadeOut(tween(180))
             ) {
                 Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -143,18 +145,19 @@ fun ContactsScreen(
                             Text(
                                 text = s.permContactsLabel,
                                 style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                             Text(
                                 text = s.permContactsDesc,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = onRequestPermissions,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(50),
                             modifier = Modifier.testTag("contacts_grant_permission_button")
                         ) {
                             Text(s.btnGrant)
@@ -163,7 +166,7 @@ fun ContactsScreen(
                 }
             }
 
-            // 2026 Liquid-Glass Search Capsule & Quick Add Friend Orb
+            // Android 17 M3 Search Pill & Solid Tonal Add Friend Button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -171,15 +174,17 @@ fun ContactsScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                NextGenGlassSurface(
-                    shape = RoundedCornerShape(24.dp),
-                    tonalAlpha = 0.85f,
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
                     modifier = Modifier.weight(1f)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 13.dp),
+                            .padding(horizontal = 18.dp, vertical = 13.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -313,10 +318,11 @@ fun ContactsScreen(
                     }
                 }
             } else {
+                val isDark = isSystemInDarkTheme()
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     items(
                         items = filtered,
@@ -325,29 +331,21 @@ fun ContactsScreen(
                     ) { contact ->
                         val isSelected = selectedNorms.contains(ContactsLoader.normalizePhone(contact.phoneNumber))
                         val cardBg = if (isSelected) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                            MaterialTheme.colorScheme.primaryContainer
                         } else {
-                            MaterialTheme.colorScheme.surface
+                            MaterialTheme.colorScheme.surfaceContainerLow
                         }
-                        val cardBorder = if (isSelected) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
-                        } else {
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.42f)
+                        val (avatarBg, avatarFg) = remember(contact.phoneNumber, isDark) {
+                            android17AvatarColors(contact.phoneNumber, isDark)
                         }
-                        val avatarColors = remember(contact.phoneNumber) { avatarGradientForKey(contact.phoneNumber) }
-                        val cardShape = RoundedCornerShape(22.dp)
+                        val cardShape = RoundedCornerShape(20.dp)
                         Surface(
                             shape = cardShape,
                             color = cardBg,
-                            tonalElevation = if (isSelected) 2.dp else 1.dp,
-                            shadowElevation = 0.5.dp,
+                            tonalElevation = 0.dp,
+                            shadowElevation = 0.dp,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .border(
-                                    width = if (isSelected) 1.25.dp else 1.dp,
-                                    color = cardBorder,
-                                    shape = cardShape
-                                )
                                 .clip(cardShape)
                                 .combinedClickable(
                                     onClick = {
@@ -376,21 +374,14 @@ fun ContactsScreen(
                                             modifier = Modifier
                                                 .size(46.dp)
                                                 .clip(CircleShape)
-                                                .background(Brush.linearGradient(avatarColors))
-                                                .then(
-                                                    if (isSelected) {
-                                                        Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                                                    } else {
-                                                        Modifier
-                                                    }
-                                                ),
+                                                .background(if (isSelected) MaterialTheme.colorScheme.primary else avatarBg),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
                                                 text = extractInitials(contact.name),
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else avatarFg
                                             )
                                         }
                                         if (isSelected) {
@@ -399,7 +390,7 @@ fun ContactsScreen(
                                                     .size(18.dp)
                                                     .clip(CircleShape)
                                                     .background(MaterialTheme.colorScheme.primary)
-                                                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                                                    .border(1.5.dp, cardBg, CircleShape),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(
@@ -433,14 +424,14 @@ fun ContactsScreen(
                                         Box(
                                             modifier = Modifier
                                                 .size(36.dp)
-                                                .clip(RoundedCornerShape(11.dp))
-                                                .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)),
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.secondaryContainer),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Filled.AccountCircle,
                                                 contentDescription = s.contactDetailsViewProfileCd,
-                                                tint = MaterialTheme.colorScheme.secondary,
+                                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
@@ -452,14 +443,14 @@ fun ContactsScreen(
                                         Box(
                                             modifier = Modifier
                                                 .size(36.dp)
-                                                .clip(RoundedCornerShape(11.dp))
-                                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.primaryContainer),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Filled.Sms,
                                                 contentDescription = s.contactsQuickSms,
-                                                tint = MaterialTheme.colorScheme.primary,
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                                 modifier = Modifier.size(19.dp)
                                             )
                                         }

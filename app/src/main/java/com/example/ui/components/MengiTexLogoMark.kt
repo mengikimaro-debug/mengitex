@@ -2,7 +2,6 @@ package com.example.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -13,9 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -23,8 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.example.R
 
 /**
- * Unified MengiTex brand emblem that mirrors the launcher icon and obsidian/emerald-cyan UI palette.
- * Used across the Top Bar, Slide Bar header, Vault Lock Screen, and empty inbox hero.
+ * Solid Android 17 MengiTex brand emblem with zero glow or border.
  */
 @Composable
 fun MengiTexLogoMark(
@@ -39,12 +34,7 @@ fun MengiTexLogoMark(
         modifier = modifier
             .size(size)
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
-                shape = shape
-            ),
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         contentAlignment = Alignment.Center
     ) {
         Image(

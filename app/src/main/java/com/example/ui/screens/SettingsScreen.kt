@@ -33,31 +33,20 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.BrightnessHigh
 import androidx.compose.material.icons.filled.BrightnessLow
-import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CloudSync
-import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.PhoneLocked
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SimCard
-import androidx.compose.material.icons.filled.Sms
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -100,30 +89,17 @@ import com.example.ui.i18n.LocalAppStrings
 import kotlin.math.roundToInt
 
 /**
- * Clean, auto-minimizing Settings & Permissions Hub:
- * - Permissions Hub & Android System Ownership automatically minimize once granted/active,
- *   and individual granted permission rows stay ultra-compact.
- * - Secondary options (Language, Notifications, Stealth Icon, Backup, SIM) start minimized
- *   with live status pills and expand smoothly on tap.
+ * Clean Settings Hub:
+ * Permissions & Notification management are handled automatically by the Android system.
  */
 @Composable
 fun SettingsScreen(
     settings: SecuritySettings,
     detectedSims: List<DetectedSimCard>,
-    hasContactsPermission: Boolean,
-    hasStorageFolderAccess: Boolean,
-    hasMicPermission: Boolean,
-    hasSmsPermission: Boolean,
-    isDefaultSmsApp: Boolean = false,
-    isCallScreeningRoleHeld: Boolean = false,
     onBack: () -> Unit,
     onLanguageChange: (AppLanguage) -> Unit,
-    onBubbleNotificationsChange: (Boolean) -> Unit,
-    onDeliveryReportsChange: (Boolean) -> Unit = {},
     onAutoBlockAdsChange: (Boolean) -> Unit = {},
     onAutoSweepAdsNow: () -> Unit = {},
-    onOpenSystemBubbleSettings: () -> Unit,
-    onDarkModeChange: (Boolean) -> Unit,
     onThemeModeChange: (AppThemeMode) -> Unit = {},
     onDimLightChange: (Boolean) -> Unit,
     onDimLightLevelChange: (Float) -> Unit = {},
@@ -131,17 +107,9 @@ fun SettingsScreen(
     onOpenIconStealthDialog: () -> Unit,
     onSelectSim: (Int) -> Unit,
     onRefreshSims: () -> Unit,
-    onRequestDefaultSmsApp: () -> Unit = {},
-    onRequestCallScreeningRole: () -> Unit = {},
-    onSyncPhoneSms: () -> Unit = {},
-    onRequestContactsPermission: () -> Unit,
-    onRequestStoragePermission: () -> Unit,
-    onRequestMicPermission: () -> Unit,
-    onRequestSmsPermission: () -> Unit,
-    onRequestAllPermissions: () -> Unit,
     onOpenSecurityCenter: () -> Unit,
     onOpenBackupRestore: () -> Unit,
-    onOpenNotificationManager: () -> Unit = {},
+    onOpenUpgradeCenter: () -> Unit = {},
     onGithubRepoChange: (String) -> Unit = {},
     onGithubChannelChange: (GithubUpdateChannel) -> Unit = {},
     onGithubAutoCheckChange: (Boolean) -> Unit = {},
@@ -151,35 +119,12 @@ fun SettingsScreen(
     val s = LocalAppStrings.current
     val successGreen = Color(0xFF10B981)
 
-    val grantedPermissionsCount = listOf(
-        hasContactsPermission,
-        hasStorageFolderAccess,
-        hasMicPermission,
-        hasSmsPermission
-    ).count { it }
-    val allPermissionsGranted = grantedPermissionsCount == 4
-    val corePermissionsGranted = hasSmsPermission && hasContactsPermission
-
-    // Smart expand/minimize state: auto-minimize permissions & ownership once granted
-    var ownershipExpanded by remember { mutableStateOf(!isDefaultSmsApp) }
-    var permissionsExpanded by remember { mutableStateOf(!corePermissionsGranted && !allPermissionsGranted) }
     var adBlockerExpanded by remember { mutableStateOf(!settings.autoBlockAdsEnabled) }
     var appearanceExpanded by remember { mutableStateOf(true) }
     var languageExpanded by remember { mutableStateOf(false) }
-    var notificationsExpanded by remember { mutableStateOf(false) }
     var stealthIconExpanded by remember { mutableStateOf(false) }
     var backupExpanded by remember { mutableStateOf(false) }
     var simSecurityExpanded by remember { mutableStateOf(false) }
-    var githubUpdateExpanded by remember { mutableStateOf(true) }
-
-    LaunchedEffect(isDefaultSmsApp) {
-        if (isDefaultSmsApp) ownershipExpanded = false
-    }
-    LaunchedEffect(allPermissionsGranted, corePermissionsGranted) {
-        if (allPermissionsGranted || corePermissionsGranted) {
-            permissionsExpanded = false
-        }
-    }
 
     val isSwLang = settings.language == AppLanguage.SW
     val dimPercent = (settings.dimLightLevel * 100f).roundToInt()
@@ -187,21 +132,18 @@ fun SettingsScreen(
         append(
             when (settings.themeMode) {
                 AppThemeMode.SYSTEM -> if (isSwLang) "Mfumo" else "System"
-                AppThemeMode.LIGHT -> "Off-White"
+                AppThemeMode.LIGHT -> if (isSwLang) "Mwanga" else "Light"
                 AppThemeMode.DARK -> s.settingsModeDarkShort
             }
         )
-        if (settings.dimLightEnabled) append(" • Dim $dimPercent%")
+        if (settings.dimLightEnabled) {
+            append(if (isSwLang) " • Hafifu $dimPercent%" else " • Dim $dimPercent%")
+        }
     }
     val stealthModeBadge = when (settings.launcherIconMode) {
         LauncherIconMode.VISIBLE -> s.iconVisibleLabel
         LauncherIconMode.DISGUISE_CALC -> s.iconDisguiseLabel
         LauncherIconMode.HIDDEN -> s.iconHiddenLabel
-    }
-    val notifBadge = if (settings.bubbleNotificationsEnabled || settings.deliveryReportsEnabled) {
-        s.settingsActiveShort
-    } else {
-        s.settingsOffShort
     }
     val simBadge = if (detectedSims.isEmpty()) {
         s.drawerSimAuto
@@ -212,7 +154,7 @@ fun SettingsScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         com.example.ui.components.OneUi85SubScreenHeader(
             title = s.settingsTitle,
-            subtitle = "Keystore AES-256",
+            subtitle = if (isSwLang) "Usimbaji wa AES-256" else "AES-256 Encrypted",
             backIcon = Icons.AutoMirrored.Filled.ArrowBack,
             backContentDescription = s.cdBack,
             backTestTag = "settings_back_button",
@@ -224,166 +166,23 @@ fun SettingsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 0. Android System Ownership Hub (Auto-minimizes once MengiTex is Default SMS App)
+            // 1. New Vision System Upgrade Hub (Top Featured Card)
             item {
                 StaggeredEntrance(index = 0) {
-                    SettingsSectionCard(
-                        icon = Icons.Filled.VerifiedUser,
-                        title = s.settingsOwnershipCardTitle,
-                        subtitle = s.settingsOwnershipCardSub,
-                        accent = if (isDefaultSmsApp) successGreen else MaterialTheme.colorScheme.primary,
-                        expanded = ownershipExpanded,
-                        onToggleExpand = { ownershipExpanded = !ownershipExpanded },
-                        statusBadge = if (isDefaultSmsApp) s.settingsRoleActive else s.settingsRoleActivate,
-                        statusBadgeColor = if (isDefaultSmsApp) successGreen else MaterialTheme.colorScheme.tertiary,
-                        headerTestTag = "settings_ownership_header"
-                    ) {
-                        PermissionStatusRow(
-                            icon = Icons.Filled.Sms,
-                            title = s.settingsDefaultSmsRowTitle,
-                            description = s.settingsDefaultSmsRowSub,
-                            granted = isDefaultSmsApp,
-                            grantedLabel = s.settingsRoleActive,
-                            actionLabel = s.settingsRoleActivate,
-                            testTag = "settings_default_sms_role_button",
-                            onAction = onRequestDefaultSmsApp
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 6.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
-                        )
-                        PermissionStatusRow(
-                            icon = Icons.Filled.PhoneLocked,
-                            title = s.settingsCallShieldRowTitle,
-                            description = s.settingsCallShieldRowSub,
-                            granted = isCallScreeningRoleHeld,
-                            grantedLabel = s.settingsRoleActive,
-                            actionLabel = s.settingsRoleActivate,
-                            testTag = "settings_call_screener_role_button",
-                            onAction = onRequestCallScreeningRole
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        if (!isDefaultSmsApp) {
-                            Button(
-                                onClick = onRequestDefaultSmsApp,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("settings_take_full_control_button")
-                            ) {
-                                Icon(Icons.Filled.VerifiedUser, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(s.settingsTakeFullControlBtn, fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                        OutlinedButton(
-                            onClick = onSyncPhoneSms,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("settings_sync_phone_sms_button")
-                        ) {
-                            Icon(Icons.Filled.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(s.settingsSyncPhoneSmsBtn)
-                        }
-                    }
-                }
-            }
-
-            // 1. Dedicated Permissions Hub (Auto-minimizes after permissions are granted)
-            item {
-                StaggeredEntrance(index = 1) {
-                    SettingsSectionCard(
-                        icon = Icons.Filled.Security,
-                        title = s.permHubTitle,
-                        subtitle = s.permHubSub,
-                        accent = if (allPermissionsGranted || corePermissionsGranted) successGreen else MaterialTheme.colorScheme.primary,
-                        expanded = permissionsExpanded,
-                        onToggleExpand = { permissionsExpanded = !permissionsExpanded },
-                        statusBadge = s.settingsAllGrantedSummary(grantedPermissionsCount, 4),
-                        statusBadgeColor = if (allPermissionsGranted || corePermissionsGranted) successGreen else MaterialTheme.colorScheme.tertiary,
-                        headerTestTag = "settings_permissions_header"
-                    ) {
-                        PermissionStatusRow(
-                            icon = Icons.Filled.Contacts,
-                            title = s.permContactsLabel,
-                            description = s.permContactsDesc,
-                            granted = hasContactsPermission,
-                            grantedLabel = s.permStatusGranted,
-                            actionLabel = s.permStatusNeeded,
-                            testTag = "settings_perm_contacts_button",
-                            onAction = onRequestContactsPermission
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 6.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
-                        )
-                        PermissionStatusRow(
-                            icon = Icons.Filled.Folder,
-                            title = s.permStorageLabel,
-                            description = if (hasStorageFolderAccess && settings.storageFolderLabel.isNotBlank()) {
-                                s.permStorageGrantedDesc(settings.storageFolderLabel)
-                            } else {
-                                s.permStorageDesc
-                            },
-                            granted = hasStorageFolderAccess,
-                            grantedLabel = s.permStatusGranted,
-                            actionLabel = s.permStatusNeeded,
-                            testTag = "settings_perm_storage_button",
-                            onAction = onRequestStoragePermission
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 6.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
-                        )
-                        PermissionStatusRow(
-                            icon = Icons.Filled.Mic,
-                            title = s.permMicLabel,
-                            description = s.permMicDesc,
-                            granted = hasMicPermission,
-                            grantedLabel = s.permStatusGranted,
-                            actionLabel = s.permStatusNeeded,
-                            testTag = "settings_perm_mic_button",
-                            onAction = onRequestMicPermission
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 6.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
-                        )
-                        PermissionStatusRow(
-                            icon = Icons.Filled.Sms,
-                            title = s.permSmsLabel,
-                            description = s.permSmsDesc,
-                            granted = hasSmsPermission,
-                            grantedLabel = s.permStatusGranted,
-                            actionLabel = s.permStatusNeeded,
-                            testTag = "settings_perm_sms_button",
-                            onAction = onRequestSmsPermission
-                        )
-
-                        if (!allPermissionsGranted) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = onRequestAllPermissions,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("settings_grant_all_permissions_button")
-                            ) {
-                                Icon(Icons.Filled.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(s.permGrantAllBtn)
-                            }
-                        }
-                    }
+                    GithubUpdateSectionContent(
+                        settings = settings,
+                        onUpdateRepoChange = onGithubRepoChange,
+                        onUpdateChannelChange = onGithubChannelChange,
+                        onAutoCheckChange = onGithubAutoCheckChange,
+                        onCacheLatestRelease = onGithubCacheRelease,
+                        onOpenUpgradeCenter = onOpenUpgradeCenter
+                    )
                 }
             }
 
             // 1B. Auto SMS Ad Blocker (15..., 09..., & Non-Transaction Ads — minimized when active)
             item {
-                StaggeredEntrance(index = 2) {
+                StaggeredEntrance(index = 1) {
                     SettingsSectionCard(
                         icon = Icons.Filled.Block,
                         title = s.adBlockerCardTitle,
@@ -417,8 +216,8 @@ fun SettingsScreen(
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = successGreen.copy(alpha = 0.14f)
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.secondaryContainer
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -428,14 +227,14 @@ fun SettingsScreen(
                                 Icon(
                                     Icons.Filled.VerifiedUser,
                                     contentDescription = null,
-                                    tint = successGreen,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.size(15.dp)
                                 )
                                 Text(
                                     text = s.adBlockerProtectedChip,
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = successGreen
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             }
                         }
@@ -496,19 +295,19 @@ fun SettingsScreen(
                                     Text(
                                         text = when (settings.themeMode) {
                                             AppThemeMode.SYSTEM -> if (isSwLang) {
-                                                "Inategemea mfumo wa simu (By System)"
+                                                "Inafuata mandhari ya mfumo wa simu"
                                             } else {
                                                 "Follows phone system theme"
                                             }
                                             AppThemeMode.LIGHT -> if (isSwLang) {
-                                                "Rangi tulivu ya Off-White (bila mng'ao)"
+                                                "Mwonekano mpya wa mwanga wa Android 17"
                                             } else {
-                                                "Calm matte Off-White theme"
+                                                "Solid Android 17 Light theme"
                                             }
                                             AppThemeMode.DARK -> if (isSwLang) {
-                                                "Hali ya giza tulivu kwa macho"
+                                                "Mwonekano wa giza wa Android 17"
                                             } else {
-                                                "Matte eye-comfortable dark mode"
+                                                "Solid Android 17 Dark theme"
                                             }
                                         },
                                         style = MaterialTheme.typography.bodySmall,
@@ -529,7 +328,7 @@ fun SettingsScreen(
                                     ),
                                     Triple(
                                         AppThemeMode.LIGHT,
-                                        "Off-White",
+                                        if (isSwLang) "Mwanga" else "Light",
                                         "settings_theme_light"
                                     ),
                                     Triple(
@@ -568,7 +367,7 @@ fun SettingsScreen(
 
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 8.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
                         )
 
                         Row(
@@ -607,8 +406,8 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 12.dp)
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainer)
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
@@ -675,7 +474,7 @@ fun SettingsScreen(
 
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 12.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
                         )
 
                         // Adjust Chat Size ("Ukubwa wa Chat") moved from Conversation Top Bar
@@ -701,28 +500,28 @@ fun SettingsScreen(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(34.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)),
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.primaryContainer),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Filled.FormatSize,
                                             contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
                                     Column {
                                         Text(
-                                            text = if (isSw) "Ukubwa wa Chat ($chatSizePercent%)" else "Chat Size ($chatSizePercent%)",
+                                            text = if (isSw) "Ukubwa wa Mazungumzo ($chatSizePercent%)" else "Chat Size ($chatSizePercent%)",
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
                                             text = if (isSw) {
-                                                "Rekebisha ukubwa wa maandishi na ujumbe kwenye chat"
+                                                "Rekebisha ukubwa wa maandishi na ujumbe kwenye mazungumzo"
                                             } else {
                                                 "Adjust message bubble and text size in conversations"
                                             },
@@ -733,15 +532,15 @@ fun SettingsScreen(
                                 }
                                 Surface(
                                     onClick = { onChatSizeScaleChange(1.0f) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
+                                    shape = RoundedCornerShape(50),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
                                     modifier = Modifier.testTag("settings_chat_size_reset_button")
                                 ) {
                                     Text(
                                         text = "100%",
                                         style = MaterialTheme.typography.labelMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                     )
                                 }
@@ -751,8 +550,8 @@ fun SettingsScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainer)
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -768,7 +567,7 @@ fun SettingsScreen(
                                     tonalElevation = 1.dp
                                 ) {
                                     Text(
-                                        text = if (isSw) "Habari! Ukubwa wa chat utaonekana hivi." else "Hi! Your chat bubbles will look like this.",
+                                        text = if (isSw) "Habari! Ukubwa wa ujumbe utaonekana hivi." else "Hi! Your chat bubbles will look like this.",
                                         fontSize = (14.5f * chatScale).sp,
                                         lineHeight = (20.5f * chatScale).sp,
                                         color = MaterialTheme.colorScheme.onSurface,
@@ -898,7 +697,7 @@ fun SettingsScreen(
                                     onClick = { onLanguageChange(lang) },
                                     label = {
                                         Text(
-                                            text = if (lang == AppLanguage.SW) "Kiswahili (SW)" else "English (EN)",
+                                            text = if (lang == AppLanguage.SW) "Kiswahili" else "English",
                                             style = MaterialTheme.typography.labelLarge
                                         )
                                     },
@@ -911,102 +710,6 @@ fun SettingsScreen(
                                         .testTag("settings_lang_${lang.code}")
                                 )
                             }
-                        }
-                    }
-                }
-            }
-
-            // 4. Bubble Notifications & Delivery Reports (Minimized by default)
-            item {
-                StaggeredEntrance(index = 4) {
-                    SettingsSectionCard(
-                        icon = Icons.Filled.ChatBubble,
-                        title = s.settingsNotifCard,
-                        subtitle = s.settingsNotifSub,
-                        accent = MaterialTheme.colorScheme.secondary,
-                        expanded = notificationsExpanded,
-                        onToggleExpand = { notificationsExpanded = !notificationsExpanded },
-                        statusBadge = notifBadge,
-                        statusBadgeColor = if (settings.bubbleNotificationsEnabled || settings.deliveryReportsEnabled) {
-                            successGreen
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        headerTestTag = "settings_notif_header"
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(s.settingsBubbleTitle, style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    s.settingsBubbleSub,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Switch(
-                                checked = settings.bubbleNotificationsEnabled,
-                                onCheckedChange = onBubbleNotificationsChange,
-                                modifier = Modifier.testTag("settings_bubble_notif_switch")
-                            )
-                        }
-
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(s.settingsDeliveryReportTitle, style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    s.settingsDeliveryReportSub,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Switch(
-                                checked = settings.deliveryReportsEnabled,
-                                onCheckedChange = onDeliveryReportsChange,
-                                modifier = Modifier.testTag("settings_delivery_report_switch")
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Button(
-                            onClick = onOpenNotificationManager,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("settings_open_notif_manager_button")
-                        ) {
-                            Icon(Icons.Filled.ChatBubble, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(s.settingsOpenNotifManagerBtn)
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedButton(
-                            onClick = onOpenSystemBubbleSettings,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("settings_open_system_bubbles_button")
-                        ) {
-                            Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(s.settingsOpenSystemBubbles)
                         }
                     }
                 }
@@ -1129,50 +832,6 @@ fun SettingsScreen(
                 }
             }
 
-            // 8. Update New Version from GitHub (Kagua & Pakua Toleo Jipya Toka GitHub)
-            item {
-                val context = androidx.compose.ui.platform.LocalContext.current
-                val installedVer = remember(context) {
-                    GithubUpdateChecker.getInstalledAppVersionName(context)
-                }
-                val hasNewerCached = remember(installedVer, settings.githubCachedLatestTag) {
-                    settings.githubCachedLatestTag.isNotBlank() &&
-                        GithubUpdateChecker.isRemoteVersionNewer(installedVer, settings.githubCachedLatestTag)
-                }
-                val githubBadge = when {
-                    hasNewerCached -> if (isSwLang) "Mpya ${settings.githubCachedLatestTag}" else "New ${settings.githubCachedLatestTag}"
-                    settings.githubCachedLatestTag.isNotBlank() -> "v${settings.githubCachedLatestTag.removePrefix("v")}"
-                    else -> "v${installedVer.removePrefix("v")}"
-                }
-                val githubBadgeColor = if (hasNewerCached) Color(0xFFD97706) else successGreen
-
-                StaggeredEntrance(index = 8) {
-                    SettingsSectionCard(
-                        icon = Icons.Filled.SystemUpdate,
-                        title = if (isSwLang) "Sasisha Toleo Jipya (10x Update)" else "System Update (10x Hyper)",
-                        subtitle = if (isSwLang) {
-                            "Mfumo wa kisasa wa kusasisha kwa kasi ya 10x na kuji-install kutoka GitHub"
-                        } else {
-                            "Modern 10x hyper-speed GitHub OTA updater & auto self-installer"
-                        },
-                        accent = if (hasNewerCached) Color(0xFFD97706) else MaterialTheme.colorScheme.primary,
-                        expanded = githubUpdateExpanded,
-                        onToggleExpand = { githubUpdateExpanded = !githubUpdateExpanded },
-                        statusBadge = githubBadge,
-                        statusBadgeColor = githubBadgeColor,
-                        headerTestTag = "settings_github_update_header"
-                    ) {
-                        GithubUpdateSectionContent(
-                            settings = settings,
-                            onUpdateRepoChange = onGithubRepoChange,
-                            onUpdateChannelChange = onGithubChannelChange,
-                            onAutoCheckChange = onGithubAutoCheckChange,
-                            onCacheLatestRelease = onGithubCacheRelease
-                        )
-                    }
-                }
-            }
-
             item {
                 Text(
                     text = s.settingsAboutOffline,
@@ -1183,127 +842,6 @@ fun SettingsScreen(
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PermissionStatusRow(
-    icon: ImageVector,
-    title: String,
-    description: String,
-    granted: Boolean,
-    grantedLabel: String,
-    actionLabel: String,
-    testTag: String,
-    onAction: () -> Unit
-) {
-    val badgeColor by animateColorAsState(
-        targetValue = if (granted) Color(0xFF10B981) else MaterialTheme.colorScheme.tertiary,
-        animationSpec = tween(250),
-        label = "perm_row_color"
-    )
-
-    // Granted permissions automatically render in an ultra-compact minimized single row
-    if (granted) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(badgeColor.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = badgeColor,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            Surface(
-                onClick = onAction,
-                shape = RoundedCornerShape(10.dp),
-                color = badgeColor.copy(alpha = 0.15f),
-                modifier = Modifier.testTag(testTag)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.CheckCircle,
-                        contentDescription = null,
-                        tint = badgeColor,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = grantedLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = badgeColor,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-    } else {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(badgeColor.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = badgeColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Button(
-                onClick = onAction,
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                modifier = Modifier.testTag(testTag)
-            ) {
-                Text(actionLabel, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -1322,18 +860,13 @@ private fun SettingsSectionCard(
     headerTestTag: String? = null,
     content: @Composable () -> Unit
 ) {
-    val cardShape = RoundedCornerShape(20.dp)
+    val cardShape = RoundedCornerShape(24.dp)
     Surface(
         shape = cardShape,
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = if (expanded) 2.dp else 1.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = if (expanded) accent.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                shape = cardShape
-            )
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -1341,19 +874,19 @@ private fun SettingsSectionCard(
                     .fillMaxWidth()
                     .clip(cardShape)
                     .clickable(onClick = onToggleExpand)
-                    .padding(horizontal = 15.dp, vertical = if (expanded) 14.dp else 12.dp)
+                    .padding(horizontal = 16.dp, vertical = if (expanded) 14.dp else 13.dp)
                     .then(if (headerTestTag != null) Modifier.testTag(headerTestTag) else Modifier),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(accent.copy(alpha = 0.14f)),
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(19.dp))
+                    Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -1375,8 +908,8 @@ private fun SettingsSectionCard(
                 }
                 if (!expanded && !statusBadge.isNullOrBlank()) {
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = statusBadgeColor.copy(alpha = 0.15f)
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                     ) {
                         Text(
                             text = statusBadge,
@@ -1385,7 +918,7 @@ private fun SettingsSectionCard(
                             color = statusBadgeColor,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -1405,11 +938,11 @@ private fun SettingsSectionCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 15.dp, end = 15.dp, bottom = 15.dp)
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
                 ) {
                     HorizontalDivider(
                         modifier = Modifier.padding(bottom = 12.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                     content()
                 }

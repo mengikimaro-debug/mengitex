@@ -43,8 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
@@ -53,8 +52,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.DecryptedSmsMessage
 import com.example.ui.i18n.LocalAppStrings
-import com.example.ui.screens.avatarGradientForKey
 import com.example.ui.screens.extractInitials
+import com.example.ui.theme.android17AvatarColors
 import kotlinx.coroutines.delay
 
 /**
@@ -97,24 +96,19 @@ fun InAppPopMessageOverlay(
     ) {
         val msg = message ?: return@AnimatedVisibility
         val displaySender = msg.contactName.ifBlank { msg.phoneNumber }
-        val avatarColors = remember(msg.phoneNumber) { avatarGradientForKey(msg.phoneNumber) }
+        val isDark = isSystemInDarkTheme()
+        val (avatarBg, avatarFg) = remember(msg.phoneNumber, isDark) {
+            android17AvatarColors(msg.phoneNumber, isDark)
+        }
         val shape = RoundedCornerShape(24.dp)
 
         Surface(
             shape = shape,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
-            tonalElevation = 4.dp,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(
-                    elevation = 6.dp,
-                    shape = shape
-                )
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.32f),
-                    shape = shape
-                )
                 .clip(shape)
                 .testTag("in_app_pop_message_card")
         ) {
@@ -135,39 +129,33 @@ fun InAppPopMessageOverlay(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Sender Avatar + Glowing Pop Message Icon Badge
                     Box(contentAlignment = Alignment.BottomEnd) {
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(CircleShape)
-                                .background(Brush.linearGradient(avatarColors)),
+                                .background(avatarBg),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = extractInitials(displaySender),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = avatarFg
                             )
                         }
-                        // Pop Icon Indicator Badge
                         Box(
                             modifier = Modifier
                                 .size(22.dp)
                                 .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFF2563EB), Color(0xFF7C3AED))
-                                    )
-                                )
-                                .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                                .background(MaterialTheme.colorScheme.primary)
+                                .border(2.dp, MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.MarkChatUnread,
                                 contentDescription = s.popBadgeLabel,
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(12.dp)
                             )
                         }
@@ -268,7 +256,7 @@ fun InAppPopMessageOverlay(
                         }
                         Surface(
                             shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.surfaceContainer,
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(14.dp))
@@ -305,21 +293,16 @@ fun InAppPopMessageOverlay(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Surface(
-                            shape = RoundedCornerShape(18.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                            shape = RoundedCornerShape(50),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
                             modifier = Modifier
                                 .weight(1f)
                                 .heightIn(min = 44.dp)
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-                                    RoundedCornerShape(18.dp)
-                                )
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 11.dp),
+                                    .padding(horizontal = 16.dp, vertical = 11.dp),
                                 contentAlignment = Alignment.CenterStart
                             ) {
                                 if (replyText.isEmpty()) {
@@ -351,11 +334,9 @@ fun InAppPopMessageOverlay(
                                 .clip(CircleShape)
                                 .background(
                                     if (canSend) {
-                                        Brush.linearGradient(
-                                            listOf(Color(0xFF2563EB), Color(0xFF7C3AED))
-                                        )
+                                        MaterialTheme.colorScheme.primary
                                     } else {
-                                        SolidColor(MaterialTheme.colorScheme.surfaceVariant)
+                                        MaterialTheme.colorScheme.surfaceContainerLow
                                     }
                                 )
                                 .clickable(enabled = canSend) {
@@ -371,7 +352,7 @@ fun InAppPopMessageOverlay(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Send,
                                 contentDescription = s.popReplySend,
-                                tint = if (canSend) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(19.dp)
                             )
                         }

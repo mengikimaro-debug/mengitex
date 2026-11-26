@@ -1,7 +1,6 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -19,12 +18,12 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -42,36 +41,30 @@ import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Sms
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.ui.MainTab
-import kotlinx.coroutines.delay
 
 /**
- * Tactile spring scale micro-interaction on press for premium buttons, cards, and chips.
+ * Tactile spring scale micro-interaction on press for buttons, cards, and chips.
  */
 fun Modifier.premiumBounceClickable(
     enabled: Boolean = true,
@@ -98,10 +91,6 @@ fun Modifier.premiumBounceClickable(
         )
 }
 
-/**
- * Zero-jank pass-through container for LazyColumn rows so fast scrolling up/down
- * stays 120fps butter-smooth with zero layout shifts or delayed pop-in.
- */
 @Composable
 fun StaggeredEntrance(
     index: Int,
@@ -113,9 +102,6 @@ fun StaggeredEntrance(
     }
 }
 
-/**
- * Soft pulsing halo dot for active encryption, live microphone recording, and shield status.
- */
 @Composable
 fun PulsingStatusDot(
     color: Color,
@@ -125,43 +111,24 @@ fun PulsingStatusDot(
     val infiniteTransition = rememberInfiniteTransition(label = "pulsing_dot")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 2.0f,
+        targetValue = 1.6f,
         animationSpec = infiniteRepeatable(
             animation = tween(1100, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "dot_scale"
     )
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1100, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "dot_alpha"
-    )
-
-    Box(modifier = modifier.size(size * 2.2f), contentAlignment = Alignment.Center) {
+    Box(modifier = modifier.size(size * 1.8f), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
                 .size(size)
                 .scale(pulseScale)
-                .clip(CircleShape)
-                .background(color.copy(alpha = pulseAlpha))
-        )
-        Box(
-            modifier = Modifier
-                .size(size)
                 .clip(CircleShape)
                 .background(color)
         )
     }
 }
 
-/**
- * Smooth vertical slot-roll animation for live telemetry counters (Delivered / Sent / Silent).
- */
 @Composable
 fun AnimatedStatNumber(
     value: Int,
@@ -191,9 +158,6 @@ fun AnimatedStatNumber(
     }
 }
 
-/**
- * Live audio equalizer bars responding to real Android SpeechRecognizer RMS dB levels.
- */
 @Composable
 fun VoiceWaveformVisualizer(
     rmsLevel: Float,
@@ -233,19 +197,15 @@ fun VoiceWaveformVisualizer(
                     .width(3.5.dp)
                     .height(animatedHeight)
                     .clip(RoundedCornerShape(50))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(color, color.copy(alpha = 0.45f))
-                        )
-                    )
+                    .background(color)
             )
         }
     }
 }
 
 /**
- * 2026 Next-Gen Floating Liquid-Glass Capsule Navigation Dock (Messages & Contacts ONLY)
- * with specular rim highlight, gradient active capsule, spring bounce, and navigationBars insets.
+ * Authentic Full-Width Android 17 Material 3 Expressive NavigationBar (Messages & Contacts).
+ * Solid surfaceContainer dock, M3 pill indicator above label, zero floating borders or shadows.
  */
 @Composable
 fun PremiumBottomNavBar(
@@ -254,33 +214,26 @@ fun PremiumBottomNavBar(
     contactsLabel: String,
     onSelectTab: (MainTab) -> Unit
 ) {
-    val dockShape = RoundedCornerShape(28.dp)
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 24.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(
-                    elevation = 3.dp,
-                    shape = dockShape
-                )
-                .clip(dockShape)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.55f), dockShape)
-                .padding(6.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh
+            )
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                PremiumNavTabPill(
+                Android17NavBarItem(
                     selected = selectedTab == MainTab.MESSAGES,
                     label = messagesLabel,
                     selectedIcon = Icons.Filled.Sms,
@@ -289,7 +242,7 @@ fun PremiumBottomNavBar(
                     onClick = { onSelectTab(MainTab.MESSAGES) },
                     modifier = Modifier.weight(1f)
                 )
-                PremiumNavTabPill(
+                Android17NavBarItem(
                     selected = selectedTab == MainTab.CONTACTS,
                     label = contactsLabel,
                     selectedIcon = Icons.Filled.Contacts,
@@ -304,7 +257,7 @@ fun PremiumBottomNavBar(
 }
 
 @Composable
-private fun PremiumNavTabPill(
+private fun Android17NavBarItem(
     selected: Boolean,
     label: String,
     selectedIcon: ImageVector,
@@ -313,60 +266,65 @@ private fun PremiumNavTabPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val contentColor by animateColorAsState(
+    val indicatorColor by animateColorAsState(
         targetValue = if (selected) {
-            MaterialTheme.colorScheme.onPrimary
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainer
+        },
+        animationSpec = tween(160),
+        label = "a17_nav_indicator"
+    )
+    val iconTint by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.onSecondaryContainer
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         },
-        animationSpec = tween(180),
-        label = "nav_pill_fg"
+        animationSpec = tween(160),
+        label = "a17_nav_icon"
     )
-    val pillBgColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-        animationSpec = tween(180),
-        label = "nav_pill_bg"
+    val labelColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.onSurface
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = tween(160),
+        label = "a17_nav_label"
     )
-    val iconScale by animateFloatAsState(
-        targetValue = if (selected) 1.06f else 1.0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        ),
-        label = "nav_icon_scale"
-    )
-    val pillShape = RoundedCornerShape(22.dp)
 
-    Box(
+    Column(
         modifier = modifier
             .minimumInteractiveComponentSize()
-            .clip(pillShape)
-            .background(pillBgColor)
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 11.dp, horizontal = 12.dp)
+            .padding(vertical = 4.dp)
             .testTag(testTag),
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+        Box(
+            modifier = Modifier
+                .width(64.dp)
+                .height(32.dp)
+                .clip(RoundedCornerShape(50))
+                .background(indicatorColor),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = if (selected) selectedIcon else unselectedIcon,
                 contentDescription = label,
-                tint = contentColor,
-                modifier = Modifier
-                    .size(20.dp)
-                    .scale(iconScale)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = contentColor,
-                maxLines = 1
+                tint = iconTint,
+                modifier = Modifier.size(22.dp)
             )
         }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = labelColor,
+            maxLines = 1
+        )
     }
 }

@@ -3,22 +3,28 @@ package com.example.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,11 +37,12 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Calm matte Off-White / Carbon backdrop (zero glowing halos).
+ * Android 17 Solid Background (100% opaque, zero glow, zero radial gradient).
  */
 @Composable
 fun NextGenAmbientBackdrop(
@@ -51,7 +58,7 @@ fun NextGenAmbientBackdrop(
 }
 
 /**
- * Matte Off-White / Carbon elevated surface with subtle flat border (zero glare or specular glow).
+ * Android 17 Borderless Solid Tonal Surface (zero borders, zero transparency, zero glow).
  */
 @Composable
 fun NextGenGlassSurface(
@@ -63,32 +70,21 @@ fun NextGenGlassSurface(
     content: @Composable BoxScope.() -> Unit
 ) {
     val fillColor = if (highlighted) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+        MaterialTheme.colorScheme.primaryContainer
     } else {
-        MaterialTheme.colorScheme.surface
-    }
-
-    val borderColor = if (highlighted) {
-        accentColor.copy(alpha = 0.45f)
-    } else {
-        MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
+        MaterialTheme.colorScheme.surfaceContainerHigh
     }
 
     Box(
         modifier = modifier
             .clip(shape)
-            .background(fillColor)
-            .border(
-                width = 1.dp,
-                color = borderColor,
-                shape = shape
-            ),
+            .background(fillColor),
         content = content
     )
 }
 
 /**
- * Matte Filter Pill (clean solid primary when selected, soft Off-White surface when unselected).
+ * Android 17 Borderless Material 3 Expressive Filter Chip Pill.
  */
 @Composable
 fun NextGenFilterPill(
@@ -98,43 +94,58 @@ fun NextGenFilterPill(
     modifier: Modifier = Modifier
 ) {
     val textColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(180),
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = tween(160),
         label = "filter_pill_text"
     )
     val bgColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
-        animationSpec = tween(180),
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        animationSpec = tween(160),
         label = "filter_pill_bg"
     )
     val shape = RoundedCornerShape(50)
-    val rimColor = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
-    }
 
     Box(
         modifier = modifier
             .clip(shape)
             .background(bgColor)
-            .border(1.dp, rimColor, shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 9.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = textColor,
-            maxLines = 1
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = null,
+                    tint = textColor,
+                    modifier = Modifier.size(15.dp)
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = textColor,
+                maxLines = 1
+            )
+        }
     }
 }
 
 /**
- * Compact Round Matte Floating Action Button (CircleShape, zero neon glow or bright gradient).
+ * Android 17 Material 3 Expressive Squircle FAB (100% solid primaryContainer, zero glow or transparency).
  */
 @Composable
 fun NextGenGradientFab(
@@ -143,30 +154,27 @@ fun NextGenGradientFab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = CircleShape
+    val shape = RoundedCornerShape(16.dp)
     Box(
         modifier = modifier
-            .size(48.dp)
-            .shadow(
-                elevation = 3.dp,
-                shape = shape
-            )
+            .size(56.dp)
+            .shadow(elevation = 2.dp, shape = shape)
             .clip(shape)
-            .background(MaterialTheme.colorScheme.primary)
+            .background(MaterialTheme.colorScheme.primaryContainer)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = text,
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(20.dp)
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(24.dp)
         )
     }
 }
 
 /**
- * Clean matte icon button container for TopBar & Header actions.
+ * Android 17 Borderless Tonal Icon Button Container (zero borders, zero glow, zero alpha).
  */
 @Composable
 fun NextGenIconOrb(
@@ -174,41 +182,38 @@ fun NextGenIconOrb(
     contentDescription: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    size: Dp = 42.dp,
+    size: Dp = 44.dp,
     accent: Boolean = false
 ) {
-    val shape = RoundedCornerShape(14.dp)
     val bgColor = if (accent) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)
-    }
-    val rimColor = if (accent) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
-    } else {
-        MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+        MaterialTheme.colorScheme.surfaceContainerHigh
     }
 
     Box(
         modifier = modifier
             .size(size)
-            .clip(shape)
+            .clip(CircleShape)
             .background(bgColor)
-            .border(1.dp, rimColor, shape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = if (accent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            tint = if (accent) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
             modifier = Modifier.size(20.dp)
         )
     }
 }
 
 /**
- * Matte Off-White / Carbon Floating Sub-Screen Header Bar used across all Slide Bar options.
+ * Authentic Android 17 Full-Width Edge-to-Edge M3 TopAppBar for Sub-Screens.
  */
 @Composable
 fun OneUi85SubScreenHeader(
@@ -221,86 +226,76 @@ fun OneUi85SubScreenHeader(
     modifier: Modifier = Modifier,
     trailingContent: (@Composable () -> Unit)? = null
 ) {
-    androidx.compose.material3.Surface(
-        shape = RoundedCornerShape(24.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        shadowElevation = 2.dp,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
-                shape = RoundedCornerShape(24.dp)
-            )
+    Surface(
+        color = MaterialTheme.colorScheme.background,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        modifier = modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.weight(1f)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                androidx.compose.material3.Surface(
-                    onClick = onBack,
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f),
-                    modifier = Modifier
-                        .size(38.dp)
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                            RoundedCornerShape(14.dp)
-                        )
-                        .then(
-                            if (backTestTag.isNotEmpty()) {
-                                Modifier.testTag(backTestTag)
-                            } else {
-                                Modifier
-                            }
-                        )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .then(
+                                if (backTestTag.isNotEmpty()) {
+                                    Modifier.testTag(backTestTag)
+                                } else {
+                                    Modifier
+                                }
+                            )
                     ) {
                         Icon(
                             imageVector = backIcon,
                             contentDescription = backContentDescription,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(19.dp)
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (!subtitle.isNullOrBlank()) {
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
-                androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = subtitle?.takeIf { it.isNotBlank() } ?: "Keystore AES-256",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
+                if (trailingContent != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(modifier = Modifier.padding(end = 6.dp)) {
+                        trailingContent()
+                    }
                 }
             }
-            if (trailingContent != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-                trailingContent()
-            }
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh
+            )
         }
     }
 }

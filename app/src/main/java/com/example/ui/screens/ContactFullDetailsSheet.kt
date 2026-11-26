@@ -8,7 +8,6 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,10 +66,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -87,6 +86,7 @@ import com.example.security.VaultCryptoManager
 import com.example.service.ContactsLoader
 import com.example.service.FullContactDetails
 import com.example.ui.i18n.LocalAppStrings
+import com.example.ui.theme.android17AvatarColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -117,7 +117,10 @@ fun ContactFullDetailsSheet(
     val normPhone = remember(phoneNumber) {
         ContactsLoader.normalizePhone(phoneNumber).ifEmpty { phoneNumber.trim() }
     }
-    val avatarColors = remember(normPhone) { avatarGradientForKey(normPhone) }
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val (avatarBg, avatarFg) = remember(normPhone, isDark) {
+        android17AvatarColors(normPhone, isDark)
+    }
     val isAlphanumeric = remember(phoneNumber) { ContactsLoader.isAlphanumericSender(phoneNumber) }
 
     val details by produceState<FullContactDetails?>(initialValue = null, contactName, phoneNumber) {
@@ -191,22 +194,12 @@ fun ContactFullDetailsSheet(
     ) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 10.dp,
-            shadowElevation = 22.dp,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 20.dp)
-                .border(
-                    width = 1.5.dp,
-                    brush = Brush.linearGradient(
-                        listOf(
-                            Color(0xFF2563EB).copy(alpha = 0.65f),
-                            Color(0xFF7C3AED).copy(alpha = 0.65f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(28.dp)
-                )
         ) {
             Column(
                 modifier = Modifier
@@ -253,20 +246,13 @@ fun ContactFullDetailsSheet(
                         )
                     }
                 }
-                // 1. Hero Avatar (Real Contact Photo or Gradient Monogram) + Starred / Verified Badge
+            // 1. Hero Avatar (Real Contact Photo or Solid Monogram) + Starred Badge
             Box(contentAlignment = Alignment.BottomEnd) {
                 Box(
                     modifier = Modifier
                         .size(88.dp)
                         .clip(CircleShape)
-                        .background(Brush.linearGradient(avatarColors))
-                        .border(
-                            width = 3.dp,
-                            brush = Brush.linearGradient(
-                                listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)
-                            ),
-                            shape = CircleShape
-                        ),
+                        .background(avatarBg),
                     contentAlignment = Alignment.Center
                 ) {
                     if (photoBitmap != null) {
@@ -281,7 +267,7 @@ fun ContactFullDetailsSheet(
                             text = extractInitials(effectiveName),
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = avatarFg
                         )
                     }
                 }
@@ -290,14 +276,13 @@ fun ContactFullDetailsSheet(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFF59E0B))
-                            .border(2.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                            .background(MaterialTheme.colorScheme.tertiaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Star,
                             contentDescription = null,
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.size(15.dp)
                         )
                     }
@@ -325,7 +310,7 @@ fun ContactFullDetailsSheet(
                 }
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
+                    color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -423,15 +408,9 @@ fun ContactFullDetailsSheet(
 
             // 4. Complete Contact Details Card (Phones, Emails, Work, Address, Notes)
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                        RoundedCornerShape(20.dp)
-                    )
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
@@ -449,7 +428,7 @@ fun ContactFullDetailsSheet(
                         ?: listOf(com.example.service.ContactPhoneEntry(effectivePhone, ""))
                     phoneList.forEachIndexed { idx, entry ->
                         if (idx > 0) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -508,7 +487,7 @@ fun ContactFullDetailsSheet(
 
                     // All Email Addresses
                     details?.emails?.forEach { emailEntry ->
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -562,7 +541,7 @@ fun ContactFullDetailsSheet(
                         details?.organization?.takeIf { it.isNotBlank() }
                     ).joinToString(" • ")
                     if (orgText.isNotBlank()) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         DetailInfoRow(
                             icon = Icons.Filled.Business,
                             label = s.contactDetailsWork,
@@ -573,7 +552,7 @@ fun ContactFullDetailsSheet(
                     // Postal Address
                     val addr = details?.address
                     if (!addr.isNullOrBlank()) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         DetailInfoRow(
                             icon = Icons.Filled.LocationOn,
                             label = s.contactDetailsAddress,
@@ -584,7 +563,7 @@ fun ContactFullDetailsSheet(
                     // Notes
                     val noteText = details?.notes
                     if (!noteText.isNullOrBlank()) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         DetailInfoRow(
                             icon = Icons.Filled.Notes,
                             label = s.contactDetailsNotes,
@@ -596,15 +575,9 @@ fun ContactFullDetailsSheet(
 
             // 5. MengiTex Conversation Stats Card (Visible even from outside the chat!)
             Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
-                        RoundedCornerShape(20.dp)
-                    )
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
@@ -768,10 +741,10 @@ private fun ContactDetailActionBtn(
     onClick: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = accent.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
     ) {
         Column(
@@ -839,7 +812,7 @@ private fun MiniStatPill(
 ) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = modifier
     ) {
         Column(
