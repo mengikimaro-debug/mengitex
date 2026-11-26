@@ -223,13 +223,13 @@ fun GithubUpdateSectionContent(
         val cleanVer = installedVersion.substringBefore('+').removePrefix("v").removePrefix("V")
         GithubReleaseInfo(
             tagName = "v$cleanVer",
-            releaseName = "MengiTex v$cleanVer (Turbo Self-Install OTA)",
-            bodyNotes = "• 8-Stream Turbo Fast Downloader & In-App Self-Installer\n" +
-                "• 6G Frame-0 Instant Chat & Dual-SIM Delivery Engine\n" +
-                "• Smart Ad Blocker (07/06/+255 Safe in Inbox)\n" +
-                "• Hyper-Turbo 600K+ XML/SMS Backup & 3-Tier Zero-Data-Loss Recovery",
+            releaseName = "MengiTex v$cleanVer (New Vision Upgrade • 6x Turbo)",
+            bodyNotes = "• 6-Stream (6x) Turbo Fast Downloader (128KB Buffer & Live MB/s)\n" +
+                "• 4-Stage Auto Self-Installer (SHA-256 Verified & Zero Data Loss)\n" +
+                "• 6G Frame-0 Instant Chat, Dual-SIM & Smart Ad Blocker (07/06/+255 Safe)\n" +
+                "• Hyper-Turbo 600K+ XML/SMS Backup & 3-Tier Auto-Recovery Shield",
             htmlUrl = GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo),
-            publishedAt = "Turbo OTA",
+            publishedAt = "v$cleanVer Upgrade",
             isPrerelease = false,
             apkAssetUrl = GithubUpdateChecker.LOCAL_APK_SCHEME,
             apkAssetName = "MengiTex-v$cleanVer.apk",
@@ -322,7 +322,7 @@ fun GithubUpdateSectionContent(
                 totalBytes = targetRelease.apkSizeBytes.coerceAtLeast(1L),
                 percent = 2,
                 speedBytesPerSec = 0L,
-                activeStreams = 8
+                activeStreams = 6
             )
             scope.launch {
                 val res = GithubUpdateChecker.downloadReleaseApkInApp(
@@ -430,14 +430,14 @@ fun GithubUpdateSectionContent(
                         }
                         Column {
                             Text(
-                                text = "MENGITEX TURBO OTA",
+                                text = "MENGITEX TURBO 6x OTA",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = cyberCyan
                             )
                             Text(
-                                text = if (isSw) "8-Stream Fast Download & Self-Install" else "8-Stream Fast Download & Self-Install",
+                                text = if (isSw) "6-Stream 6x Fast (128KB Buffer) & Self-Install" else "6-Stream 6x Fast (128KB Buffer) & Self-Install",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.White.copy(alpha = 0.72f)
                             )
@@ -863,9 +863,9 @@ fun GithubUpdateSectionContent(
                                         )
                                         Text(
                                             text = if (isDownloadingApk) {
-                                                if (isSw) "1. Turbo 8-Stream Download..." else "1. Turbo 8-Stream Download..."
+                                                if (isSw) "1. Turbo 6x Stream (128KB Buffer)..." else "1. Turbo 6x Stream (128KB Buffer)..."
                                             } else {
-                                                if (isSw) "1. Faili Limepakuliwa (Turbo 8x) ✓" else "1. File Downloaded (Turbo 8x) ✓"
+                                                if (isSw) "1. Faili Limepakuliwa (Turbo 6x) ✓" else "1. File Downloaded (Turbo 6x) ✓"
                                             },
                                             style = MaterialTheme.typography.labelMedium,
                                             fontWeight = FontWeight.Bold,
@@ -1014,9 +1014,9 @@ fun GithubUpdateSectionContent(
                             "Self-Installing Now (${selfInstallProgress?.percent ?: 0}%)..."
                         }
                         isDownloadingApk -> if (isSw) {
-                            "Inapakua kwa Turbo 8x (${downloadProgress?.percent ?: 0}%)..."
+                            "Inapakua kwa Turbo 6x (${downloadProgress?.percent ?: 0}%)..."
                         } else {
-                            "Turbo 8x Downloading (${downloadProgress?.percent ?: 0}%)..."
+                            "Turbo 6x Downloading (${downloadProgress?.percent ?: 0}%)..."
                         }
                         selfInstallCompletedTag != null -> if (isSw) {
                             "Imeshasakinishwa ✓ (Gusa Kusakinisha Tena ${activeRelease.tagName})"

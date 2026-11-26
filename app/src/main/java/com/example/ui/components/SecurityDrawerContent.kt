@@ -187,14 +187,31 @@ fun SecurityDrawerContent(
                                 modifier = Modifier.testTag("drawer_brand_logo")
                             )
                             Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                                ) {
+                                    Text(
+                                        text = "MengiTex",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = Color(0xFFF8FAFC),
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = Color(0xFF10B981).copy(alpha = 0.24f)
+                                    ) {
+                                        Text(
+                                            text = "v${com.example.BuildConfig.VERSION_NAME}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF6EE7B7),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
                                 Text(
-                                    text = "MengiTex",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = Color(0xFFF8FAFC),
-                                    fontWeight = FontWeight.ExtraBold
-                                )
-                                Text(
-                                    text = "Keystore AES-256",
+                                    text = "Keystore AES-256 • 6G Turbo",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Color(0xFF93C5FD),
                                     fontWeight = FontWeight.SemiBold,

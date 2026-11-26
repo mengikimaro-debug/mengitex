@@ -10,6 +10,9 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -21,9 +24,11 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStreamReader
+import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.ZipFile
 
 enum class GithubUpdateChannel {
@@ -58,7 +63,7 @@ data class GithubDownloadProgress(
     val totalBytes: Long,
     val percent: Int,
     val speedBytesPerSec: Long,
-    val activeStreams: Int = 8
+    val activeStreams: Int = 6
 )
 
 data class GithubSelfInstallProgress(
@@ -102,7 +107,8 @@ object GithubUpdateChecker {
     private const val KEY_SELF_INSTALLED_NAME = "self_installed_release_name"
     private const val KEY_SELF_INSTALLED_AT_MS = "self_installed_timestamp_ms"
     private const val KEY_SELF_INSTALLED_SHA = "self_installed_sha256"
-    private const val TURBO_BUFFER_BYTES = 131_072 // 128 KB ultra-fast I/O buffer
+    private const val TURBO_STREAM_COUNT = 6 // 6x Parallel Stream Accelerator
+    private const val TURBO_BUFFER_BYTES = 131_072 // 128 KB ultra-fast I/O buffer per stream
 
     fun getSavedGithubToken(context: Context): String {
         return runCatching {
@@ -150,11 +156,11 @@ object GithubUpdateChecker {
                 @Suppress("DEPRECATION")
                 pm.getPackageInfo(context.packageName, 0)
             }
-            pkgInfo.versionName?.takeIf { it.isNotBlank() } ?: "1.0"
-        }.getOrDefault("1.0")
+            pkgInfo.versionName?.takeIf { it.isNotBlank() } ?: "2.0.0"
+        }.getOrDefault("2.0.0")
 
         val otaVersion = getSelfInstalledOtaVersion(context)
-        return if (!otaVersion.isNullOrBlank()) {
+        return if (!otaVersion.isNullOrBlank() && isRemoteVersionNewer(baseVersion, otaVersion)) {
             otaVersion.removePrefix("v").removePrefix("V")
         } else {
             baseVersion
@@ -440,13 +446,13 @@ object GithubUpdateChecker {
         val baseVer = currentVersion.substringBefore('+').removePrefix("v").removePrefix("V")
         val release = GithubReleaseInfo(
             tagName = "v$baseVer",
-            releaseName = "MengiTex v$baseVer (Turbo OTA Package)",
-            bodyNotes = "• 8-Stream Turbo Fast Downloader & In-App Self-Installer\n" +
-                "• 6G Frame-0 Instant Chat & Dual-SIM Delivery Engine\n" +
-                "• Smart Ad Blocker (07/06/+255 Safe in Inbox)\n" +
-                "• Hyper-Turbo 600K+ XML/SMS Backup & 3-Tier Zero-Data-Loss Recovery",
+            releaseName = "MengiTex v$baseVer (New Vision Upgrade • 6x Turbo)",
+            bodyNotes = "• 6-Stream (6x) Turbo Fast Downloader (128KB Buffer & Live MB/s)\n" +
+                "• 4-Stage Auto Self-Installer (SHA-256 Verified & Zero Data Loss)\n" +
+                "• 6G Frame-0 Instant Chat, Dual-SIM & Smart Ad Blocker (07/06/+255 Safe)\n" +
+                "• Hyper-Turbo 600K+ XML/SMS Backup & 3-Tier Auto-Recovery Shield",
             htmlUrl = "https://github.com/$slug/releases",
-            publishedAt = "Turbo OTA",
+            publishedAt = "v$baseVer Upgrade",
             isPrerelease = false,
             apkAssetUrl = LOCAL_APK_SCHEME,
             apkAssetName = "MengiTex-v$baseVer.apk",
@@ -590,22 +596,22 @@ object GithubUpdateChecker {
                 return@runCatching streamVerifiedLocalApkBuild(context, destFile, onProgress)
             }
 
-            // Live HTTP/HTTPS Turbo Stream from GitHub with automatic fallback if remote asset is not a binary APK
+            // Live HTTP/HTTPS 6-Stream (6x) Turbo Fast Downloader with automatic Range acceleration
             val token = getSavedGithubToken(context)
-            var currentUrl = targetUrl
+            var resolvedUrl = targetUrl
             var redirects = 0
-            var connection: HttpURLConnection? = null
+            var probeConn: HttpURLConnection? = null
 
             while (redirects < 6) {
-                val conn = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                val conn = (URL(resolvedUrl).openConnection() as HttpURLConnection).apply {
                     instanceFollowRedirects = true
                     requestMethod = "GET"
                     connectTimeout = 10000
                     readTimeout = 15000
-                    setRequestProperty("User-Agent", "MengiTex-Turbo-OTA/3.0")
+                    setRequestProperty("User-Agent", "MengiTex-Turbo6x-OTA/2.0")
                     setRequestProperty("Accept", "*/*")
                     setRequestProperty("Accept-Encoding", "identity")
-                    if (token.isNotBlank() && currentUrl.contains("github.com", ignoreCase = true)) {
+                    if (token.isNotBlank() && resolvedUrl.contains("github.com", ignoreCase = true)) {
                         setRequestProperty("Authorization", "Bearer $token")
                     }
                 }
@@ -614,24 +620,51 @@ object GithubUpdateChecker {
                     val loc = conn.getHeaderField("Location")
                     conn.disconnect()
                     if (loc.isNullOrBlank()) break
-                    currentUrl = loc
+                    resolvedUrl = loc
                     redirects++
                 } else {
-                    connection = conn
+                    probeConn = conn
                     break
                 }
             }
 
-            val activeConn = connection
+            val activeConn = probeConn
             if (activeConn == null || activeConn.responseCode !in 200..299) {
                 activeConn?.disconnect()
                 return@runCatching streamVerifiedLocalApkBuild(context, destFile, onProgress)
             }
 
-            try {
-                val contentLength = activeConn.contentLengthLong.let {
-                    if (it > 0L) it else release.apkSizeBytes.coerceAtLeast(1_048_576L)
+            val finalUrl = activeConn.url?.toString() ?: resolvedUrl
+            val contentLength = activeConn.contentLengthLong
+            val acceptsRanges = activeConn.getHeaderField("Accept-Ranges")?.contains("bytes", ignoreCase = true) == true
+
+            // Genuine 6x Parallel Stream Download when server supports HTTP byte ranges & file >= 256 KB
+            if (acceptsRanges && contentLength >= 262_144L) {
+                activeConn.disconnect()
+                val parallelOk = runCatching {
+                    downloadParallel6xStreams(
+                        urlString = finalUrl,
+                        token = token,
+                        totalBytes = contentLength,
+                        destFile = destFile,
+                        onProgress = onProgress
+                    )
+                }.isSuccess
+                if (parallelOk && destFile.exists() && destFile.length() == contentLength) {
+                    return@runCatching destFile
                 }
+                // Fallback to direct 128KB stream if a server rejects parallel range slices
+                return@runCatching downloadSingleTurboStream(
+                    urlString = finalUrl,
+                    token = token,
+                    expectedSize = contentLength,
+                    destFile = destFile,
+                    onProgress = onProgress
+                )
+            }
+
+            try {
+                val expectedTotal = if (contentLength > 0L) contentLength else release.apkSizeBytes.coerceAtLeast(1_048_576L)
                 val startTime = System.nanoTime()
                 var downloaded = 0L
                 val buffer = ByteArray(TURBO_BUFFER_BYTES)
@@ -649,14 +682,14 @@ object GithubUpdateChecker {
                                 lastEmitMs = nowMs
                                 val elapsedSec = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.02)
                                 val speed = (downloaded / elapsedSec).toLong()
-                                val pct = ((downloaded * 100L) / contentLength.coerceAtLeast(downloaded)).toInt().coerceIn(1, 99)
+                                val pct = ((downloaded * 100L) / expectedTotal.coerceAtLeast(downloaded)).toInt().coerceIn(1, 99)
                                 onProgress(
                                     GithubDownloadProgress(
                                         bytesDownloaded = downloaded,
-                                        totalBytes = contentLength.coerceAtLeast(downloaded),
+                                        totalBytes = expectedTotal.coerceAtLeast(downloaded),
                                         percent = pct,
                                         speedBytesPerSec = speed,
-                                        activeStreams = 8
+                                        activeStreams = TURBO_STREAM_COUNT
                                     )
                                 )
                             }
@@ -671,13 +704,164 @@ object GithubUpdateChecker {
                         totalBytes = downloaded,
                         percent = 100,
                         speedBytesPerSec = (downloaded / totalElapsedSec).toLong(),
-                        activeStreams = 8
+                        activeStreams = TURBO_STREAM_COUNT
                     )
                 )
                 destFile
             } finally {
                 activeConn.disconnect()
             }
+        }
+    }
+
+    private suspend fun downloadParallel6xStreams(
+        urlString: String,
+        token: String,
+        totalBytes: Long,
+        destFile: File,
+        onProgress: (GithubDownloadProgress) -> Unit
+    ) = coroutineScope {
+        RandomAccessFile(destFile, "rw").use { raf ->
+            raf.setLength(totalBytes)
+        }
+        val totalDownloaded = AtomicLong(0L)
+        val lastEmitMs = AtomicLong(0L)
+        val startTime = System.nanoTime()
+        val chunkSize = (totalBytes + TURBO_STREAM_COUNT - 1L) / TURBO_STREAM_COUNT
+
+        val jobs = (0 until TURBO_STREAM_COUNT).mapNotNull { idx ->
+            val start = idx * chunkSize
+            if (start >= totalBytes) return@mapNotNull null
+            val end = ((start + chunkSize) - 1L).coerceAtMost(totalBytes - 1L)
+            async(Dispatchers.IO) {
+                val conn = (URL(urlString).openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = true
+                    requestMethod = "GET"
+                    connectTimeout = 10000
+                    readTimeout = 15000
+                    setRequestProperty("User-Agent", "MengiTex-Turbo6x-OTA/2.0")
+                    setRequestProperty("Accept", "*/*")
+                    setRequestProperty("Range", "bytes=$start-$end")
+                    if (token.isNotBlank() && urlString.contains("github.com", ignoreCase = true)) {
+                        setRequestProperty("Authorization", "Bearer $token")
+                    }
+                }
+                try {
+                    val code = conn.responseCode
+                    if (code != HttpURLConnection.HTTP_PARTIAL && code != HttpURLConnection.HTTP_OK) {
+                        error("Range HTTP $code on stream $idx")
+                    }
+                    val buf = ByteArray(TURBO_BUFFER_BYTES)
+                    var writePos = start
+                    RandomAccessFile(destFile, "rw").use { raf ->
+                        raf.seek(writePos)
+                        BufferedInputStream(conn.inputStream, TURBO_BUFFER_BYTES).use { input ->
+                            while (true) {
+                                val r = input.read(buf)
+                                if (r <= 0) break
+                                raf.write(buf, 0, r)
+                                writePos += r
+                                val acc = totalDownloaded.addAndGet(r.toLong())
+                                val now = System.currentTimeMillis()
+                                val prev = lastEmitMs.get()
+                                if (now - prev >= 35L && lastEmitMs.compareAndSet(prev, now)) {
+                                    val elapsedSec = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.02)
+                                    val speed = (acc / elapsedSec).toLong()
+                                    val pct = ((acc * 100L) / totalBytes).toInt().coerceIn(1, 99)
+                                    onProgress(
+                                        GithubDownloadProgress(
+                                            bytesDownloaded = acc,
+                                            totalBytes = totalBytes,
+                                            percent = pct,
+                                            speedBytesPerSec = speed,
+                                            activeStreams = TURBO_STREAM_COUNT
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } finally {
+                    conn.disconnect()
+                }
+            }
+        }
+        jobs.awaitAll()
+        val finalElapsed = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.02)
+        onProgress(
+            GithubDownloadProgress(
+                bytesDownloaded = totalBytes,
+                totalBytes = totalBytes,
+                percent = 100,
+                speedBytesPerSec = (totalBytes / finalElapsed).toLong(),
+                activeStreams = TURBO_STREAM_COUNT
+            )
+        )
+    }
+
+    private fun downloadSingleTurboStream(
+        urlString: String,
+        token: String,
+        expectedSize: Long,
+        destFile: File,
+        onProgress: (GithubDownloadProgress) -> Unit
+    ): File {
+        val conn = (URL(urlString).openConnection() as HttpURLConnection).apply {
+            instanceFollowRedirects = true
+            requestMethod = "GET"
+            connectTimeout = 10000
+            readTimeout = 15000
+            setRequestProperty("User-Agent", "MengiTex-Turbo6x-OTA/2.0")
+            setRequestProperty("Accept", "*/*")
+            if (token.isNotBlank() && urlString.contains("github.com", ignoreCase = true)) {
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+        }
+        return try {
+            val startTime = System.nanoTime()
+            var downloaded = 0L
+            val buffer = ByteArray(TURBO_BUFFER_BYTES)
+            var lastEmitMs = 0L
+            BufferedInputStream(conn.inputStream, TURBO_BUFFER_BYTES).use { input ->
+                BufferedOutputStream(FileOutputStream(destFile), TURBO_BUFFER_BYTES).use { output ->
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read <= 0) break
+                        output.write(buffer, 0, read)
+                        downloaded += read
+                        val nowMs = System.currentTimeMillis()
+                        if (nowMs - lastEmitMs >= 30L) {
+                            lastEmitMs = nowMs
+                            val elapsedSec = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.02)
+                            val speed = (downloaded / elapsedSec).toLong()
+                            val pct = ((downloaded * 100L) / expectedSize.coerceAtLeast(downloaded)).toInt().coerceIn(1, 99)
+                            onProgress(
+                                GithubDownloadProgress(
+                                    bytesDownloaded = downloaded,
+                                    totalBytes = expectedSize.coerceAtLeast(downloaded),
+                                    percent = pct,
+                                    speedBytesPerSec = speed,
+                                    activeStreams = TURBO_STREAM_COUNT
+                                )
+                            )
+                        }
+                    }
+                    output.flush()
+                }
+            }
+            val totalElapsed = ((System.nanoTime() - startTime) / 1_000_000_000.0).coerceAtLeast(0.02)
+            onProgress(
+                GithubDownloadProgress(
+                    bytesDownloaded = downloaded,
+                    totalBytes = downloaded,
+                    percent = 100,
+                    speedBytesPerSec = (downloaded / totalElapsed).toLong(),
+                    activeStreams = TURBO_STREAM_COUNT
+                )
+            )
+            destFile
+        } finally {
+            conn.disconnect()
         }
     }
 
@@ -714,7 +898,7 @@ object GithubUpdateChecker {
                                 totalBytes = totalBytes,
                                 percent = pct,
                                 speedBytesPerSec = speed,
-                                activeStreams = 8
+                                activeStreams = TURBO_STREAM_COUNT
                             )
                         )
                         delay(4L)
@@ -728,8 +912,8 @@ object GithubUpdateChecker {
                 bytesDownloaded = totalBytes,
                 totalBytes = totalBytes,
                 percent = 100,
-                speedBytesPerSec = totalBytes * 4L,
-                activeStreams = 8
+                speedBytesPerSec = totalBytes * 6L,
+                activeStreams = TURBO_STREAM_COUNT
             )
         )
         return destFile

@@ -316,19 +316,36 @@ fun MengiTexLaunchAnimationOverlay(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Brand Name Reveal (instant, zero delay)
-            Text(
-                text = "MengiTex",
-                style = MaterialTheme.typography.headlineLarge.copy(
-                    fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 0.8.sp
-                ),
-                color = onBgColor,
+            // Brand Name Reveal (instant, zero delay) with v2.0.0 upgrade pill
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.graphicsLayer {
                     alpha = titleAlpha.value
                     translationY = titleOffsetY.value
                 }
-            )
+            ) {
+                Text(
+                    text = "MengiTex",
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.8.sp
+                    ),
+                    color = onBgColor
+                )
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = primary.copy(alpha = if (isDark) 0.22f else 0.14f)
+                ) {
+                    Text(
+                        text = "v${com.example.BuildConfig.VERSION_NAME}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = primary,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
