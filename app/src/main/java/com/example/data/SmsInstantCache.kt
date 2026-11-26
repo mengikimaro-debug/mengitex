@@ -30,8 +30,8 @@ object SmsInstantCache {
     private const val CACHE_BACKUP_FILE_NAME = "mengitex_sms_instant_cache_v1.bin.bak"
     private const val CACHE_MAGIC = 0x4D545831 // "MTX1"
     private const val CACHE_VERSION = 1
-    private const val MAX_RECENT_MESSAGES = 1800
-    private const val MAX_TOTAL_SNAPSHOT_MESSAGES = 3500
+    private const val MAX_RECENT_MESSAGES = 900
+    private const val MAX_TOTAL_SNAPSHOT_MESSAGES = 1800
 
     private val diskLock = Any()
 

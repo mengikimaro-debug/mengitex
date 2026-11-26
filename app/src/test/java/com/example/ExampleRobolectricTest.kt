@@ -98,6 +98,35 @@ class ExampleRobolectricTest {
     }
 
     @Test
+    fun `message reaction store toggles sets removes and clears emoji reactions`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        com.example.data.MessageReactionStore.clearAll(context)
+        assertTrue(com.example.data.MessageReactionStore.reactions.value.isEmpty())
+
+        val first = com.example.data.MessageReactionStore.toggleReaction(context, 42L, "❤️")
+        assertEquals("❤️", first)
+        assertEquals("❤️", com.example.data.MessageReactionStore.reactions.value[42L]?.emoji)
+
+        val swapped = com.example.data.MessageReactionStore.toggleReaction(context, 42L, "🔥")
+        assertEquals("🔥", swapped)
+        assertEquals("🔥", com.example.data.MessageReactionStore.reactions.value[42L]?.emoji)
+
+        val removed = com.example.data.MessageReactionStore.toggleReaction(context, 42L, "🔥")
+        assertEquals(null, removed)
+        assertFalse(com.example.data.MessageReactionStore.reactions.value.containsKey(42L))
+
+        com.example.data.MessageReactionStore.setReaction(context, 99L, "👍")
+        assertEquals("👍", com.example.data.MessageReactionStore.reactions.value[99L]?.emoji)
+
+        com.example.data.MessageReactionStore.removeReaction(context, 99L)
+        assertFalse(com.example.data.MessageReactionStore.reactions.value.containsKey(99L))
+
+        com.example.data.MessageReactionStore.setReaction(context, 100L, "😂")
+        com.example.data.MessageReactionStore.clearAll(context)
+        assertTrue(com.example.data.MessageReactionStore.reactions.value.isEmpty())
+    }
+
+    @Test
     fun `main activity launches without crashing`() {
         val controller = org.robolectric.Robolectric.buildActivity(MainActivity::class.java)
             .create()

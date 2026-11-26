@@ -121,6 +121,7 @@ import com.example.data.ContactItem
 import com.example.data.DecryptedSmsMessage
 import com.example.data.DecryptedTemplate
 import com.example.data.MessageDirection
+import com.example.data.MessageReactionEntry
 import com.example.data.MessageStatus
 import com.example.security.SecuritySettings
 import com.example.security.VaultCryptoManager
@@ -169,6 +170,7 @@ fun ConversationScreen(
     phoneNumber: String,
     allActiveMessages: List<DecryptedSmsMessage>,
     preIndexedThreadMessages: List<DecryptedSmsMessage>? = null,
+    messageReactions: Map<Long, MessageReactionEntry> = emptyMap(),
     contacts: List<ContactItem> = emptyList(),
     templates: List<DecryptedTemplate>,
     detectedSims: List<DetectedSimCard>,
@@ -177,6 +179,9 @@ fun ConversationScreen(
     hasMicPermission: Boolean,
     activeSecretReader: DecryptedSmsMessage?,
     onSelectSim: (Int) -> Unit,
+    onToggleMessageReaction: (Long, String) -> Unit = { _, _ -> },
+    onSetMessageReaction: (Long, String) -> Unit = { _, _ -> },
+    onRemoveMessageReaction: (Long) -> Unit = {},
     onSendDirectMessage: (body: String, isSecretBurn: Boolean, fallbackIfDenied: Boolean) -> Unit,
     onForwardMessage: (recipients: List<ContactItem>, body: String, fallbackIfDenied: Boolean) -> Unit = { _, _, _ -> },
     onSaveContactName: (newName: String, phone: String) -> Unit = { _, _ -> },
@@ -203,11 +208,10 @@ fun ConversationScreen(
     var draftText by remember { mutableStateOf("") }
     var isSecretBurnArmed by remember { mutableStateOf(false) }
     var showTemplatesTray by remember { mutableStateOf(false) }
-    var inspectedMessage by remember { mutableStateOf<DecryptedSmsMessage?>(null) }
+    var activePopMessage by remember { mutableStateOf<DecryptedSmsMessage?>(null) }
     var showContactProfile by remember { mutableStateOf(false) }
     var showInChatSearch by remember { mutableStateOf(false) }
     var inChatSearchQuery by remember { mutableStateOf("") }
-    var heldActionMessage by remember { mutableStateOf<DecryptedSmsMessage?>(null) }
     var forwardingMessageBody by remember { mutableStateOf<String?>(null) }
     var activePhoneSheetTarget by remember { mutableStateOf<String?>(null) }
     var partialCopyTargetMessage by remember { mutableStateOf<DecryptedSmsMessage?>(null) }
@@ -838,6 +842,7 @@ fun ConversationScreen(
                                 val isRowSelected = isSelectionMode && msgId in selectedMessageIds
                                 PremiumChatBubble(
                                     message = item.message,
+                                    reaction = messageReactions[msgId],
                                     isSelectionMode = isSelectionMode,
                                     isSelected = isRowSelected,
                                     chatSizeScale = chatSizeScale,
@@ -862,7 +867,7 @@ fun ConversationScreen(
                                                 selectedMessageIds + msgId
                                             }
                                         } else {
-                                            inspectedMessage = item.message
+                                            activePopMessage = item.message
                                         }
                                     },
                                     onLongPress = {
@@ -874,7 +879,7 @@ fun ConversationScreen(
                                                 selectedMessageIds + msgId
                                             }
                                         } else {
-                                            heldActionMessage = item.message
+                                            activePopMessage = item.message
                                         }
                                     },
                                     onCallPhoneNumber = { num ->
@@ -1066,7 +1071,7 @@ fun ConversationScreen(
                             accentColor = MaterialTheme.colorScheme.primary,
                             enabled = true,
                             onClick = {
-                                inspectedMessage = selectedMessages.first()
+                                activePopMessage = selectedMessages.first()
                                 isSelectionMode = false
                                 selectedMessageIds = emptySet()
                             },
@@ -1655,21 +1660,81 @@ fun ConversationScreen(
         )
     }
 
-    // Message Details & Delivery Report Dialog (on single bubble tap)
-    val detailMsg = inspectedMessage
-    if (detailMsg != null) {
-        MessageDetailsDialog(
-            message = detailMsg,
+    // Floating Pop View (Emoji Reactions + Emoji SMS Reply + Complete Details + All SMS Actions)
+    val popMsg = activePopMessage
+    if (popMsg != null) {
+        MessageReactionPopView(
+            message = popMsg,
+            threadContactName = contactName,
+            currentReaction = messageReactions[popMsg.id],
             latestIncomingReplyTimestamp = latestIncomingReplyTimestamp,
+            onReactEmoji = { emoji ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onToggleMessageReaction(popMsg.id, emoji)
+            },
+            onRemoveReaction = {
+                onRemoveMessageReaction(popMsg.id)
+            },
+            onSendEmojiReplySms = { emoji, payload ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onSetMessageReaction(popMsg.id, emoji)
+                onSendDirectMessage(payload, popMsg.isSecretBurnAfterRead, !hasSmsPermission)
+                activePopMessage = null
+            },
+            onInsertEmojiReplyInComposer = { payload ->
+                draftText = if (draftText.isBlank()) "$payload " else "$draftText\n$payload "
+                activePopMessage = null
+            },
             onCopy = {
-                copyMessageBody(detailMsg.body)
-                inspectedMessage = null
+                copyMessageBody(popMsg.body)
+                activePopMessage = null
+            },
+            onShare = {
+                shareMessageBody(popMsg.body)
+                activePopMessage = null
+            },
+            onForward = {
+                forwardingMessageBody = popMsg.body
+                activePopMessage = null
             },
             onMoveToTrash = {
-                inspectedMessage = null
-                onMoveToTrash(detailMsg)
+                onMoveToTrash(popMsg)
+                activePopMessage = null
             },
-            onDismiss = { inspectedMessage = null }
+            onQuoteReply = {
+                val snippet = popMsg.body.replace('\n', ' ').take(90)
+                val quoted = "\"$snippet\"\n"
+                draftText = if (draftText.isBlank()) quoted else "$quoted$draftText"
+                activePopMessage = null
+            },
+            onSelectPartialText = {
+                partialCopyTargetMessage = popMsg
+                activePopMessage = null
+            },
+            onEditInComposer = {
+                draftText = if (draftText.isBlank()) popMsg.body else "$draftText\n${popMsg.body}"
+                activePopMessage = null
+            },
+            onSelectMultiple = {
+                isSelectionMode = true
+                selectedMessageIds = selectedMessageIds + popMsg.id
+                activePopMessage = null
+            },
+            onScheduleMessage = {
+                val bodyToSchedule = popMsg.body
+                activePopMessage = null
+                onScheduleDraft(bodyToSchedule)
+            },
+            onCopySpecificText = { specificText ->
+                copyMessageBody(specificText)
+                activePopMessage = null
+            },
+            onCallPhoneNumber = { num ->
+                activePopMessage = null
+                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$num"))
+                runCatching { context.startActivity(dialIntent) }
+            },
+            onDismiss = { activePopMessage = null }
         )
     }
 
@@ -1687,68 +1752,6 @@ fun ConversationScreen(
             onCopiedSensitiveText = onCopiedSensitiveText,
             onShowMessage = onShowMessage,
             onDismiss = { showContactProfile = false }
-        )
-    }
-
-    // Long-Press ("Hold") Action Sheet (Copy Text, Forward Text, Delete Text, Share, Quote & Reply, Select Partial Text, Call/Copy Numbers, etc.)
-    val heldMsg = heldActionMessage
-    if (heldMsg != null) {
-        MessageLongPressActionSheet(
-            message = heldMsg,
-            onCopy = {
-                copyMessageBody(heldMsg.body)
-                heldActionMessage = null
-            },
-            onShare = {
-                shareMessageBody(heldMsg.body)
-                heldActionMessage = null
-            },
-            onForward = {
-                forwardingMessageBody = heldMsg.body
-                heldActionMessage = null
-            },
-            onDetails = {
-                inspectedMessage = heldMsg
-                heldActionMessage = null
-            },
-            onMoveToTrash = {
-                onMoveToTrash(heldMsg)
-                heldActionMessage = null
-            },
-            onQuoteReply = {
-                val snippet = heldMsg.body.replace('\n', ' ').take(90)
-                val quoted = "\"$snippet\"\n"
-                draftText = if (draftText.isBlank()) quoted else "$quoted$draftText"
-                heldActionMessage = null
-            },
-            onSelectPartialText = {
-                partialCopyTargetMessage = heldMsg
-                heldActionMessage = null
-            },
-            onEditInComposer = {
-                draftText = if (draftText.isBlank()) heldMsg.body else "$draftText\n${heldMsg.body}"
-                heldActionMessage = null
-            },
-            onSelectMultiple = {
-                isSelectionMode = true
-                selectedMessageIds = selectedMessageIds + heldMsg.id
-                heldActionMessage = null
-            },
-            onScheduleMessage = {
-                val bodyToSchedule = heldMsg.body
-                heldActionMessage = null
-                onScheduleDraft(bodyToSchedule)
-            },
-            onCopySpecificText = { specificText ->
-                copyMessageBody(specificText)
-                heldActionMessage = null
-            },
-            onCallPhoneNumber = { num ->
-                heldActionMessage = null
-                val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$num"))
-                runCatching { context.startActivity(dialIntent) }
-            },
-            onDismiss = { heldActionMessage = null }
         )
     }
 
@@ -1943,6 +1946,7 @@ private fun SelectionBottomActionButton(
 @Composable
 private fun PremiumChatBubble(
     message: DecryptedSmsMessage,
+    reaction: MessageReactionEntry? = null,
     isSelectionMode: Boolean,
     isSelected: Boolean,
     chatSizeScale: Float = 1.0f,
@@ -2007,58 +2011,70 @@ private fun PremiumChatBubble(
             )
         }
         if (message.isSecretBurnAfterRead) {
-            Surface(
-                shape = bubbleShape,
-                color = MaterialTheme.colorScheme.tertiaryContainer,
-                modifier = Modifier
-                    .widthIn(max = scaledMaxWidth)
-                    .clip(bubbleShape)
-                    .combinedClickable(
-                        onClick = onTapSecret,
-                        onLongClick = onLongPress
-                    )
-                    .testTag("chat_secret_bubble_${message.id}")
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = scaledHorizontalPad, vertical = scaledVerticalPad),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+            Box(modifier = Modifier.widthIn(max = scaledMaxWidth)) {
+                Surface(
+                    shape = bubbleShape,
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    modifier = Modifier
+                        .padding(bottom = if (reaction != null) 14.dp else 0.dp)
+                        .clip(bubbleShape)
+                        .combinedClickable(
+                            onClick = onTapSecret,
+                            onLongClick = onLongPress
+                        )
+                        .testTag("chat_secret_bubble_${message.id}")
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Column(
+                        modifier = Modifier.padding(horizontal = scaledHorizontalPad, vertical = scaledVerticalPad),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.LocalFireDepartment,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Icon(
-                            imageVector = Icons.Filled.Lock,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                            modifier = Modifier.size(14.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.LocalFireDepartment,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Icon(
+                                imageVector = Icons.Filled.Lock,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = s.filterSecret,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        }
                         Text(
-                            text = s.filterSecret,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
+                            text = s.secretCardMask,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = scaledBodyFontSize,
+                                lineHeight = scaledBodyLineHeight
+                            ),
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
+                        Text(
+                            text = timeText,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.align(Alignment.End)
+                        )
                     }
-                    Text(
-                        text = s.secretCardMask,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontSize = scaledBodyFontSize,
-                            lineHeight = scaledBodyLineHeight
-                        ),
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                    Text(
-                        text = timeText,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        modifier = Modifier.align(Alignment.End)
+                }
+                if (reaction != null) {
+                    BubbleReactionBadge(
+                        emoji = reaction.emoji,
+                        messageId = message.id,
+                        onClick = if (isSelectionMode) onTapSecret else onLongPress,
+                        modifier = Modifier
+                            .align(if (isOutgoing) Alignment.BottomStart else Alignment.BottomEnd)
+                            .padding(horizontal = 8.dp)
                     )
                 }
             }
@@ -2088,239 +2104,251 @@ private fun PremiumChatBubble(
                     precomputedPhoneSpans = detectedPhoneSpans
                 )
             }
-            Box(
-                modifier = Modifier
-                    .widthIn(max = scaledMaxWidth)
-                    .clip(bubbleShape)
-                    .background(outBubbleBg)
-                    .combinedClickable(
-                        onClick = {
-                            if (!isSelectionMode && detectedPhoneNumbers.size == 1 && message.body.trim().length <= 18) {
-                                onOpenPhoneNumberOptions(detectedPhoneNumbers.first())
-                            } else {
-                                onTapNormal()
+            Box(modifier = Modifier.widthIn(max = scaledMaxWidth)) {
+                Box(
+                    modifier = Modifier
+                        .padding(bottom = if (reaction != null) 14.dp else 0.dp)
+                        .clip(bubbleShape)
+                        .background(outBubbleBg)
+                        .combinedClickable(
+                            onClick = onTapNormal,
+                            onLongClick = onLongPress
+                        )
+                        .padding(horizontal = scaledHorizontalPad, vertical = scaledVerticalPad)
+                        .testTag("chat_bubble_${message.id}")
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = outAnnotatedText,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = scaledBodyFontSize,
+                                lineHeight = scaledBodyLineHeight
+                            ),
+                            color = outBubbleFg
+                        )
+                        if (detectedPhoneNumbers.isNotEmpty()) {
+                            DetectedPhoneNumbersBubbleBar(
+                                phoneNumbers = detectedPhoneNumbers,
+                                isOutgoingBubble = true,
+                                isSw = isSw,
+                                onCall = onCallPhoneNumber,
+                                onCopy = onCopyPhoneNumber,
+                                onOpenOptions = onOpenPhoneNumberOptions
+                            )
+                        }
+
+                        // Clean Tick + Delivery Status Badge (100% solid matte Android 17 tonal colors)
+                        val hasRepliedAfter = latestIncomingReplyTimestamp > message.timestamp
+                        val (tickIcon, tickTint, deliveryLabel) = when {
+                            message.status == MessageStatus.DELIVERED -> Triple(
+                                Icons.Filled.DoneAll,
+                                MaterialTheme.colorScheme.primary,
+                                s.deliveryLabelDelivered
+                            )
+                            message.status == MessageStatus.SENT && hasRepliedAfter -> Triple(
+                                Icons.Filled.DoneAll,
+                                MaterialTheme.colorScheme.secondary,
+                                s.deliveryLabelDelivered
+                            )
+                            message.status == MessageStatus.SENDING -> Triple(
+                                Icons.Filled.Schedule,
+                                MaterialTheme.colorScheme.tertiary,
+                                s.deliveryLabelSending
+                            )
+                            message.status == MessageStatus.FAILED -> Triple(
+                                Icons.Filled.ErrorOutline,
+                                MaterialTheme.colorScheme.error,
+                                s.deliveryLabelFailed
+                            )
+                            else -> Triple(
+                                Icons.Filled.Done,
+                                outBubbleFg,
+                                s.deliveryLabelSent
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.align(Alignment.End),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            if (message.partCount > 1) {
+                                Text(
+                                    text = "${message.partCount}p •",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
+                                    color = outBubbleFg
+                                )
                             }
-                        },
-                        onLongClick = onLongPress
-                    )
-                    .padding(horizontal = scaledHorizontalPad, vertical = scaledVerticalPad)
-                    .testTag("chat_bubble_${message.id}")
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = outAnnotatedText,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = scaledBodyFontSize,
-                            lineHeight = scaledBodyLineHeight
-                        ),
-                        color = outBubbleFg
-                    )
-                    if (detectedPhoneNumbers.isNotEmpty()) {
-                        DetectedPhoneNumbersBubbleBar(
-                            phoneNumbers = detectedPhoneNumbers,
-                            isOutgoingBubble = true,
-                            isSw = isSw,
-                            onCall = onCallPhoneNumber,
-                            onCopy = onCopyPhoneNumber,
-                            onOpenOptions = onOpenPhoneNumberOptions
-                        )
-                    }
-
-                    // Clean Tick + Delivery Status Badge (100% solid matte Android 17 tonal colors)
-                    val hasRepliedAfter = latestIncomingReplyTimestamp > message.timestamp
-                    val (tickIcon, tickTint, deliveryLabel) = when {
-                        message.status == MessageStatus.DELIVERED -> Triple(
-                            Icons.Filled.DoneAll,
-                            MaterialTheme.colorScheme.primary,
-                            s.deliveryLabelDelivered
-                        )
-                        message.status == MessageStatus.SENT && hasRepliedAfter -> Triple(
-                            Icons.Filled.DoneAll,
-                            MaterialTheme.colorScheme.secondary,
-                            s.deliveryLabelDelivered
-                        )
-                        message.status == MessageStatus.SENDING -> Triple(
-                            Icons.Filled.Schedule,
-                            MaterialTheme.colorScheme.tertiary,
-                            s.deliveryLabelSending
-                        )
-                        message.status == MessageStatus.FAILED -> Triple(
-                            Icons.Filled.ErrorOutline,
-                            MaterialTheme.colorScheme.error,
-                            s.deliveryLabelFailed
-                        )
-                        else -> Triple(
-                            Icons.Filled.Done,
-                            outBubbleFg,
-                            s.deliveryLabelSent
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.align(Alignment.End),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        if (message.partCount > 1) {
                             Text(
-                                text = "${message.partCount}p •",
+                                text = timeText,
                                 style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
                                 color = outBubbleFg
                             )
+                            Text(
+                                text = "• $deliveryLabel",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
+                                fontWeight = FontWeight.SemiBold,
+                                color = tickTint,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Icon(
+                                imageVector = tickIcon,
+                                contentDescription = deliveryLabel,
+                                tint = tickTint,
+                                modifier = Modifier.size(14.dp)
+                            )
                         }
-                        Text(
-                            text = timeText,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
-                            color = outBubbleFg
-                        )
-                        Text(
-                            text = "• $deliveryLabel",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
-                            fontWeight = FontWeight.SemiBold,
-                            color = tickTint,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Icon(
-                            imageVector = tickIcon,
-                            contentDescription = deliveryLabel,
-                            tint = tickTint,
-                            modifier = Modifier.size(14.dp)
-                        )
                     }
+                }
+                if (reaction != null) {
+                    BubbleReactionBadge(
+                        emoji = reaction.emoji,
+                        messageId = message.id,
+                        onClick = onTapNormal,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 8.dp)
+                    )
                 }
             }
         } else {
             val highlightColor = MaterialTheme.colorScheme.primary
             val highlightBg = MaterialTheme.colorScheme.primaryContainer
-            Surface(
-                shape = bubbleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp,
-                modifier = Modifier
-                    .widthIn(max = scaledMaxWidth)
-                    .clip(bubbleShape)
-                    .combinedClickable(
-                        onClick = {
-                            if (!isSelectionMode && detectedPhoneNumbers.size == 1 && message.body.trim().length <= 18) {
-                                onOpenPhoneNumberOptions(detectedPhoneNumbers.first())
-                            } else {
-                                onTapNormal()
-                            }
-                        },
-                        onLongClick = onLongPress
-                    )
-                    .testTag("chat_bubble_${message.id}")
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = scaledHorizontalPad, vertical = scaledVerticalPad),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+            Box(modifier = Modifier.widthIn(max = scaledMaxWidth)) {
+                Surface(
+                    shape = bubbleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                    modifier = Modifier
+                        .padding(bottom = if (reaction != null) 14.dp else 0.dp)
+                        .clip(bubbleShape)
+                        .combinedClickable(
+                            onClick = onTapNormal,
+                            onLongClick = onLongPress
+                        )
+                        .testTag("chat_bubble_${message.id}")
                 ) {
-                    val cleanName = ContactsLoader.cleanSenderIdentifier(message.contactName)
-                    val cleanPhone = ContactsLoader.cleanSenderIdentifier(message.phoneNumber)
-                    val senderHeader = when {
-                        cleanName.isNotEmpty() && cleanPhone.isNotEmpty() && !cleanName.equals(cleanPhone, ignoreCase = true) ->
-                            "$cleanName • $cleanPhone"
-                        cleanName.isNotEmpty() -> cleanName
-                        cleanPhone.isNotEmpty() -> cleanPhone
-                        else -> ""
-                    }
-                    if (senderHeader.isNotEmpty() || message.status == MessageStatus.BLOCKED_AD) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            if (senderHeader.isNotEmpty()) {
-                                Text(
-                                    text = senderHeader,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            if (message.status == MessageStatus.BLOCKED_AD) {
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.errorContainer
-                                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = scaledHorizontalPad, vertical = scaledVerticalPad),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val cleanName = ContactsLoader.cleanSenderIdentifier(message.contactName)
+                        val cleanPhone = ContactsLoader.cleanSenderIdentifier(message.phoneNumber)
+                        val senderHeader = when {
+                            cleanName.isNotEmpty() && cleanPhone.isNotEmpty() && !cleanName.equals(cleanPhone, ignoreCase = true) ->
+                                "$cleanName • $cleanPhone"
+                            cleanName.isNotEmpty() -> cleanName
+                            cleanPhone.isNotEmpty() -> cleanPhone
+                            else -> ""
+                        }
+                        if (senderHeader.isNotEmpty() || message.status == MessageStatus.BLOCKED_AD) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (senderHeader.isNotEmpty()) {
                                     Text(
-                                        text = "ADS",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = MaterialTheme.colorScheme.onErrorContainer,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                        text = senderHeader,
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
+                                }
+                                if (message.status == MessageStatus.BLOCKED_AD) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.errorContainer
+                                    ) {
+                                        Text(
+                                            text = "ADS",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MaterialTheme.colorScheme.onErrorContainer,
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (message.isSilentIntercepted && message.status != MessageStatus.BLOCKED_AD) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        if (message.isSilentIntercepted && message.status != MessageStatus.BLOCKED_AD) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.NotificationsOff,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = s.statusSilentUnknown,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        val inPhoneColor = MaterialTheme.colorScheme.primary
+                        val inPhoneBg = MaterialTheme.colorScheme.primaryContainer
+                        val inAnnotatedText = remember(
+                            message.body,
+                            highlightQuery,
+                            detectedPhoneSpans,
+                            inPhoneColor,
+                            inPhoneBg,
+                            highlightColor,
+                            highlightBg
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.NotificationsOff,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Text(
-                                text = s.statusSilentUnknown,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.tertiary,
-                                fontWeight = FontWeight.SemiBold
+                            buildPhoneAndSearchHighlightedText(
+                                text = message.body,
+                                query = highlightQuery,
+                                phoneColor = inPhoneColor,
+                                phoneBg = inPhoneBg,
+                                highlightColor = highlightColor,
+                                highlightBg = highlightBg,
+                                precomputedPhoneSpans = detectedPhoneSpans
                             )
                         }
-                    }
-                    val inPhoneColor = MaterialTheme.colorScheme.primary
-                    val inPhoneBg = MaterialTheme.colorScheme.primaryContainer
-                    val inAnnotatedText = remember(
-                        message.body,
-                        highlightQuery,
-                        detectedPhoneSpans,
-                        inPhoneColor,
-                        inPhoneBg,
-                        highlightColor,
-                        highlightBg
-                    ) {
-                        buildPhoneAndSearchHighlightedText(
-                            text = message.body,
-                            query = highlightQuery,
-                            phoneColor = inPhoneColor,
-                            phoneBg = inPhoneBg,
-                            highlightColor = highlightColor,
-                            highlightBg = highlightBg,
-                            precomputedPhoneSpans = detectedPhoneSpans
+                        Text(
+                            text = inAnnotatedText,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontSize = scaledBodyFontSize,
+                                lineHeight = scaledBodyLineHeight
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (detectedPhoneNumbers.isNotEmpty()) {
+                            DetectedPhoneNumbersBubbleBar(
+                                phoneNumbers = detectedPhoneNumbers,
+                                isOutgoingBubble = false,
+                                isSw = isSw,
+                                onCall = onCallPhoneNumber,
+                                onCopy = onCopyPhoneNumber,
+                                onOpenOptions = onOpenPhoneNumberOptions
+                            )
+                        }
+                        Text(
+                            text = timeText,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.align(Alignment.End)
                         )
                     }
-                    Text(
-                        text = inAnnotatedText,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontSize = scaledBodyFontSize,
-                            lineHeight = scaledBodyLineHeight
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    if (detectedPhoneNumbers.isNotEmpty()) {
-                        DetectedPhoneNumbersBubbleBar(
-                            phoneNumbers = detectedPhoneNumbers,
-                            isOutgoingBubble = false,
-                            isSw = isSw,
-                            onCall = onCallPhoneNumber,
-                            onCopy = onCopyPhoneNumber,
-                            onOpenOptions = onOpenPhoneNumberOptions
-                        )
-                    }
-                    Text(
-                        text = timeText,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = scaledMetaFontSize),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.End)
+                }
+                if (reaction != null) {
+                    BubbleReactionBadge(
+                        emoji = reaction.emoji,
+                        messageId = message.id,
+                        onClick = onTapNormal,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 8.dp)
                     )
                 }
             }
@@ -2335,6 +2363,30 @@ private fun PremiumChatBubble(
                     .size(22.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun BubbleReactionBadge(
+    emoji: String,
+    messageId: Long,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
+        modifier = modifier.testTag("bubble_reaction_badge_$messageId")
+    ) {
+        Text(
+            text = emoji,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+        )
     }
 }
 
@@ -2509,105 +2561,6 @@ private fun filterConversationMessagesFast(
         matched.sortBy { it.timestamp }
     }
     return matched
-}
-
-@Composable
-private fun MessageDetailsDialog(
-    message: DecryptedSmsMessage,
-    latestIncomingReplyTimestamp: Long = 0L,
-    onCopy: () -> Unit,
-    onMoveToTrash: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val s = LocalAppStrings.current
-    val isSw = s.btnCancel == "Ghairi"
-    val fullDate = remember(message.timestamp) {
-        (chatDetailDateFormatter.get() ?: SimpleDateFormat("dd MMM yyyy, HH:mm:ss", Locale.getDefault()))
-            .format(Date(message.timestamp))
-    }
-    val statusText = when (message.status) {
-        MessageStatus.DELIVERED -> s.statusDelivered
-        MessageStatus.SENT -> s.statusSent
-        MessageStatus.SENDING -> s.statusSending
-        MessageStatus.FAILED -> s.statusFailed
-        MessageStatus.RECEIVED -> if (message.isSilentIntercepted) s.statusSilentUnknown else s.statusReceived
-        else -> message.status
-    }
-
-    val cleanStatusNote = remember(message.statusNote) {
-        val raw = message.statusNote.trim()
-        val lower = raw.lowercase(Locale.ROOT)
-        if (lower.contains("amekublock") ||
-            lower.contains("hajakublock") ||
-            lower.contains("inawezekana") ||
-            lower.contains("haijafika") ||
-            lower.contains("blocked")
-        ) {
-            ""
-        } else {
-            raw
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(s.convMessageReportTitle, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "$statusText • ${message.simSlotLabel} • ${s.partsWord} ${message.partCount}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = fullDate,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                if (cleanStatusNote.isNotBlank()) {
-                    Text(
-                        text = "${s.reportPrefix}: $cleanStatusNote",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilledTonalButton(
-                        onClick = onCopy,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(s.convCopyText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    FilledTonalButton(
-                        onClick = onMoveToTrash,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        ),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Filled.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(s.convMoveToTrash, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(s.btnClose) }
-        }
-    )
 }
 
 private fun buildTimelineItems(

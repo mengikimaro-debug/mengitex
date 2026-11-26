@@ -109,4 +109,18 @@ class ExampleUnitTest {
         assertTrue(alphaKey.startsWith("alpha_"))
         assertEquals("SIM 1", com.example.service.SimCardManager.sanitizeSimText("T-Mobile", "SIM 1"))
     }
+
+    @Test
+    fun smsMetricsGsm7AndUnicodeDetectionWork() {
+        val gsm = com.example.ui.screens.computeSmsMetrics("Habari rafiki\nTukutane kesho")
+        assertTrue(gsm.isGsm7)
+        assertTrue(gsm.encodingLabel.contains("GSM-7"))
+        assertEquals(4, gsm.wordCount)
+        assertEquals(2, gsm.lineCount)
+
+        val unicode = com.example.ui.screens.computeSmsMetrics("Asante sana ❤️")
+        assertFalse(unicode.isGsm7)
+        assertTrue(unicode.encodingLabel.contains("UCS-2"))
+        assertEquals(3, unicode.wordCount)
+    }
 }

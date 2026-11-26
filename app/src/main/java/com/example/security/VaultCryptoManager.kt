@@ -1,6 +1,7 @@
 package com.example.security
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -74,6 +75,9 @@ class VaultCryptoManager(context: Context? = null) {
 
         @Volatile
         private var cachedKeystoreReady: Boolean? = null
+
+        @Volatile
+        private var redundantBackupsVerifiedThisProcess: Boolean = false
 
         private val realtimeOpsCounter = AtomicLong(0L)
 
@@ -163,10 +167,11 @@ class VaultCryptoManager(context: Context? = null) {
             prefs: android.content.SharedPreferences,
             dekBytes: ByteArray
         ) {
+            if (redundantBackupsVerifiedThisProcess) return
             runCatching {
                 val sealed = sealDekBytes(context, dekBytes)
                 if (prefs.getString(KEY_SEALED_BACKUP_DEK, null) != sealed) {
-                    prefs.edit().putString(KEY_SEALED_BACKUP_DEK, sealed).commit()
+                    prefs.edit().putString(KEY_SEALED_BACKUP_DEK, sealed).apply()
                 }
                 val hiddenDir = java.io.File(context.filesDir, ".siri_vault_hidden").apply {
                     if (!exists()) mkdirs()
@@ -175,6 +180,7 @@ class VaultCryptoManager(context: Context? = null) {
                 if (!file.exists() || file.length() == 0L) {
                     file.writeText(sealed, Charsets.UTF_8)
                 }
+                redundantBackupsVerifiedThisProcess = true
             }
         }
 
@@ -191,8 +197,11 @@ class VaultCryptoManager(context: Context? = null) {
                     }
 
                     val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE_PROVIDER)
-                    // Try StrongBox hardware security module first on API 28+, fallback to standard TEE Keystore
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    // Try StrongBox hardware security module ONLY when device advertises FEATURE_STRONGBOX_KEYSTORE
+                    // (prevents multi-second Keystore HAL timeouts on non-StrongBox phones/emulators)
+                    val hasStrongBox = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+                        globalAppContext?.packageManager?.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE) == true
+                    if (hasStrongBox) {
                         try {
                             val strongBoxSpec = KeyGenParameterSpec.Builder(
                                 KEY_ALIAS,
@@ -304,7 +313,7 @@ class VaultCryptoManager(context: Context? = null) {
                                     encryptBytesWithHardwareKeyStatic(recoveredDek),
                                     Base64.NO_WRAP
                                 )
-                                prefs.edit().putString(KEY_WRAPPED_DEK, rewrapped).commit()
+                                prefs.edit().putString(KEY_WRAPPED_DEK, rewrapped).apply()
                             }
                             persistRedundantDekBackups(ctx, prefs, recoveredDek)
                             isFastDekBackedByStorage = true
@@ -321,7 +330,7 @@ class VaultCryptoManager(context: Context? = null) {
                                     encryptBytesWithHardwareKeyStatic(newDekBytes),
                                     Base64.NO_WRAP
                                 )
-                                prefs.edit().putString(KEY_WRAPPED_DEK, wrapped).commit()
+                                prefs.edit().putString(KEY_WRAPPED_DEK, wrapped).apply()
                             }
                             isFastDekBackedByStorage = true
                             return@synchronized SecretKeySpec(newDekBytes, "AES").also { sharedFastDek = it }

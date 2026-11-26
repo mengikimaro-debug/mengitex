@@ -23,6 +23,8 @@ import com.example.data.DecryptedSmsMessage
 import com.example.data.DecryptedTemplate
 import com.example.data.LiveSmsEventBus
 import com.example.data.MessageDirection
+import com.example.data.MessageReactionEntry
+import com.example.data.MessageReactionStore
 import com.example.data.MessageStatus
 import com.example.data.SiriSmsDatabase
 import com.example.data.SiriSmsRepository
@@ -70,6 +72,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -151,6 +154,7 @@ data class SiriSmsUiState(
     val activeConversationName: String = "",
     val statusBanner: String? = null,
     val isInitialMessagesLoaded: Boolean = false,
+    val hasLoadedSettings: Boolean = false,
     val hasUpgradeAvailable: Boolean = false,
     val latestUpgradeTag: String = ""
 )
@@ -165,11 +169,13 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
     private val cloudBackupRepository: CloudBackupRepository? by lazy {
         CloudBackupRepository.createOrNull(appContext)
     }
-    private val repository = SiriSmsRepository(
-        dao = SiriSmsDatabase.getInstance(appContext).dao(),
-        crypto = crypto,
-        vaultLogger = vaultLogger
-    )
+    private val repository: SiriSmsRepository by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        SiriSmsRepository(
+            dao = SiriSmsDatabase.getInstance(appContext).dao(),
+            crypto = crypto,
+            vaultLogger = vaultLogger
+        )
+    }
 
     // Zero-I/O RAM check on Frame 0 (~0.001ms); disk snapshot decryption runs immediately on Dispatchers.IO.
     private val initialInstantMessages: List<DecryptedSmsMessage> =
@@ -183,11 +189,12 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
     private val _activeMessages = MutableStateFlow<List<DecryptedSmsMessage>>(initialInstantMessages)
     val activeMessages: StateFlow<List<DecryptedSmsMessage>> = _activeMessages.asStateFlow()
 
-    // O(1) pre-indexed thread map (oldest-first per thread) so opening ANY chat out of 600,000 SMS takes ~0.01ms!
+    val messageReactions: StateFlow<Map<Long, MessageReactionEntry>> = MessageReactionStore.reactions
+
+    // O(1) pre-indexed thread map (oldest-first per thread) compiled lazily only while Conversation is subscribed
     val messagesByThreadKey: StateFlow<Map<String, List<DecryptedSmsMessage>>> = _activeMessages
         .map { messages ->
             val buckets = HashMap<String, ArrayList<DecryptedSmsMessage>>(256)
-            // Iterate in reverse (newest->oldest input => oldest->newest per thread without sorting!)
             for (i in messages.lastIndex downTo 0) {
                 val m = messages[i]
                 val key = m.canonicalThreadKey
@@ -196,22 +203,34 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
             buckets
         }
         .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyMap())
 
-    val scheduledMessages: StateFlow<List<DecryptedSmsMessage>> = repository.scheduledMessages
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val scheduledMessages: StateFlow<List<DecryptedSmsMessage>> = flow {
+        emitAll(repository.scheduledMessages)
+    }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
-    val trashedMessages: StateFlow<List<DecryptedSmsMessage>> = repository.trashedMessages
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val trashedMessages: StateFlow<List<DecryptedSmsMessage>> = flow {
+        emitAll(repository.trashedMessages)
+    }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
-    val activeTemplates: StateFlow<List<DecryptedTemplate>> = repository.activeTemplates
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val activeTemplates: StateFlow<List<DecryptedTemplate>> = flow {
+        emitAll(repository.activeTemplates)
+    }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
-    val trashedTemplates: StateFlow<List<DecryptedTemplate>> = repository.trashedTemplates
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val trashedTemplates: StateFlow<List<DecryptedTemplate>> = flow {
+        emitAll(repository.trashedTemplates)
+    }
+        .flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val allContacts: StateFlow<List<ContactItem>> = combine(
-        repository.localContacts,
+        flow { emitAll(repository.localContacts) }.flowOn(Dispatchers.IO),
         _uiState.map { it.deviceContacts }.distinctUntilChanged()
     ) { local, deviceContacts ->
         val localMapped = local.map {
@@ -236,7 +255,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         sorted
     }
         .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     // Pre-computed O(N) inbox conversation groups on Default dispatcher so Inbox/Contacts/Back switch in ~0ms
     val groupedInboxData: StateFlow<GroupedInboxData> = combine(
@@ -246,11 +265,11 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         buildInboxThreadsSinglePass(messages, contacts)
     }
         .flowOn(Dispatchers.Default)
-        .stateIn(viewModelScope, SharingStarted.Eagerly, GroupedInboxData(emptyList(), 0))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), GroupedInboxData(emptyList(), 0))
 
     val trashCount: StateFlow<Int> = combine(trashedMessages, trashedTemplates) { msgs, tmpls ->
         msgs.size + tmpls.size
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), 0)
 
     private val syncPrefs by lazy {
         appContext.getSharedPreferences("mengitex_sms_memory_sync", Context.MODE_PRIVATE)
@@ -334,7 +353,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         channelSyncJob = viewModelScope.launch(Dispatchers.IO) {
             delay(20L)
             runCatching {
-                MengiTexNotificationManager.ensureAllChannelsCreated(appContext, _uiState.value.settings)
+                MengiTexNotificationManager.ensureAllChannelsCreated(appContext, _uiState.value.settings, force = true)
             }
         }
     }
@@ -342,26 +361,33 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
     init {
         // 1. Non-blocking multi-stage hydration on IO:
         //    - Pre-warm Keystore & load single-blob instant cache on IO (~3–10ms, zero Main-Thread freeze)
-        //    - Fallback to 350-message quick slice if disk snapshot empty
-        //    - Observe full active messages continuously
+        //    - Fallback to 120-message quick slice if disk snapshot empty
+        //    - Give Frame 1 a brief uncontended window before observing full Room history
         viewModelScope.launch(Dispatchers.IO) {
             VaultCryptoManager.bindContext(appContext)
-            if (_activeMessages.value.isEmpty()) {
+            runCatching { MessageReactionStore.ensureLoaded(appContext) }
+            var loadedFastFromCache = _activeMessages.value.isNotEmpty()
+            if (!loadedFastFromCache) {
                 val diskInstant = runCatching {
                     SmsInstantCache.loadInstantSync(appContext, crypto)
                 }.getOrDefault(emptyList())
                 if (diskInstant.isNotEmpty() && _activeMessages.value.isEmpty()) {
                     _activeMessages.value = diskInstant
                     _uiState.update { it.copy(isInitialMessagesLoaded = true) }
+                    loadedFastFromCache = true
                 }
             }
             if (_activeMessages.value.isEmpty()) {
-                val quickSlice = runCatching { repository.getRecentActiveMessagesOnce(350) }.getOrDefault(emptyList())
+                val quickSlice = runCatching { repository.getRecentActiveMessagesOnce(120) }.getOrDefault(emptyList())
                 if (quickSlice.isNotEmpty() && _activeMessages.value.isEmpty()) {
                     SmsInstantCache.updateMemory(quickSlice)
                     _activeMessages.value = quickSlice
                     _uiState.update { it.copy(isInitialMessagesLoaded = true) }
+                    delay(80L)
                 }
+            } else if (loadedFastFromCache) {
+                // Frame 1 is already populated from instant cache; yield briefly so Compose renders at 120fps
+                delay(180L)
             }
             repository.activeMessages.collect { fullList ->
                 if (fullList.isEmpty()) {
@@ -497,7 +523,13 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         }
 
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching { repository.seedStarterTemplatesIfEmpty() }
+            if (!syncPrefs.getBoolean("starter_templates_seeded_v1", false)) {
+                delay(450L)
+                runCatching {
+                    repository.seedStarterTemplatesIfEmpty()
+                    syncPrefs.edit().putBoolean("starter_templates_seeded_v1", true).apply()
+                }
+            }
         }
 
         viewModelScope.launch {
@@ -512,13 +544,16 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                         if (!initialLockEvaluated) initialLockEvaluated = true
                         current.copy(
                             settings = if (shouldApplySettings) settings else current.settings,
-                            isLocked = if (shouldLockInitially) true else current.isLocked
+                            isLocked = if (shouldLockInitially) true else current.isLocked,
+                            hasLoadedSettings = true
                         )
                     }
-                    // Only run SQLite update when autoDeleteSecretAfterRead actually changes — NEVER on unrelated toggles!
-                    if (lastBurnAfterReadSetting != settings.autoDeleteSecretAfterRead) {
+                    // ONLY run SQLite write when autoDeleteSecretAfterRead transitions true -> false
+                    // (NEVER run an unconditional full-table UPDATE on cold launch!)
+                    val prevBurn = lastBurnAfterReadSetting
+                    if (prevBurn != settings.autoDeleteSecretAfterRead) {
                         lastBurnAfterReadSetting = settings.autoDeleteSecretAfterRead
-                        if (!settings.autoDeleteSecretAfterRead) {
+                        if (prevBurn == true && !settings.autoDeleteSecretAfterRead) {
                             viewModelScope.launch(Dispatchers.IO) {
                                 runCatching {
                                     repository.ensurePermanentMessagesWhenBurnDisabled(false)
@@ -530,7 +565,10 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
             }
         }
 
-        registerRealtimeTelephonyObserver()
+        viewModelScope.launch(Dispatchers.IO) {
+            delay(250L)
+            registerRealtimeTelephonyObserver()
+        }
         refreshSystemEnvironment(startupDeferHeavyQueries = true)
         reconcileAdClassificationRulesOnce()
         startInactivityAutoLockWatcher()
@@ -564,7 +602,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
 
     private fun triggerStartupUpgradeCheckIfEnabled() {
         viewModelScope.launch(Dispatchers.IO) {
-            delay(650L)
+            delay(1800L)
             val currentSettings = _uiState.value.settings
             val installed = GithubUpdateChecker.getInstalledAppVersionName(appContext)
             val cachedTag = currentSettings.githubCachedLatestTag
@@ -594,7 +632,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
     private fun reconcileAdClassificationRulesOnce() {
         viewModelScope.launch(Dispatchers.IO) {
             if (syncPrefs.getBoolean("ad_rules_v2_reconciled", false)) return@launch
-            delay(500L)
+            delay(1200L)
             runCatching {
                 val settings = _uiState.value.settings
                 if (settings.autoBlockAdsEnabled) {
@@ -613,7 +651,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         if (messages.isEmpty() || _uiState.value.isBackupBusy) return
         diskCacheSaveJob?.cancel()
         diskCacheSaveJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(100L)
+            delay(350L)
             if (!_uiState.value.isBackupBusy && messages.isNotEmpty()) {
                 SmsInstantCache.saveSnapshotToDisk(appContext, crypto, messages)
             }
@@ -634,7 +672,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         }
         autoGuardianSaveJob?.cancel()
         autoGuardianSaveJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(400L)
+            delay(2200L)
             if (_uiState.value.isBackupBusy || messages.isEmpty()) return@launch
             val savedSig = syncPrefs.getString("last_auto_guardian_sig", "")
             val savedAt = syncPrefs.getLong("last_auto_guardian_ms", 0L)
@@ -898,6 +936,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                 if (currentSettings.wipeOnIntruderEnabled && attempts >= 10) {
                     repository.emergencyIntruderWipe()
                     SmsInstantCache.clear(appContext)
+                    MessageReactionStore.clearAll(appContext)
                     preferences.resetUnlockAttempts()
                     _uiState.update {
                         it.copy(
@@ -975,6 +1014,9 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         isEnvRefreshRunning = true
         viewModelScope.launch(Dispatchers.IO) {
             try {
+            if (startupDeferHeavyQueries) {
+                delay(120L)
+            }
             val sims = runCatching { SimCardManager.detectSimCards(appContext) }.getOrDefault(emptyList())
             val simSummary = runCatching { SimCardManager.getSimStateSummary(appContext) }.getOrDefault("SIM...")
             val hasSms = runCatching { SmsDispatchManager.hasSendSmsPermission(appContext) }.getOrDefault(false)
@@ -987,10 +1029,6 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
             val persistedStorage = runCatching {
                 appContext.contentResolver.persistedUriPermissions.any { it.isReadPermission }
             }.getOrDefault(false)
-            if (!hasInitializedChannels) {
-                hasInitializedChannels = true
-                runCatching { MengiTexNotificationManager.ensureAllChannelsCreated(appContext, _uiState.value.settings) }
-            }
 
             _uiState.update { state ->
                 val currentSub = state.settings.selectedSimSubId
@@ -1016,7 +1054,14 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                 )
             }
 
-            // Run ContentResolver queries immediately on Dispatchers.IO without startup sleep
+            if (!hasInitializedChannels) {
+                hasInitializedChannels = true
+                if (startupDeferHeavyQueries) delay(250L)
+                runCatching { MengiTexNotificationManager.ensureAllChannelsCreated(appContext, _uiState.value.settings) }
+            }
+
+            // Defer heavy ContentResolver queries slightly on cold boot so UI renders at 120fps first
+            if (startupDeferHeavyQueries) delay(150L)
             val nowMs = System.currentTimeMillis()
             val existingContacts = _uiState.value.deviceContacts
             val shouldLoadContacts = forceReloadContacts ||
@@ -1031,12 +1076,8 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
             }
 
             // Smart Phone SMS Sync:
-            // - If app already has remembered SMS in Room DB, run an ultra-fast (<15ms) incremental delta sync
-            //   so new SMS are remembered immediately without blocking startup for 5 seconds.
-            // - Only do a full historical device import on first-ever launch when Room DB has not been synced yet.
             if (localBackupManager.hasReadSmsPermission()) {
                 val existingCount = runCatching { repository.countActiveMessagesOnce() }.getOrDefault(0)
-                // Always perform a full recovery sync if existingCount == 0!
                 val initialFullDone = syncPrefs.getBoolean("initial_full_sync_done", false) && existingCount > 0
 
                 if (!initialFullDone && !hasAutoSyncedPhoneSmsThisSession) {
@@ -1045,7 +1086,6 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                         val currentSettings = _uiState.value.settings
                         val currentContacts = allContacts.value
                         var session: SiriSmsRepository.StreamingImportSession? = null
-                        // Use a quick initial batch size so first chats appear right away while older history streams
                         localBackupManager.streamSystemDeviceSms(batchSize = 500) { chunk, _ ->
                             val activeSession = session ?: repository.beginStreamingImportSession(
                                 replaceExisting = false,
@@ -1062,6 +1102,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                     }
                 } else {
                     hasAutoSyncedPhoneSmsThisSession = true
+                    if (startupDeferHeavyQueries) delay(250L)
                     syncNewDeviceSmsDelta(force = false)
                 }
             }
@@ -2692,6 +2733,21 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun toggleMessageReaction(messageId: Long, emoji: String) {
+        recordUserInteraction()
+        MessageReactionStore.toggleReaction(appContext, messageId, emoji)
+    }
+
+    fun setMessageReaction(messageId: Long, emoji: String) {
+        recordUserInteraction()
+        MessageReactionStore.setReaction(appContext, messageId, emoji)
+    }
+
+    fun removeMessageReaction(messageId: Long) {
+        recordUserInteraction()
+        MessageReactionStore.removeReaction(appContext, messageId)
+    }
+
     fun restoreMessage(message: DecryptedSmsMessage) {
         recordUserInteraction()
         viewModelScope.launch(Dispatchers.IO) {
@@ -2847,9 +2903,15 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun setAutoDeleteSecret(enabled: Boolean) {
+        lastBurnAfterReadSetting = enabled
         updateSettingsOptimistically(
             transform = { it.copy(autoDeleteSecretAfterRead = enabled) },
-            persist = { preferences.setAutoDeleteSecret(enabled) }
+            persist = {
+                preferences.setAutoDeleteSecret(enabled)
+                if (!enabled) {
+                    repository.ensurePermanentMessagesWhenBurnDisabled(false)
+                }
+            }
         )
     }
 

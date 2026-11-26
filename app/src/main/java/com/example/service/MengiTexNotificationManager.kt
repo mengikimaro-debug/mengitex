@@ -154,10 +154,27 @@ object MengiTexNotificationManager {
         return false
     }
 
-    fun ensureAllChannelsCreated(context: Context, settings: SecuritySettings) {
+    private const val CHANNEL_PREFS_NAME = "mengitex_notif_channels_v1"
+    private const val KEY_CHANNEL_LANG_TAG = "synced_lang_v1"
+
+    fun ensureAllChannelsCreated(
+        context: Context,
+        settings: SecuritySettings,
+        force: Boolean = false
+    ) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         val isSw = settings.language == AppLanguage.SW
+        val expectedTag = "v1_${settings.language.code}"
+        val channelPrefs = runCatching {
+            context.applicationContext.getSharedPreferences(CHANNEL_PREFS_NAME, Context.MODE_PRIVATE)
+        }.getOrNull()
+        if (!force &&
+            channelPrefs?.getString(KEY_CHANNEL_LANG_TAG, null) == expectedTag &&
+            nm.getNotificationChannel(CHANNEL_BUBBLE_SMS) != null
+        ) {
+            return
+        }
 
         val audioAttrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
@@ -264,6 +281,7 @@ object MengiTexNotificationManager {
         nm.createNotificationChannels(
             listOf(personalChannel, txnChannel, secretChannel, deliveryChannel, silentChannel)
         )
+        channelPrefs?.edit()?.putString(KEY_CHANNEL_LANG_TAG, expectedTag)?.apply()
     }
 
     /**

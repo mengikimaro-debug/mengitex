@@ -143,10 +143,12 @@ class MainActivity : ComponentActivity() {
     private val launchAnimationSessionState = mutableIntStateOf(1)
     private val fastBootDarkState = mutableStateOf<Boolean?>(null)
     private val fastBootLanguageState = mutableStateOf(AppLanguage.SW)
+    private val fastBootLockedState = mutableStateOf(false)
 
     private var pendingLaunchIntent: Intent? = null
     private var suppressNextResumeAnimation = false
     private var hasStoppedSinceLaunch = false
+    private var isFirstResumeAfterCreate = true
 
     private val screenOffReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -191,12 +193,17 @@ class MainActivity : ComponentActivity() {
                     handleNotificationLaunchIntent(deferred)
                     pendingLaunchIntent = null
                 }
+                withFrameNanos { }
+                runCatching { reportFullyDrawn() }
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
                 MengiTexAppRoot(
                     viewModel = viewModel,
                     isAppInForeground = isAppInForegroundState.value,
+                    fastBootDark = fastBootDarkState.value,
+                    fastBootLanguage = fastBootLanguageState.value,
+                    fastBootLocked = fastBootLockedState.value,
                     onSyncFastBootPrefs = ::persistFastBootPrefs,
                     onWillLaunchExternalSystemUi = { suppressNextResumeAnimation = true }
                 )
@@ -212,17 +219,20 @@ class MainActivity : ComponentActivity() {
             }
             val langCode = prefs.getString(KEY_FAST_LANG, AppLanguage.SW.code)
             fastBootLanguageState.value = if (langCode == AppLanguage.EN.code) AppLanguage.EN else AppLanguage.SW
+            fastBootLockedState.value = prefs.getBoolean(KEY_FAST_LOCKED, false)
         }
     }
 
-    private fun persistFastBootPrefs(isDark: Boolean, language: AppLanguage) {
+    private fun persistFastBootPrefs(isDark: Boolean, language: AppLanguage, hasPasscode: Boolean) {
         fastBootDarkState.value = isDark
         fastBootLanguageState.value = language
+        fastBootLockedState.value = hasPasscode
         runCatching {
             getSharedPreferences(FAST_BOOT_PREFS, Context.MODE_PRIVATE)
                 .edit()
                 .putBoolean(KEY_FAST_DARK, isDark)
                 .putString(KEY_FAST_LANG, language.code)
+                .putBoolean(KEY_FAST_LOCKED, hasPasscode)
                 .apply()
         }
     }
@@ -278,6 +288,10 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         isAppInForegroundState.value = true
         suppressNextResumeAnimation = false
+        if (isFirstResumeAfterCreate) {
+            isFirstResumeAfterCreate = false
+            return
+        }
         if (isMainAppMountedState.value) {
             viewModel.refreshSystemEnvironment()
             viewModel.syncNewDeviceSmsDelta(force = false)
@@ -307,6 +321,7 @@ class MainActivity : ComponentActivity() {
         private const val FAST_BOOT_PREFS = "mengitex_fast_boot"
         private const val KEY_FAST_DARK = "is_dark"
         private const val KEY_FAST_LANG = "lang"
+        private const val KEY_FAST_LOCKED = "is_locked"
     }
 }
 
@@ -315,15 +330,16 @@ class MainActivity : ComponentActivity() {
 private fun MengiTexAppRoot(
     viewModel: SiriSmsViewModel,
     isAppInForeground: Boolean,
-    onSyncFastBootPrefs: (Boolean, AppLanguage) -> Unit,
+    fastBootDark: Boolean?,
+    fastBootLanguage: AppLanguage,
+    fastBootLocked: Boolean,
+    onSyncFastBootPrefs: (Boolean, AppLanguage, Boolean) -> Unit,
     onWillLaunchExternalSystemUi: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activeMessages by viewModel.activeMessages.collectAsStateWithLifecycle()
     val groupedInboxData by viewModel.groupedInboxData.collectAsStateWithLifecycle()
-    val activeTemplates by viewModel.activeTemplates.collectAsStateWithLifecycle()
     val allContacts by viewModel.allContacts.collectAsStateWithLifecycle()
-    val trashCount by viewModel.trashCount.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -378,12 +394,25 @@ private fun MengiTexAppRoot(
         }
     }
 
-    val appStrings = remember(uiState.settings.language) { stringsFor(uiState.settings.language) }
+    val effectiveLanguage = if (uiState.hasLoadedSettings) uiState.settings.language else fastBootLanguage
+    val appStrings = remember(effectiveLanguage) { stringsFor(effectiveLanguage) }
     val systemIsDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val resolvedDarkTheme = uiState.settings.resolveIsDarkTheme(systemIsDark)
+    val resolvedDarkTheme = if (uiState.hasLoadedSettings) {
+        uiState.settings.resolveIsDarkTheme(systemIsDark)
+    } else {
+        fastBootDark ?: false
+    }
+    val effectiveLocked = if (uiState.hasLoadedSettings) uiState.isLocked else fastBootLocked
 
-    LaunchedEffect(resolvedDarkTheme, uiState.settings.language) {
-        onSyncFastBootPrefs(resolvedDarkTheme, uiState.settings.language)
+    LaunchedEffect(
+        uiState.hasLoadedSettings,
+        resolvedDarkTheme,
+        effectiveLanguage,
+        uiState.settings.hasPasscode
+    ) {
+        if (uiState.hasLoadedSettings) {
+            onSyncFastBootPrefs(resolvedDarkTheme, effectiveLanguage, uiState.settings.hasPasscode)
+        }
     }
 
     // 1. All core runtime permissions launcher (SMS, Contacts, Mic, SIM, Notifications)
@@ -539,11 +568,12 @@ private fun MengiTexAppRoot(
         permissionsLauncher.launch(perms.toTypedArray())
     }
 
-    // Automatic by Android System: auto-request missing runtime permissions + Default SMS role once per install
+    // Automatic by Android System: auto-request missing runtime permissions + Default SMS role once per install (after Frame 1)
     var autoSystemCheckedThisSession by remember { mutableStateOf(false) }
-    LaunchedEffect(uiState.isLocked) {
-        if (uiState.isLocked || autoSystemCheckedThisSession) return@LaunchedEffect
+    LaunchedEffect(uiState.hasLoadedSettings, uiState.isLocked) {
+        if (!uiState.hasLoadedSettings || uiState.isLocked || autoSystemCheckedThisSession) return@LaunchedEffect
         autoSystemCheckedThisSession = true
+        withFrameNanos { }
         val sysPrefs = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             context.getSharedPreferences("mengitex_auto_system_prefs", Context.MODE_PRIVATE)
         }
@@ -576,14 +606,17 @@ private fun MengiTexAppRoot(
             sysPrefs.edit().putBoolean("auto_runtime_perms_requested", true).apply()
             onWillLaunchExternalSystemUi()
             permissionsLauncher.launch(missingPerms.toTypedArray())
-        } else if (!DefaultAppRoleHelper.isDefaultSmsApp(context) &&
-            !sysPrefs.getBoolean("auto_default_sms_requested", false)
-        ) {
-            sysPrefs.edit().putBoolean("auto_default_sms_requested", true).apply()
-            val roleIntent = DefaultAppRoleHelper.createDefaultSmsRoleIntent(context)
-            if (roleIntent != null) {
-                onWillLaunchExternalSystemUi()
-                runCatching { defaultSmsRoleLauncher.launch(roleIntent) }
+        } else {
+            val isDefaultAlready = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                DefaultAppRoleHelper.isDefaultSmsApp(context)
+            }
+            if (!isDefaultAlready && !sysPrefs.getBoolean("auto_default_sms_requested", false)) {
+                sysPrefs.edit().putBoolean("auto_default_sms_requested", true).apply()
+                val roleIntent = DefaultAppRoleHelper.createDefaultSmsRoleIntent(context)
+                if (roleIntent != null) {
+                    onWillLaunchExternalSystemUi()
+                    runCatching { defaultSmsRoleLauncher.launch(roleIntent) }
+                }
             }
         }
     }
@@ -685,7 +718,7 @@ private fun MengiTexAppRoot(
         ) {
             NextGenAmbientBackdrop {
                 AnimatedContent(
-                    targetState = uiState.isLocked,
+                    targetState = effectiveLocked,
                     transitionSpec = { EnterTransition.None togetherWith ExitTransition.None },
                     label = "vault_lock_transition"
                 ) { locked ->
@@ -711,6 +744,7 @@ private fun MengiTexAppRoot(
                                 drawerState.targetValue != DrawerValue.Closed
                             if (shouldRenderDrawer) {
                                 val scheduledMessages by viewModel.scheduledMessages.collectAsStateWithLifecycle()
+                                val trashCount by viewModel.trashCount.collectAsStateWithLifecycle()
                                 SecurityDrawerContent(
                                     settings = uiState.settings,
                                     detectedSims = uiState.detectedSims,
@@ -890,6 +924,8 @@ private fun MengiTexAppRoot(
                                     when (dest) {
                                         DrawerDestination.CONVERSATION -> {
                                             val messagesByThreadKey by viewModel.messagesByThreadKey.collectAsStateWithLifecycle()
+                                            val activeTemplates by viewModel.activeTemplates.collectAsStateWithLifecycle()
+                                            val messageReactions by viewModel.messageReactions.collectAsStateWithLifecycle()
                                             val activeThreadKey = remember(uiState.activeConversationPhone, uiState.activeConversationName) {
                                                 ContactsLoader.resolveCanonicalThreadKey(
                                                     uiState.activeConversationPhone,
@@ -901,6 +937,7 @@ private fun MengiTexAppRoot(
                                                 phoneNumber = uiState.activeConversationPhone,
                                                 allActiveMessages = activeMessages,
                                                 preIndexedThreadMessages = messagesByThreadKey[activeThreadKey],
+                                                messageReactions = messageReactions,
                                                 contacts = allContacts,
                                                 templates = activeTemplates,
                                                 detectedSims = uiState.detectedSims,
@@ -909,75 +946,81 @@ private fun MengiTexAppRoot(
                                                 hasMicPermission = uiState.hasMicPermission,
                                                 activeSecretReader = uiState.activeSecretReaderMessage,
                                                 onSelectSim = viewModel::selectSim,
-                                            onSendDirectMessage = { body, isSecret, fallback ->
-                                                viewModel.sendDirectConversationMessage(
-                                                    contactName = uiState.activeConversationName,
-                                                    phoneNumber = uiState.activeConversationPhone,
-                                                    plainBody = body,
-                                                    isSecretBurn = isSecret,
-                                                    useSystemFallbackIfDenied = fallback
-                                                )
-                                            },
-                                            onForwardMessage = viewModel::forwardMessageToRecipients,
-                                            onSaveContactName = viewModel::saveContactNameForConversation,
-                                            onScheduleDraft = { draft ->
-                                                viewModel.openScheduleForConversation(
-                                                    contactName = uiState.activeConversationName,
-                                                    phoneNumber = uiState.activeConversationPhone,
-                                                    draftBody = draft
-                                                )
-                                            },
-                                            onOpenSecretReader = viewModel::openSecretReader,
-                                            onCloseSecretReader = viewModel::closeSecretReader,
-                                            onMoveToTrash = viewModel::moveMessageToTrash,
-                                            onMoveMessagesToTrash = viewModel::moveMessagesToTrash,
-                                            onToggleDeliveryReport = viewModel::setDeliveryReportsEnabled,
-                                            onChatSizeScaleChange = viewModel::setChatSizeScale,
-                                            onSendAttachment = { uri, mime, label, caption ->
-                                                viewModel.sendAttachmentInConversation(
-                                                    contactName = uiState.activeConversationName,
-                                                    phoneNumber = uiState.activeConversationPhone,
-                                                    uri = uri,
-                                                    mimeType = mime,
-                                                    displayLabel = label,
-                                                    captionBody = caption
-                                                )
-                                            },
-                                            onRequestMicPermission = requestMicPermission,
-                                            onShowMessage = viewModel::showBanner,
+                                                onToggleMessageReaction = viewModel::toggleMessageReaction,
+                                                onSetMessageReaction = viewModel::setMessageReaction,
+                                                onRemoveMessageReaction = viewModel::removeMessageReaction,
+                                                onSendDirectMessage = { body, isSecret, fallback ->
+                                                    viewModel.sendDirectConversationMessage(
+                                                        contactName = uiState.activeConversationName,
+                                                        phoneNumber = uiState.activeConversationPhone,
+                                                        plainBody = body,
+                                                        isSecretBurn = isSecret,
+                                                        useSystemFallbackIfDenied = fallback
+                                                    )
+                                                },
+                                                onForwardMessage = viewModel::forwardMessageToRecipients,
+                                                onSaveContactName = viewModel::saveContactNameForConversation,
+                                                onScheduleDraft = { draft ->
+                                                    viewModel.openScheduleForConversation(
+                                                        contactName = uiState.activeConversationName,
+                                                        phoneNumber = uiState.activeConversationPhone,
+                                                        draftBody = draft
+                                                    )
+                                                },
+                                                onOpenSecretReader = viewModel::openSecretReader,
+                                                onCloseSecretReader = viewModel::closeSecretReader,
+                                                onMoveToTrash = viewModel::moveMessageToTrash,
+                                                onMoveMessagesToTrash = viewModel::moveMessagesToTrash,
+                                                onToggleDeliveryReport = viewModel::setDeliveryReportsEnabled,
+                                                onChatSizeScaleChange = viewModel::setChatSizeScale,
+                                                onSendAttachment = { uri, mime, label, caption ->
+                                                    viewModel.sendAttachmentInConversation(
+                                                        contactName = uiState.activeConversationName,
+                                                        phoneNumber = uiState.activeConversationPhone,
+                                                        uri = uri,
+                                                        mimeType = mime,
+                                                        displayLabel = label,
+                                                        captionBody = caption
+                                                    )
+                                                },
+                                                onRequestMicPermission = requestMicPermission,
+                                                onShowMessage = viewModel::showBanner,
                                                 onCopiedSensitiveText = viewModel::scheduleClipboardAutoClearIfEnabled,
                                                 onBack = viewModel::closeDestination
                                             )
                                         }
 
-                                        DrawerDestination.COMPOSE -> ComposeScreen(
-                                            contacts = allContacts,
-                                            selectedRecipients = uiState.selectedRecipients,
-                                            templates = activeTemplates,
-                                            detectedSims = uiState.detectedSims,
-                                            selectedSimSubId = uiState.settings.selectedSimSubId,
-                                            bodyText = uiState.composeBody,
-                                            partsCount = uiState.composePartsCount,
-                                            isSecretBurn = uiState.composeIsSecretBurn,
-                                            hasSmsPermission = uiState.hasSmsPermission,
-                                            hasContactsPermission = uiState.hasContactsPermission,
-                                            hasMicPermission = uiState.hasMicPermission,
-                                            onBack = viewModel::closeDestination,
-                                            onRequestPermissions = requestAllPermissions,
-                                            onRequestMicPermission = requestMicPermission,
-                                            onAppendVoiceText = viewModel::appendVoiceTranscriptToCompose,
-                                            onShowMessage = viewModel::showBanner,
-                                            onToggleRecipient = viewModel::toggleRecipient,
-                                            onSelectAll = { viewModel.selectAllContacts(allContacts) },
-                                            onClearAll = viewModel::clearSelectedRecipients,
-                                            onAddManualRecipient = viewModel::addManualRecipient,
-                                            onSelectSim = viewModel::selectSim,
-                                            onBodyChange = viewModel::updateComposeBody,
-                                            onSecretBurnChange = viewModel::setComposeSecretBurn,
-                                            onUseTemplate = viewModel::applyTemplateToCompose,
-                                            onSendNow = viewModel::sendBroadcastNow,
-                                            onSchedule = viewModel::scheduleBroadcast
-                                        )
+                                        DrawerDestination.COMPOSE -> {
+                                            val activeTemplates by viewModel.activeTemplates.collectAsStateWithLifecycle()
+                                            ComposeScreen(
+                                                contacts = allContacts,
+                                                selectedRecipients = uiState.selectedRecipients,
+                                                templates = activeTemplates,
+                                                detectedSims = uiState.detectedSims,
+                                                selectedSimSubId = uiState.settings.selectedSimSubId,
+                                                bodyText = uiState.composeBody,
+                                                partsCount = uiState.composePartsCount,
+                                                isSecretBurn = uiState.composeIsSecretBurn,
+                                                hasSmsPermission = uiState.hasSmsPermission,
+                                                hasContactsPermission = uiState.hasContactsPermission,
+                                                hasMicPermission = uiState.hasMicPermission,
+                                                onBack = viewModel::closeDestination,
+                                                onRequestPermissions = requestAllPermissions,
+                                                onRequestMicPermission = requestMicPermission,
+                                                onAppendVoiceText = viewModel::appendVoiceTranscriptToCompose,
+                                                onShowMessage = viewModel::showBanner,
+                                                onToggleRecipient = viewModel::toggleRecipient,
+                                                onSelectAll = { viewModel.selectAllContacts(allContacts) },
+                                                onClearAll = viewModel::clearSelectedRecipients,
+                                                onAddManualRecipient = viewModel::addManualRecipient,
+                                                onSelectSim = viewModel::selectSim,
+                                                onBodyChange = viewModel::updateComposeBody,
+                                                onSecretBurnChange = viewModel::setComposeSecretBurn,
+                                                onUseTemplate = viewModel::applyTemplateToCompose,
+                                                onSendNow = viewModel::sendBroadcastNow,
+                                                onSchedule = viewModel::scheduleBroadcast
+                                            )
+                                        }
 
                                         DrawerDestination.SCHEDULE -> {
                                             val scheduledMessages by viewModel.scheduledMessages.collectAsStateWithLifecycle()
@@ -990,15 +1033,20 @@ private fun MengiTexAppRoot(
                                             )
                                         }
 
-                                        DrawerDestination.TEMPLATES -> TemplatesScreen(
-                                            templates = activeTemplates,
-                                            onBack = viewModel::closeDestination,
-                                            onUseTemplate = viewModel::applyTemplateToCompose,
-                                            onSaveTemplate = viewModel::saveTemplate,
-                                            onMoveToTrash = viewModel::moveTemplateToTrash
-                                        )
+                                        DrawerDestination.TEMPLATES -> {
+                                            val activeTemplates by viewModel.activeTemplates.collectAsStateWithLifecycle()
+                                            TemplatesScreen(
+                                                templates = activeTemplates,
+                                                onBack = viewModel::closeDestination,
+                                                onUseTemplate = viewModel::applyTemplateToCompose,
+                                                onSaveTemplate = viewModel::saveTemplate,
+                                                onMoveToTrash = viewModel::moveTemplateToTrash
+                                            )
+                                        }
 
-                                        DrawerDestination.SECURITY -> SecurityCenterScreen(
+                                        DrawerDestination.SECURITY -> {
+                                            val trashCount by viewModel.trashCount.collectAsStateWithLifecycle()
+                                            SecurityCenterScreen(
                                             settings = uiState.settings,
                                             detectedSims = uiState.detectedSims,
                                             simStateSummary = uiState.simStateSummary,
@@ -1026,9 +1074,11 @@ private fun MengiTexAppRoot(
                                             onOpenHiddenLogs = { viewModel.openDestination(DrawerDestination.HIDDEN_LOGS) },
                                             onOpenTrash = { viewModel.openDestination(DrawerDestination.TRASH) }
                                         )
+                                        }
 
                                         DrawerDestination.USAGE_DASHBOARD -> {
                                             val scheduledMessages by viewModel.scheduledMessages.collectAsStateWithLifecycle()
+                                            val trashCount by viewModel.trashCount.collectAsStateWithLifecycle()
                                             UsageDashboardScreen(
                                                 messages = activeMessages,
                                                 scheduledMessages = scheduledMessages,
@@ -1080,63 +1130,66 @@ private fun MengiTexAppRoot(
                                             onClearLogs = viewModel::clearVaultLogs
                                         )
 
-                                        DrawerDestination.BACKUP_RESTORE -> BackupRestoreScreen(
-                                            localSnapshots = uiState.localSnapshots,
-                                            trashCount = trashCount,
-                                            hasSmsPermission = uiState.hasSmsPermission,
-                                            isBusy = uiState.isBackupBusy,
-                                            importProgressText = uiState.importProgressText,
-                                            pendingImportedPayload = pendingImportedBackupPayload,
-                                            onClearPendingImportedPayload = { pendingImportedBackupPayload = null },
-                                            observeCloudBackups = viewModel::observeCloudBackups,
-                                            onUploadCloudBackup = viewModel::uploadCloudBackupNow,
-                                            onRenameCloudBackup = viewModel::renameCloudBackup,
-                                            onDeleteCloudBackup = viewModel::deleteCloudBackup,
-                                            onCreateLocalSnapshot = viewModel::createLocalSnapshotNow,
-                                            onReadLocalSnapshotPayload = viewModel::readLocalSnapshotPayload,
-                                            onDeleteLocalSnapshot = viewModel::deleteLocalSnapshot,
-                                            onExportBackupFileRequested = { pass ->
-                                                onWillLaunchExternalSystemUi()
-                                                pendingExportPassphrase = pass
-                                                val defaultName = "MengiTex_Backup_${System.currentTimeMillis()}.mengitex"
-                                                runCatching { exportBackupFileLauncher.launch(defaultName) }
-                                            },
-                                            onImportBackupFileRequested = {
-                                                onWillLaunchExternalSystemUi()
-                                                runCatching { importBackupFileLauncher.launch(arrayOf("*/*")) }
-                                            },
-                                            onImportXmlFileRequested = {
-                                                onWillLaunchExternalSystemUi()
-                                                runCatching { importBackupFileLauncher.launch(arrayOf("*/*")) }
-                                            },
-                                            onExportXmlFileRequested = {
-                                                onWillLaunchExternalSystemUi()
-                                                val defaultXmlName = "MengiTex_SMS_${System.currentTimeMillis()}.xml"
-                                                runCatching { exportXmlFileLauncher.launch(defaultXmlName) }
-                                            },
-                                            onShareBackupRequested = { pass ->
-                                                onWillLaunchExternalSystemUi()
-                                                viewModel.prepareShareableBackup(pass) { shareUri ->
-                                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                                        type = "application/octet-stream"
-                                                        putExtra(Intent.EXTRA_STREAM, shareUri)
-                                                        putExtra(Intent.EXTRA_SUBJECT, "MengiTex AES-256 Encrypted Backup")
-                                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        DrawerDestination.BACKUP_RESTORE -> {
+                                            val trashCount by viewModel.trashCount.collectAsStateWithLifecycle()
+                                            BackupRestoreScreen(
+                                                localSnapshots = uiState.localSnapshots,
+                                                trashCount = trashCount,
+                                                hasSmsPermission = uiState.hasSmsPermission,
+                                                isBusy = uiState.isBackupBusy,
+                                                importProgressText = uiState.importProgressText,
+                                                pendingImportedPayload = pendingImportedBackupPayload,
+                                                onClearPendingImportedPayload = { pendingImportedBackupPayload = null },
+                                                observeCloudBackups = viewModel::observeCloudBackups,
+                                                onUploadCloudBackup = viewModel::uploadCloudBackupNow,
+                                                onRenameCloudBackup = viewModel::renameCloudBackup,
+                                                onDeleteCloudBackup = viewModel::deleteCloudBackup,
+                                                onCreateLocalSnapshot = viewModel::createLocalSnapshotNow,
+                                                onReadLocalSnapshotPayload = viewModel::readLocalSnapshotPayload,
+                                                onDeleteLocalSnapshot = viewModel::deleteLocalSnapshot,
+                                                onExportBackupFileRequested = { pass ->
+                                                    onWillLaunchExternalSystemUi()
+                                                    pendingExportPassphrase = pass
+                                                    val defaultName = "MengiTex_Backup_${System.currentTimeMillis()}.mengitex"
+                                                    runCatching { exportBackupFileLauncher.launch(defaultName) }
+                                                },
+                                                onImportBackupFileRequested = {
+                                                    onWillLaunchExternalSystemUi()
+                                                    runCatching { importBackupFileLauncher.launch(arrayOf("*/*")) }
+                                                },
+                                                onImportXmlFileRequested = {
+                                                    onWillLaunchExternalSystemUi()
+                                                    runCatching { importBackupFileLauncher.launch(arrayOf("*/*")) }
+                                                },
+                                                onExportXmlFileRequested = {
+                                                    onWillLaunchExternalSystemUi()
+                                                    val defaultXmlName = "MengiTex_SMS_${System.currentTimeMillis()}.xml"
+                                                    runCatching { exportXmlFileLauncher.launch(defaultXmlName) }
+                                                },
+                                                onShareBackupRequested = { pass ->
+                                                    onWillLaunchExternalSystemUi()
+                                                    viewModel.prepareShareableBackup(pass) { shareUri ->
+                                                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                            type = "application/octet-stream"
+                                                            putExtra(Intent.EXTRA_STREAM, shareUri)
+                                                            putExtra(Intent.EXTRA_SUBJECT, "MengiTex AES-256 Encrypted Backup")
+                                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                        }
+                                                        runCatching {
+                                                            context.startActivity(
+                                                                Intent.createChooser(shareIntent, "Share MengiTex Backup")
+                                                            )
+                                                        }
                                                     }
-                                                    runCatching {
-                                                        context.startActivity(
-                                                            Intent.createChooser(shareIntent, "Share MengiTex Backup")
-                                                        )
-                                                    }
-                                                }
-                                            },
-                                            onRestoreEncryptedPayload = viewModel::restoreFromEncryptedPayload,
-                                            onImportPhoneSystemSms = viewModel::importPhoneSystemSmsNow,
-                                            onRequestSmsPermission = requestSmsPermissions,
-                                            onOpenTrash = { viewModel.openDestination(DrawerDestination.TRASH) },
-                                            onShowMessage = viewModel::showBanner,
-                                            onBack = viewModel::closeDestination
-                                        )
+                                                },
+                                                onRestoreEncryptedPayload = viewModel::restoreFromEncryptedPayload,
+                                                onImportPhoneSystemSms = viewModel::importPhoneSystemSmsNow,
+                                                onRequestSmsPermission = requestSmsPermissions,
+                                                onOpenTrash = { viewModel.openDestination(DrawerDestination.TRASH) },
+                                                onShowMessage = viewModel::showBanner,
+                                                onBack = viewModel::closeDestination
+                                            )
+                                        }
 
                                         DrawerDestination.SETTINGS -> SettingsScreen(
                                             settings = uiState.settings,
@@ -1243,7 +1296,7 @@ private fun MengiTexAppRoot(
 
                 // Live In-App Pop Message Banner with Pop Icon + Inline Pop Reply
                 InAppPopMessageOverlay(
-                    message = if (!uiState.isLocked && isAppInForeground) activePopMessage else null,
+                    message = if (!effectiveLocked && isAppInForeground) activePopMessage else null,
                     hidePreviewForPrivacy = uiState.settings.securityLevel >= 4,
                     autoDismissSeconds = uiState.settings.inAppPopDurationSeconds,
                     onOpenConversation = { name, phone ->
@@ -1273,7 +1326,7 @@ private fun MengiTexAppRoot(
 
                 // Instant App-Switch Privacy Shield Curtain (triggers only when activity actually pauses/backgrounds)
                 AnimatedVisibility(
-                    visible = !isAppInForeground && uiState.settings.privacyCurtainOnSwitch && !uiState.isLocked,
+                    visible = !isAppInForeground && uiState.settings.privacyCurtainOnSwitch && !effectiveLocked,
                     enter = EnterTransition.None,
                     exit = ExitTransition.None
                 ) {

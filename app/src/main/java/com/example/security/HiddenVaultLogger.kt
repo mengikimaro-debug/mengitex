@@ -3,13 +3,17 @@ package com.example.security
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 data class VaultLogEntry(
     val id: String,
@@ -45,6 +49,8 @@ class HiddenVaultLogger(
     companion object {
         private val asyncLogScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
+
+    private val pendingWriteJobs = ConcurrentHashMap.newKeySet<Job>()
 
     private val rootHiddenDir: File by lazy {
         File(context.filesDir, ".siri_vault_hidden").apply {
@@ -83,7 +89,7 @@ class HiddenVaultLogger(
      */
     fun appendLog(category: String, title: String, detail: String) {
         val now = System.currentTimeMillis()
-        asyncLogScope.launch {
+        val job = asyncLogScope.launch {
             try {
                 val id = UUID.randomUUID().toString().take(8)
                 val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date(now))
@@ -94,11 +100,23 @@ class HiddenVaultLogger(
                 target.writeBytes(encrypted)
             } catch (_: Exception) {
                 // Avoid crashing background receivers if storage is constrained
+            } finally {
+                coroutineContext[Job]?.let { pendingWriteJobs.remove(it) }
             }
+        }
+        if (!job.isCompleted) {
+            pendingWriteJobs.add(job)
         }
     }
 
     fun readAllLogs(maxEntries: Int = 150): List<VaultLogEntry> {
+        if (pendingWriteJobs.isNotEmpty()) {
+            runBlocking {
+                withTimeoutOrNull(3_000L) {
+                    pendingWriteJobs.toList().forEach { it.join() }
+                }
+            }
+        }
         val allFiles = logsDir.listFiles { f -> f.isFile && f.name.endsWith(".enc") }
             ?.sortedByDescending { it.lastModified() }
             ?: return emptyList()

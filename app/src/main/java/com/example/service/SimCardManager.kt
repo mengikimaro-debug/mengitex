@@ -26,17 +26,30 @@ data class DetectedSimCard(
 object SimCardManager {
 
     private val blockedCarrierRegex = Regex("(?i)\\bt[\\s\\-]*mobile\\b")
+    private val trailingSepRegex = Regex("\\s*[•\\-|]\\s*$")
+    private val leadingSepRegex = Regex("^\\s*[•\\-|]\\s*")
+    private val multiSpaceRegex = Regex("\\s{2,}")
 
     /**
      * Strips any "T-Mobile" / "T Mobile" / "TMobile" label (e.g. default emulator carrier)
      * and cleans dangling separators while preserving other carrier names.
      */
     fun sanitizeSimText(raw: String?, fallback: String): String {
-        val cleaned = raw.orEmpty()
+        if (raw.isNullOrBlank()) return fallback
+        val trimmed = raw.trim()
+        // Zero-allocation fast path for 99% of SMS metadata ("SIM 1", "Vodacom", "Sent ✓✓", etc.)
+        if (!trimmed.contains("mobile", ignoreCase = true) &&
+            !trimmed.contains("  ") &&
+            trimmed.first() !in charArrayOf('•', '-', '|') &&
+            trimmed.last() !in charArrayOf('•', '-', '|')
+        ) {
+            return trimmed
+        }
+        val cleaned = trimmed
             .replace(blockedCarrierRegex, "")
-            .replace(Regex("\\s*[•\\-|]\\s*$"), "")
-            .replace(Regex("^\\s*[•\\-|]\\s*"), "")
-            .replace(Regex("\\s{2,}"), " ")
+            .replace(trailingSepRegex, "")
+            .replace(leadingSepRegex, "")
+            .replace(multiSpaceRegex, " ")
             .trim()
         return cleaned.ifBlank { fallback }
     }
