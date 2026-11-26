@@ -120,7 +120,7 @@ fun SecurityCenterScreen(
 ) {
     BackHandler(onBack = onBack)
     val s = LocalAppStrings.current
-    val successGreen = Color(0xFF10B981)
+    val successGreen = MaterialTheme.colorScheme.primary
     var showPasscodeDialog by remember { mutableStateOf(false) }
 
     var fortressExpanded by remember { mutableStateOf(true) }

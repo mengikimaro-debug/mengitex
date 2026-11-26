@@ -269,7 +269,7 @@ fun ConversationListPopViewDialog(
                         icon = Icons.Filled.VerifiedUser,
                         title = if (isSw) "Ruhusu Mtumaji (Siyo Tangazo)" else "Allow Sender (Not an Ad)",
                         subtitle = if (isSw) "Rejesha ujumbe wake wote kwenye Kikasha" else "Restore messages back to your Inbox",
-                        tint = Color(0xFF15803D),
+                        tint = MaterialTheme.colorScheme.primary,
                         onClick = onAllowBlockedAd,
                         modifier = Modifier.testTag("pop_view_allow_ad_button")
                     )

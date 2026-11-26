@@ -260,7 +260,7 @@ fun ContactProfileModalSheet(
                 ProfileQuickActionTile(
                     icon = Icons.Filled.Call,
                     label = s.convProfileCall,
-                    accentColor = Color(0xFF2563EB),
+                    accentColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("profile_action_call"),
@@ -273,7 +273,7 @@ fun ContactProfileModalSheet(
                 ProfileQuickActionTile(
                     icon = Icons.Filled.Search,
                     label = s.convProfileSearch,
-                    accentColor = Color(0xFF4F46E5),
+                    accentColor = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("profile_action_search"),
@@ -285,7 +285,7 @@ fun ContactProfileModalSheet(
                 ProfileQuickActionTile(
                     icon = Icons.Filled.ScheduleSend,
                     label = s.convProfileSchedule,
-                    accentColor = Color(0xFF7C3AED),
+                    accentColor = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("profile_action_schedule"),
@@ -297,7 +297,7 @@ fun ContactProfileModalSheet(
                 ProfileQuickActionTile(
                     icon = Icons.Filled.ContentCopy,
                     label = s.convProfileCopyNumber,
-                    accentColor = Color(0xFF0EA5E9),
+                    accentColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .weight(1f)
                         .testTag("profile_action_copy_number"),
@@ -680,7 +680,7 @@ fun MessageLongPressActionSheet(
                     ProfileQuickActionTile(
                         icon = Icons.Filled.ContentCopy,
                         label = if (isSw) "Copy Text" else "Copy Text",
-                        accentColor = Color(0xFF2563EB),
+                        accentColor = MaterialTheme.colorScheme.primary,
                         onClick = onCopy,
                         modifier = Modifier
                             .weight(1f)
@@ -689,7 +689,7 @@ fun MessageLongPressActionSheet(
                     ProfileQuickActionTile(
                         icon = Icons.AutoMirrored.Filled.Forward,
                         label = if (isSw) "Forward" else "Forward",
-                        accentColor = Color(0xFF0EA5E9),
+                        accentColor = MaterialTheme.colorScheme.secondary,
                         onClick = onForward,
                         modifier = Modifier
                             .weight(1f)
@@ -707,7 +707,7 @@ fun MessageLongPressActionSheet(
                     ProfileQuickActionTile(
                         icon = Icons.Filled.Share,
                         label = s.convActionShare,
-                        accentColor = Color(0xFF7C3AED),
+                        accentColor = MaterialTheme.colorScheme.tertiary,
                         onClick = onShare,
                         modifier = Modifier
                             .weight(1f)
@@ -750,7 +750,7 @@ fun MessageLongPressActionSheet(
                                     Surface(
                                         onClick = { onCallPhoneNumber(num) },
                                         shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFF16A34A)
+                                        color = MaterialTheme.colorScheme.secondary
                                     ) {
                                         Row(
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -760,14 +760,14 @@ fun MessageLongPressActionSheet(
                                             Icon(
                                                 imageVector = Icons.Filled.Call,
                                                 contentDescription = null,
-                                                tint = Color.White,
+                                                tint = MaterialTheme.colorScheme.onSecondary,
                                                 modifier = Modifier.size(14.dp)
                                             )
                                             Text(
                                                 text = if (isSw) "Piga" else "Call",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White
+                                                color = MaterialTheme.colorScheme.onSecondary
                                             )
                                         }
                                     }
@@ -824,7 +824,7 @@ fun MessageLongPressActionSheet(
                         HoldSheetActionRow(
                             icon = Icons.Filled.ContentCopy,
                             title = if (isSw) "Chagua & Nakili Sehemu ya Text / Namba" else "Select & Copy Part of Text / Numbers",
-                            tint = Color(0xFF0EA5E9),
+                            tint = MaterialTheme.colorScheme.secondary,
                             testTag = "hold_action_select_partial_text",
                             onClick = onSelectPartialText
                         )
@@ -835,7 +835,7 @@ fun MessageLongPressActionSheet(
                         HoldSheetActionRow(
                             icon = Icons.Filled.Edit,
                             title = if (isSw) "Hariri Kwenye Uwanja wa Kuandika" else "Edit / Reuse Text in Composer",
-                            tint = Color(0xFF7C3AED),
+                            tint = MaterialTheme.colorScheme.tertiary,
                             testTag = "hold_action_edit_composer",
                             onClick = onEditInComposer
                         )
@@ -846,7 +846,7 @@ fun MessageLongPressActionSheet(
                         HoldSheetActionRow(
                             icon = Icons.Filled.ScheduleSend,
                             title = if (isSw) "Panga Muda wa Kutuma (Schedule Text)" else "Schedule This Text",
-                            tint = Color(0xFF4F46E5),
+                            tint = MaterialTheme.colorScheme.primary,
                             testTag = "hold_action_schedule",
                             onClick = onScheduleMessage
                         )
@@ -1006,7 +1006,7 @@ fun PhoneNumberQuickActionSheet(
                             onCall(phoneNumber)
                         },
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF16A34A),
+                        color = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier
                             .weight(1f)
                             .testTag("phone_sheet_action_call")
@@ -1019,7 +1019,7 @@ fun PhoneNumberQuickActionSheet(
                             Icon(
                                 imageVector = Icons.Filled.Call,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onSecondary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -1027,7 +1027,7 @@ fun PhoneNumberQuickActionSheet(
                                 text = if (isSw) "Piga" else "Call",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSecondary
                             )
                         }
                     }
@@ -1103,7 +1103,7 @@ fun PhoneNumberQuickActionSheet(
                         HoldSheetActionRow(
                             icon = Icons.Filled.PersonAdd,
                             title = if (isSw) "Hifadhi kwenye majina" else "Save to contacts",
-                            tint = Color(0xFF7C3AED),
+                            tint = MaterialTheme.colorScheme.tertiary,
                             testTag = "phone_sheet_action_save_contact",
                             onClick = {
                                 onDismiss()
@@ -1214,13 +1214,13 @@ fun SelectAndCopyPartialTextDialog(
                                         onCallPhone(phone)
                                     },
                                     shape = RoundedCornerShape(10.dp),
-                                    color = Color(0xFF16A34A)
+                                    color = MaterialTheme.colorScheme.secondary
                                 ) {
                                     Text(
                                         text = if (isSw) "Piga" else "Call",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White,
+                                        color = MaterialTheme.colorScheme.onSecondary,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                     )
                                 }
@@ -1695,7 +1695,7 @@ fun KeystoreChatSecurityDialog(
                             },
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF16A34A)
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -1723,7 +1723,7 @@ fun KeystoreChatSecurityDialog(
                             text = "• ${VaultCryptoManager.getRealtimeLatencyBadge(isSw)}",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF16A34A)
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Text(
                             text = if (isSw) {

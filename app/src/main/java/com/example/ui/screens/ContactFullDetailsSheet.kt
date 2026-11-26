@@ -354,7 +354,7 @@ fun ContactFullDetailsSheet(
                     ContactDetailActionBtn(
                         icon = Icons.Filled.Call,
                         label = s.convProfileCall,
-                        accent = Color(0xFF059669),
+                        accent = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
                             .weight(1f)
                             .testTag("contact_details_action_call"),

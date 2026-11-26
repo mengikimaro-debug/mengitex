@@ -116,7 +116,7 @@ fun SettingsScreen(
 ) {
     BackHandler(onBack = onBack)
     val s = LocalAppStrings.current
-    val successGreen = Color(0xFF10B981)
+    val successGreen = MaterialTheme.colorScheme.primary
 
     var adBlockerExpanded by remember { mutableStateOf(!settings.autoBlockAdsEnabled) }
     var appearanceExpanded by remember { mutableStateOf(true) }

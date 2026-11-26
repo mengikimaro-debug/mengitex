@@ -567,7 +567,7 @@ private fun CloudBackupTabContent(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    PulsingStatusDot(color = Color(0xFF10B981), size = 7.dp)
+                                    PulsingStatusDot(color = MaterialTheme.colorScheme.primary, size = 7.dp)
                                     Text(
                                         text = currentUser.displayName?.takeIf { it.isNotBlank() } ?: s.backupSignedInAs,
                                         style = MaterialTheme.typography.titleSmall,

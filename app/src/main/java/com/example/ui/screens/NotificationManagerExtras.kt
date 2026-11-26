@@ -157,10 +157,10 @@ internal fun NotificationLedColorPicker(
 ) {
     val swatches = remember(isSw) {
         listOf(
-            0xFF334E68L to (if (isSw) "Bluu Tulivu" else "Slate Blue"),
-            0xFF2F6B55L to (if (isSw) "Kijani Tulivu" else "Sage Green"),
-            0xFFA16207L to (if (isSw) "Kahawia Dhahabu" else "Ochre Amber"),
-            0xFFB91C1CL to (if (isSw) "Nyekundu Tulivu" else "Dusty Red"),
+            0xFF33496EL to (if (isSw) "Bluu Tulivu" else "Slate Navy"),
+            0xFF4F5D75L to (if (isSw) "Kijivu Tulivu" else "Slate Grey"),
+            0xFF7D5342L to (if (isSw) "Udongo Tulivu" else "Muted Terracotta"),
+            0xFF8C3B38L to (if (isSw) "Nyekundu Tulivu" else "Dusty Crimson"),
             0xFFD6D3CBL to (if (isSw) "Off-White" else "Off-White")
         )
     }

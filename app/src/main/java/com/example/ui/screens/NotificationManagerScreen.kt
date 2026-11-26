@@ -179,9 +179,8 @@ fun NotificationManagerScreen(
 
     val s = LocalAppStrings.current
     val isSw = settings.language == AppLanguage.SW
-    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val successGreen = if (isDark) Color(0xFF6B9E85) else Color(0xFF2F6B55)
-    val warnAmber = if (isDark) Color(0xFFC99A4E) else Color(0xFFA16207)
+    val successGreen = MaterialTheme.colorScheme.primary
+    val warnAmber = MaterialTheme.colorScheme.tertiary
     val inQuietNow = remember(
         settings.quietHoursEnabled,
         settings.quietHoursStartHour,

@@ -166,7 +166,7 @@ object MengiTexNotificationManager {
                 "Incoming SMS alerts managed automatically by Android system"
             }
             enableLights(true)
-            lightColor = 0xFF10B981.toInt()
+            lightColor = 0xFF33496E.toInt()
             setShowBadge(true)
             enableVibration(true)
             setSound(defaultRingtoneUri, audioAttrs)
@@ -187,7 +187,7 @@ object MengiTexNotificationManager {
                 "M-Pesa, Mixx/Tigo Pesa, Airtel Money, Banks, LUKU and OTP verification codes"
             }
             enableLights(true)
-            lightColor = 0xFF10B981.toInt()
+            lightColor = 0xFF33496E.toInt()
             setShowBadge(true)
             enableVibration(true)
             setSound(defaultRingtoneUri, audioAttrs)
@@ -209,7 +209,7 @@ object MengiTexNotificationManager {
             }
             lockscreenVisibility = NotificationCompat.VISIBILITY_PRIVATE
             enableLights(true)
-            lightColor = 0xFF7C3AED.toInt()
+            lightColor = 0xFF4F5D75.toInt()
             setShowBadge(true)
             enableVibration(true)
             setSound(defaultRingtoneUri, audioAttrs)
@@ -648,7 +648,7 @@ object MengiTexNotificationManager {
         val title = if (isSw) "SMS Imefika ✓✓ • $recipientName" else "SMS Delivered ✓✓ • $recipientName"
         val notification = NotificationCompat.Builder(context, CHANNEL_DELIVERY_REPORTS)
             .setSmallIcon(R.drawable.ic_pop_message)
-            .setColor(0xFF10B981.toInt())
+            .setColor(0xFF33496E.toInt())
             .setContentTitle(title)
             .setContentText(statusNote)
             .setAutoCancel(true)
@@ -829,14 +829,14 @@ object MengiTexNotificationManager {
         val canvas = Canvas(bmp)
 
         val palettes = if (isProtectedTxn) {
-            listOf(intArrayOf(0xFF059669.toInt(), 0xFF0D9488.toInt()))
+            listOf(intArrayOf(0xFF33496E.toInt(), 0xFF475874.toInt()))
         } else {
             listOf(
-                intArrayOf(0xFF2563EB.toInt(), 0xFF7C3AED.toInt()),
-                intArrayOf(0xFF4F46E5.toInt(), 0xFF0EA5E9.toInt()),
-                intArrayOf(0xFF7C3AED.toInt(), 0xFFDB2777.toInt()),
-                intArrayOf(0xFF0284C7.toInt(), 0xFF2563EB.toInt()),
-                intArrayOf(0xFF0D9488.toInt(), 0xFF2563EB.toInt())
+                intArrayOf(0xFF33496E.toInt(), 0xFF4D5878.toInt()),
+                intArrayOf(0xFF4A4369.toInt(), 0xFF3B5070.toInt()),
+                intArrayOf(0xFF5C4B42.toInt(), 0xFF7D5342.toInt()),
+                intArrayOf(0xFF475569.toInt(), 0xFF334155.toInt()),
+                intArrayOf(0xFF554A63.toInt(), 0xFF3F4E66.toInt())
             )
         }
         val colors = palettes[(key.hashCode() and 0x7FFFFFFF) % palettes.size]
@@ -868,7 +868,7 @@ object MengiTexNotificationManager {
 
         val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
         val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = if (isProtectedTxn) 0xFF34D399.toInt() else 0xFF10B981.toInt()
+            color = if (isProtectedTxn) 0xFF7D5342.toInt() else 0xFF33496E.toInt()
         }
         canvas.drawCircle(size - 24f, size - 24f, 18f, ringPaint)
         canvas.drawCircle(size - 24f, size - 24f, 13f, dotPaint)

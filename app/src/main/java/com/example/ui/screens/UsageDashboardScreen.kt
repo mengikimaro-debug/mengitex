@@ -97,7 +97,7 @@ fun UsageDashboardScreen(
 
     val sentColor = MaterialTheme.colorScheme.primary
     val receivedColor = MaterialTheme.colorScheme.secondary
-    val savingsGreen = Color(0xFF10B981)
+    val savingsGreen = MaterialTheme.colorScheme.tertiary
     val amberAccent = MaterialTheme.colorScheme.tertiary
 
     // Build real daily timeline buckets for the selected range (7 / 14 / 30 days)
