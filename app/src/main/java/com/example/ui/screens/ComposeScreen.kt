@@ -7,10 +7,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -483,8 +481,8 @@ fun ComposeScreen(
                         // B. Contact Search Bar + Scrollable Contacts List ("namba zitokee kwa contact na bar search")
                         AnimatedVisibility(
                             visible = expandContactsPicker,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut()
+                            enter = EnterTransition.None,
+                            exit = ExitTransition.None
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedTextField(
@@ -782,8 +780,8 @@ fun ComposeScreen(
 
                     AnimatedVisibility(
                         visible = isVoiceListening,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
+                        enter = EnterTransition.None,
+                        exit = ExitTransition.None
                     ) {
                         Surface(
                             shape = RoundedCornerShape(14.dp),

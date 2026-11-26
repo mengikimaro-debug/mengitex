@@ -1,20 +1,13 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -119,8 +113,8 @@ fun ContactsScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             AnimatedVisibility(
                 visible = !hasContactsPermission,
-                enter = fadeIn(tween(220)),
-                exit = fadeOut(tween(180))
+                enter = EnterTransition.None,
+                exit = ExitTransition.None
             ) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
@@ -210,8 +204,8 @@ fun ContactsScreen(
                         }
                         AnimatedVisibility(
                             visible = search.isNotEmpty(),
-                            enter = fadeIn(),
-                            exit = fadeOut()
+                            enter = EnterTransition.None,
+                            exit = ExitTransition.None
                         ) {
                             IconButton(
                                 onClick = { search = "" },
@@ -311,7 +305,7 @@ fun ContactsScreen(
                     }
                 }
             } else {
-                val isDark = isSystemInDarkTheme()
+                val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
                 val cardShape = remember { RoundedCornerShape(20.dp) }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -461,13 +455,8 @@ fun ContactsScreen(
 
         AnimatedVisibility(
             visible = selectedRecipients.isNotEmpty(),
-            enter = scaleIn(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMedium
-                )
-            ) + fadeIn(tween(180)),
-            exit = scaleOut(tween(160)) + fadeOut(tween(140)),
+            enter = EnterTransition.None,
+            exit = ExitTransition.None,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)

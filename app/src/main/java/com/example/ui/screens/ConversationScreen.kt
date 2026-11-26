@@ -10,12 +10,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -109,6 +107,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -414,12 +413,8 @@ fun ConversationScreen(
     var hasInitialScrolled by remember(normPhone) { mutableStateOf(false) }
     LaunchedEffect(timelineItems.size) {
         if (timelineItems.isNotEmpty()) {
-            if (!hasInitialScrolled) {
-                hasInitialScrolled = true
-                listState.scrollToItem(timelineItems.lastIndex)
-            } else {
-                listState.animateScrollToItem(timelineItems.lastIndex)
-            }
+            hasInitialScrolled = true
+            listState.scrollToItem(timelineItems.lastIndex)
         }
     }
 
@@ -429,7 +424,7 @@ fun ConversationScreen(
         else SmsDispatchManager.estimateSmsPartsFast(draftText)
     }
 
-    val isDarkTheme = isSystemInDarkTheme()
+    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val (convAvatarBg, convAvatarFg) = remember(normPhone, isDarkTheme) {
         android17AvatarColors(normPhone, isDarkTheme)
     }
@@ -679,8 +674,8 @@ fun ConversationScreen(
         // 1b. Optional Live In-Chat Search Pill
         AnimatedVisibility(
             visible = showInChatSearch,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
+            enter = EnterTransition.None,
+            exit = ExitTransition.None
         ) {
             Surface(
                 shape = RoundedCornerShape(50),
@@ -899,8 +894,8 @@ fun ConversationScreen(
         // 3. Optional Secret Burn Armed Strip
         AnimatedVisibility(
             visible = isSecretBurnArmed,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
+            enter = EnterTransition.None,
+            exit = ExitTransition.None
         ) {
             Surface(
                 color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -930,8 +925,8 @@ fun ConversationScreen(
         // 4. Optional Live Voice Waveform Bar
         AnimatedVisibility(
             visible = isListeningVoice,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
+            enter = EnterTransition.None,
+            exit = ExitTransition.None
         ) {
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -959,8 +954,8 @@ fun ConversationScreen(
         // 5. Optional Quick Templates Strip
         AnimatedVisibility(
             visible = showTemplatesTray && templates.isNotEmpty(),
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
+            enter = EnterTransition.None,
+            exit = ExitTransition.None
         ) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -1123,7 +1118,7 @@ fun ConversationScreen(
                             } else {
                                 MaterialTheme.colorScheme.surfaceContainerHigh
                             },
-                            animationSpec = tween(180),
+                            animationSpec = tween(20),
                             label = "dock_secret_bg"
                         )
                         val secretFg by animateColorAsState(
@@ -1132,7 +1127,7 @@ fun ConversationScreen(
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
-                            animationSpec = tween(180),
+                            animationSpec = tween(20),
                             label = "dock_secret_fg"
                         )
                         Surface(
@@ -1170,7 +1165,7 @@ fun ConversationScreen(
                             } else {
                                 MaterialTheme.colorScheme.surfaceContainerHigh
                             },
-                            animationSpec = tween(180),
+                            animationSpec = tween(20),
                             label = "dock_tmpl_bg"
                         )
                         val tmplFg = if (showTemplatesTray) {
@@ -1213,7 +1208,7 @@ fun ConversationScreen(
                             } else {
                                 MaterialTheme.colorScheme.surfaceContainerHigh
                             },
-                            animationSpec = tween(180),
+                            animationSpec = tween(20),
                             label = "dock_mic_bg"
                         )
                         val micFg = if (isListeningVoice) {
@@ -1266,7 +1261,7 @@ fun ConversationScreen(
                             } else {
                                 MaterialTheme.colorScheme.surfaceContainerHigh
                             },
-                            animationSpec = tween(180),
+                            animationSpec = tween(20),
                             label = "dock_report_bg"
                         )
                         val reportFg = if (settings.deliveryReportsEnabled) {
@@ -1343,8 +1338,8 @@ fun ConversationScreen(
                     val attached = pendingAttachment
                     AnimatedVisibility(
                         visible = attached != null,
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
+                        enter = EnterTransition.None,
+                        exit = ExitTransition.None
                     ) {
                         if (attached != null) {
                             Surface(

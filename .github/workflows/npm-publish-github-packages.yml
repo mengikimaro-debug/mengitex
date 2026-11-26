@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release version tag (e.g. v3.1.0)'
+        description: 'Release version tag (e.g. v3.2.0)'
         required: true
-        default: 'v3.1.0'
+        default: 'v3.2.0'
 
 jobs:
   build:
@@ -76,7 +76,7 @@ jobs:
       - name: Prepare versioned APK artifact
         run: |
           mkdir -p release_apks
-          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.1.0' }}"
+          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.2.0' }}"
           SAFE_TAG=$(echo "$TAG_NAME" | tr -cd 'A-Za-z0-9._-')
           APK_SRC=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
           if [ -z "$APK_SRC" ]; then

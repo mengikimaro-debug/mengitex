@@ -6,6 +6,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -14,10 +16,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -476,7 +474,7 @@ fun UpgradeScreen(
     }.coerceIn(0f, 1f)
     val animatedProgress by animateFloatAsState(
         targetValue = rawProgressFrac,
-        animationSpec = tween(160),
+        animationSpec = tween(20),
         label = "upgrade_hub_progress"
     )
 
@@ -795,7 +793,7 @@ fun UpgradeScreen(
                                             reached -> primaryColor
                                             else -> MaterialTheme.colorScheme.surfaceContainerHighest
                                         },
-                                        animationSpec = tween(200),
+                                        animationSpec = tween(20),
                                         label = "upgrade_stage_$idx"
                                     )
                                     Column(
@@ -823,8 +821,8 @@ fun UpgradeScreen(
 
                             AnimatedVisibility(
                                 visible = ctaBusy || selfInstallCompletedTag != null,
-                                enter = fadeIn(tween(180)) + expandVertically(tween(180)),
-                                exit = fadeOut(tween(140)) + shrinkVertically(tween(140))
+                                enter = EnterTransition.None,
+                                exit = ExitTransition.None
                             ) {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     LinearProgressIndicator(
@@ -1040,12 +1038,12 @@ fun UpgradeScreen(
                                         val selected = settings.githubUpdateChannel == ch
                                         val bg by animateColorAsState(
                                             targetValue = if (selected) primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-                                            animationSpec = tween(140),
+                                            animationSpec = tween(20),
                                             label = "hub_ch_bg"
                                         )
                                         val fg by animateColorAsState(
                                             targetValue = if (selected) onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            animationSpec = tween(140),
+                                            animationSpec = tween(20),
                                             label = "hub_ch_fg"
                                         )
                                         Box(

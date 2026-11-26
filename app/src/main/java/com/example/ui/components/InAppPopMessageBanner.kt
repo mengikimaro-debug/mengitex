@@ -1,12 +1,8 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,9 +39,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,8 +83,8 @@ fun InAppPopMessageOverlay(
 
     AnimatedVisibility(
         visible = message != null,
-        enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+        enter = EnterTransition.None,
+        exit = ExitTransition.None,
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
@@ -96,7 +92,7 @@ fun InAppPopMessageOverlay(
     ) {
         val msg = message ?: return@AnimatedVisibility
         val displaySender = msg.contactName.ifBlank { msg.phoneNumber }
-        val isDark = isSystemInDarkTheme()
+        val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
         val (avatarBg, avatarFg) = remember(msg.phoneNumber, isDark) {
             android17AvatarColors(msg.phoneNumber, isDark)
         }
@@ -284,8 +280,8 @@ fun InAppPopMessageOverlay(
                 // Expandable Inline Pop Reply Composer
                 AnimatedVisibility(
                     visible = showReplyInput,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
+                    enter = EnterTransition.None,
+                    exit = ExitTransition.None
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),

@@ -58,14 +58,11 @@ fun MengiTexLaunchAnimationOverlay(
 ) {
     val fallbackStrings = LocalAppStrings.current
     val tagline = taglineOverride ?: fallbackStrings.launchSplashTagline
-    val isDark = isDarkOverride ?: (MaterialTheme.colorScheme.background.luminance() < 0.5f)
-
-    val bgColor = if (isDark) Color(0xFF111318) else MaterialTheme.colorScheme.background
-    val containerColor = if (isDark) Color(0xFF21242B) else MaterialTheme.colorScheme.primaryContainer
-    val onContainerColor = if (isDark) Color(0xFFD6E2FF) else MaterialTheme.colorScheme.onPrimaryContainer
-    val primary = if (isDark) Color(0xFFA8C7FA) else MaterialTheme.colorScheme.primary
-    val onBgColor = if (isDark) Color(0xFFE3E2E6) else MaterialTheme.colorScheme.onBackground
-    val trackColor = if (isDark) Color(0xFF2B2F38) else MaterialTheme.colorScheme.surfaceContainerHighest
+    val bgColor = MaterialTheme.colorScheme.background
+    val containerColor = MaterialTheme.colorScheme.primaryContainer
+    val primary = MaterialTheme.colorScheme.primary
+    val onBgColor = MaterialTheme.colorScheme.onBackground
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
 
     val logoScale = remember(sessionKey) { Animatable(0.86f) }
     val contentAlpha = remember(sessionKey) { Animatable(0.65f) }

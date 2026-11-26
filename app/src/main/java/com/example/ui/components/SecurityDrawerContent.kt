@@ -1,15 +1,11 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -101,18 +97,18 @@ fun SecurityDrawerContent(
     val targetLevelColor = securityLevelColor(settings.securityLevel)
     val levelAccent by animateColorAsState(
         targetValue = targetLevelColor,
-        animationSpec = tween(280),
+        animationSpec = tween(25),
         label = "drawer_level_accent"
     )
 
-    // Android 17 Solid Tonal Drawer Palette (100% Opaque, Zero Glow, Zero Transparency)
-    val isDarkDrawer = settings.resolveIsDarkTheme(androidx.compose.foundation.isSystemInDarkTheme())
-    val drawerSolidBg = if (isDarkDrawer) Color(0xFF121316) else Color(0xFFF8F9FA)
-    val drawerCardBg = if (isDarkDrawer) Color(0xFF1C1D21) else Color(0xFFFFFFFF)
-    val drawerCardBorder = if (isDarkDrawer) Color(0xFF2F3137) else Color(0xFFC4C7C5)
-    val drawerTitleColor = if (isDarkDrawer) Color(0xFFE3E3E3) else Color(0xFF1F1F1F)
-    val drawerSubColor = if (isDarkDrawer) Color(0xFFC4C7C5) else Color(0xFF444746)
-    val drawerHeroBg = if (isDarkDrawer) Color(0xFF25272C) else Color(0xFF1F2A44)
+    // Android 17 Solid Tonal Drawer Palette (100% Opaque, Zero Glow, Warm Off-White in Light Mode)
+    val drawerSolidBg = MaterialTheme.colorScheme.background
+    val drawerCardBg = MaterialTheme.colorScheme.surfaceContainerLow
+    val drawerCardBorder = MaterialTheme.colorScheme.outlineVariant
+    val drawerTitleColor = MaterialTheme.colorScheme.onSurface
+    val drawerSubColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val drawerHeroBg = MaterialTheme.colorScheme.primaryContainer
+    val drawerHeroFg = MaterialTheme.colorScheme.onPrimaryContainer
     var securityLevelExpanded by remember { mutableStateOf(false) }
 
     ModalDrawerSheet(
@@ -169,7 +165,7 @@ fun SecurityDrawerContent(
                                 Text(
                                     text = "MengiTex",
                                     style = MaterialTheme.typography.titleLarge,
-                                    color = Color(0xFFF8FAFC),
+                                    color = drawerHeroFg,
                                     fontWeight = FontWeight.ExtraBold
                                 )
                                 if (detectedSims.isNotEmpty()) {
@@ -180,13 +176,13 @@ fun SecurityDrawerContent(
                                         Icon(
                                             imageVector = Icons.Filled.SimCard,
                                             contentDescription = null,
-                                            tint = Color(0xFFC4B5FD),
+                                            tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(12.dp)
                                         )
                                         Text(
                                             text = detectedSims.joinToString(" • ") { it.displayName },
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFFCBD5E1),
+                                            color = drawerHeroFg,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -281,8 +277,8 @@ fun SecurityDrawerContent(
 
                     AnimatedVisibility(
                         visible = securityLevelExpanded,
-                        enter = fadeIn(tween(180)) + expandVertically(tween(200)),
-                        exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
+                        enter = EnterTransition.None,
+                        exit = ExitTransition.None
                     ) {
                         Column {
                             Spacer(modifier = Modifier.height(10.dp))
@@ -294,12 +290,12 @@ fun SecurityDrawerContent(
                                     val active = seg <= settings.securityLevel
                                     val segColor by animateColorAsState(
                                         targetValue = if (active) levelAccent else MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        animationSpec = tween(220),
+                                        animationSpec = tween(25),
                                         label = "seg_color_$seg"
                                     )
                                     val segHeight by animateDpAsState(
                                         targetValue = if (active) 5.dp else 3.5.dp,
-                                        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+                                        animationSpec = tween(25),
                                         label = "seg_height_$seg"
                                     )
                                     Box(

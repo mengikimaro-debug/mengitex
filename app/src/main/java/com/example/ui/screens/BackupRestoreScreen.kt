@@ -3,8 +3,8 @@ package com.example.ui.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -229,7 +229,11 @@ fun BackupRestoreScreen(
             }
         )
 
-        AnimatedVisibility(visible = isBusy || isAuthLoading || !importProgressText.isNullOrBlank()) {
+        AnimatedVisibility(
+            visible = isBusy || isAuthLoading || !importProgressText.isNullOrBlank(),
+            enter = EnterTransition.None,
+            exit = ExitTransition.None
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -294,7 +298,7 @@ fun BackupRestoreScreen(
 
         AnimatedContent(
             targetState = selectedTab,
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            transitionSpec = { EnterTransition.None togetherWith ExitTransition.None },
             label = "backup_tab_content",
             modifier = Modifier.weight(1f)
         ) { tab ->

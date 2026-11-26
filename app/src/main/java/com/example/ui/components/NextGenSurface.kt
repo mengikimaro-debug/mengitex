@@ -99,7 +99,7 @@ fun NextGenFilterPill(
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         },
-        animationSpec = tween(160),
+        animationSpec = tween(20),
         label = "filter_pill_text"
     )
     val bgColor by animateColorAsState(
@@ -108,7 +108,7 @@ fun NextGenFilterPill(
         } else {
             MaterialTheme.colorScheme.surfaceContainerHigh
         },
-        animationSpec = tween(160),
+        animationSpec = tween(20),
         label = "filter_pill_bg"
     )
     val shape = RoundedCornerShape(50)

@@ -914,11 +914,21 @@ private fun BubbleChatContent(
                                 showAllConversationsDirectory = false
                             },
                             shape = RoundedCornerShape(20.dp),
-                            color = if (thread.unreadCount > 0) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainerLow
-                            },
+                            color = com.example.ui.theme.conversationRowContainerColor(
+                                isDark = isDark,
+                                isSelected = false,
+                                hasUnread = thread.unreadCount > 0,
+                                isBlockedAd = thread.isBlockedAdThread
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                com.example.ui.theme.conversationRowBorderColor(
+                                    isDark = isDark,
+                                    isSelected = false,
+                                    hasUnread = thread.unreadCount > 0,
+                                    isBlockedAd = thread.isBlockedAdThread
+                                )
+                            ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(

@@ -1,6 +1,8 @@
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -116,15 +118,7 @@ fun AnimatedStatNumber(
 ) {
     AnimatedContent(
         targetState = value,
-        transitionSpec = {
-            if (targetState > initialState) {
-                (slideInVertically { -it / 2 } + fadeIn(tween(180))) togetherWith
-                    (slideOutVertically { it / 2 } + fadeOut(tween(160)))
-            } else {
-                (slideInVertically { it / 2 } + fadeIn(tween(180))) togetherWith
-                    (slideOutVertically { -it / 2 } + fadeOut(tween(160)))
-            }
-        },
+        transitionSpec = { EnterTransition.None togetherWith ExitTransition.None },
         modifier = modifier,
         label = "animated_stat_number"
     ) { target ->
@@ -251,7 +245,7 @@ private fun Android17NavBarItem(
         } else {
             MaterialTheme.colorScheme.surfaceContainer
         },
-        animationSpec = tween(160),
+        animationSpec = tween(20),
         label = "a17_nav_indicator"
     )
     val iconTint by animateColorAsState(
@@ -260,7 +254,7 @@ private fun Android17NavBarItem(
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         },
-        animationSpec = tween(160),
+        animationSpec = tween(20),
         label = "a17_nav_icon"
     )
     val labelColor by animateColorAsState(
@@ -269,7 +263,7 @@ private fun Android17NavBarItem(
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         },
-        animationSpec = tween(160),
+        animationSpec = tween(20),
         label = "a17_nav_label"
     )
 

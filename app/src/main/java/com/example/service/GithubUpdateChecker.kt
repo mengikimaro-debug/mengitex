@@ -11,6 +11,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import com.example.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -161,8 +162,8 @@ object GithubUpdateChecker {
                 @Suppress("DEPRECATION")
                 pm.getPackageInfo(context.packageName, 0)
             }
-            pkgInfo.versionName?.takeIf { it.isNotBlank() } ?: "3.1.0"
-        }.getOrDefault("3.1.0")
+            pkgInfo.versionName?.takeIf { it.isNotBlank() } ?: BuildConfig.VERSION_NAME
+        }.getOrDefault(BuildConfig.VERSION_NAME)
     }
 
     fun getInstalledApkSize(context: Context): Long {
@@ -608,7 +609,7 @@ object GithubUpdateChecker {
                 requestMethod = "GET"
                 connectTimeout = timeoutMs
                 readTimeout = timeoutMs
-                setRequestProperty("User-Agent", "MengiTex-OTA/3.1")
+                setRequestProperty("User-Agent", "MengiTex-OTA/${BuildConfig.VERSION_NAME}")
                 setRequestProperty("Accept", if (isApiAsset) "application/octet-stream" else "*/*")
                 setRequestProperty("Accept-Encoding", "identity")
                 if (!rangeHeader.isNullOrBlank()) {
@@ -957,7 +958,6 @@ object GithubUpdateChecker {
                 }
             }
             val shaHex = digest.digest().joinToString("") { "%02X".format(it) }.take(12)
-            delay(80L)
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 1,
@@ -1159,7 +1159,7 @@ object GithubUpdateChecker {
             connectTimeout = 8000
             readTimeout = 8000
             setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("User-Agent", "MengiTex-OTA/3.1")
+            setRequestProperty("User-Agent", "MengiTex-OTA/${BuildConfig.VERSION_NAME}")
             setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
             if (token.isNotBlank() && shouldSendAuthHeader(urlString)) {
                 setRequestProperty("Authorization", "Bearer $token")

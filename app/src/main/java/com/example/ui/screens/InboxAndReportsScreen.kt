@@ -9,8 +9,9 @@ import android.net.Uri
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -100,8 +101,10 @@ import com.example.ui.components.MengiTexLogoMark
 import com.example.ui.components.NextGenFilterPill
 import com.example.ui.components.NextGenGlassSurface
 import com.example.ui.components.NextGenGradientFab
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.luminance
 import com.example.ui.theme.android17AvatarColors
+import com.example.ui.theme.conversationRowBorderColor
+import com.example.ui.theme.conversationRowContainerColor
 import com.example.ui.i18n.AppLanguage
 import com.example.ui.i18n.LocalAppStrings
 import java.text.SimpleDateFormat
@@ -536,8 +539,8 @@ fun InboxAndReportsScreen(
                     }
                     AnimatedVisibility(
                         visible = searchQuery.isNotEmpty(),
-                        enter = fadeIn(),
-                        exit = fadeOut()
+                        enter = EnterTransition.None,
+                        exit = ExitTransition.None
                     ) {
                         IconButton(
                             onClick = {
@@ -638,8 +641,8 @@ fun InboxAndReportsScreen(
             // Blocked Ads Shield & Quick Actions Header when viewing Blocked Ads tab
             AnimatedVisibility(
                 visible = activeFilter == InboxFilter.BLOCKED_ADS && trimmedQuery.isEmpty(),
-                enter = fadeIn(),
-                exit = fadeOut()
+                enter = EnterTransition.None,
+                exit = ExitTransition.None
             ) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
@@ -719,8 +722,8 @@ fun InboxAndReportsScreen(
             // Post-install System Ownership card: one-tap takeover as Android's Default SMS App
             AnimatedVisibility(
                 visible = !isDefaultSmsApp && !dismissedDefaultBanner && trimmedQuery.isEmpty(),
-                enter = fadeIn(),
-                exit = fadeOut()
+                enter = EnterTransition.None,
+                exit = ExitTransition.None
             ) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
@@ -794,17 +797,29 @@ fun InboxAndReportsScreen(
             }
 
             if (isMessagesLoading && conversations.isEmpty() && matchedNewContacts.isEmpty()) {
+                val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+                val skeletonRowBg = conversationRowContainerColor(
+                    isDark = isDarkTheme,
+                    isSelected = false,
+                    hasUnread = false
+                )
+                val skeletonRowBorder = conversationRowBorderColor(
+                    isDark = isDarkTheme,
+                    isSelected = false,
+                    hasUnread = false
+                )
                 // First-ever DB hydration (when no instant cache exists yet): calm matte placeholder rows
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     repeat(5) {
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            color = skeletonRowBg,
+                            border = BorderStroke(1.dp, skeletonRowBorder),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(72.dp)
@@ -917,10 +932,10 @@ fun InboxAndReportsScreen(
                     }
                 }
             } else {
-                val isDarkTheme = isSystemInDarkTheme()
+                val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(
@@ -982,7 +997,19 @@ fun InboxAndReportsScreen(
                             val highlightBg = MaterialTheme.colorScheme.primaryContainer
                             Surface(
                                 shape = rowShape,
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                color = conversationRowContainerColor(
+                                    isDark = isDarkTheme,
+                                    isSelected = false,
+                                    hasUnread = false
+                                ),
+                                border = BorderStroke(
+                                    1.dp,
+                                    conversationRowBorderColor(
+                                        isDark = isDarkTheme,
+                                        isSelected = false,
+                                        hasUnread = false
+                                    )
+                                ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(rowShape)
@@ -1242,7 +1269,7 @@ private fun PremiumConversationRow(
     highlightQuery: String = "",
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
-    isDark: Boolean = isSystemInDarkTheme(),
+    isDark: Boolean = false,
     onViewProfile: () -> Unit = {},
     onAllowBlockedAd: (() -> Unit)? = null,
     onClick: () -> Unit,
@@ -1261,15 +1288,23 @@ private fun PremiumConversationRow(
     val highlightBg = MaterialTheme.colorScheme.primaryContainer
 
     val rowShape = RoundedCornerShape(20.dp)
-    val rowBg = when {
-        isSelected -> MaterialTheme.colorScheme.primaryContainer
-        hasUnread -> MaterialTheme.colorScheme.surfaceContainer
-        else -> MaterialTheme.colorScheme.surfaceContainerLow
-    }
+    val rowBg = conversationRowContainerColor(
+        isDark = isDark,
+        isSelected = isSelected,
+        hasUnread = hasUnread,
+        isBlockedAd = thread.isBlockedAdThread
+    )
+    val rowBorder = conversationRowBorderColor(
+        isDark = isDark,
+        isSelected = isSelected,
+        hasUnread = hasUnread,
+        isBlockedAd = thread.isBlockedAdThread
+    )
 
     Surface(
         shape = rowShape,
         color = rowBg,
+        border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, rowBorder),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
         modifier = Modifier

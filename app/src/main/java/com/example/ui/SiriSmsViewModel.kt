@@ -331,7 +331,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
     private fun scheduleNotificationChannelSync() {
         channelSyncJob?.cancel()
         channelSyncJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(220L)
+            delay(20L)
             runCatching {
                 MengiTexNotificationManager.ensureAllChannelsCreated(appContext, _uiState.value.settings)
             }
@@ -519,7 +519,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
 
     private fun triggerStartupUpgradeCheckIfEnabled() {
         viewModelScope.launch(Dispatchers.IO) {
-            delay(5_500L)
+            delay(650L)
             val currentSettings = _uiState.value.settings
             val installed = GithubUpdateChecker.getInstalledAppVersionName(appContext)
             val cachedTag = currentSettings.githubCachedLatestTag
@@ -549,7 +549,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
     private fun reconcileAdClassificationRulesOnce() {
         viewModelScope.launch(Dispatchers.IO) {
             if (syncPrefs.getBoolean("ad_rules_v2_reconciled", false)) return@launch
-            delay(4_500L)
+            delay(500L)
             runCatching {
                 val settings = _uiState.value.settings
                 if (settings.autoBlockAdsEnabled) {
@@ -568,7 +568,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         if (messages.isEmpty() || _uiState.value.isBackupBusy) return
         diskCacheSaveJob?.cancel()
         diskCacheSaveJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(850L)
+            delay(100L)
             if (!_uiState.value.isBackupBusy && messages.isNotEmpty()) {
                 SmsInstantCache.saveSnapshotToDisk(appContext, crypto, messages)
             }
@@ -589,7 +589,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         }
         autoGuardianSaveJob?.cancel()
         autoGuardianSaveJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(3_200L)
+            delay(400L)
             if (_uiState.value.isBackupBusy || messages.isEmpty()) return@launch
             val savedSig = syncPrefs.getString("last_auto_guardian_sig", "")
             val savedAt = syncPrefs.getLong("last_auto_guardian_ms", 0L)
@@ -735,7 +735,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                     // even on devices where MengiTex is not the Default SMS App.
                     deltaSyncDebounceJob?.cancel()
                     deltaSyncDebounceJob = viewModelScope.launch {
-                        delay(150L)
+                        delay(15L)
                         syncNewDeviceSmsDelta(force = true)
                     }
                 }
@@ -971,11 +971,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                 )
             }
 
-            // Defer heavy ContentResolver queries (device contacts + Telephony SMS delta) on cold start
-            // so Frame 0-5 hydrate instantaneously from SmsInstantCache with zero Binder contention.
-            if (startupDeferHeavyQueries) {
-                delay(280L)
-            }
+            // Run ContentResolver queries immediately on Dispatchers.IO without startup sleep
             val nowMs = System.currentTimeMillis()
             val existingContacts = _uiState.value.deviceContacts
             val shouldLoadContacts = forceReloadContacts ||
@@ -1079,7 +1075,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                 isDeltaSyncRunning = false
                 pendingDeltaSync = false
                 if (shouldReRun) {
-                    delay(120L)
+                    delay(15L)
                     syncNewDeviceSmsDelta(force = true)
                 }
             }
@@ -1236,8 +1232,6 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
             )
         }
         viewModelScope.launch(Dispatchers.IO) {
-            // Let conversation navigation paint cleanly before updating read badges & Room
-            delay(260L)
             val unreadIds = ArrayList<Long>()
             val msgs = _activeMessages.value
             for (i in 0 until msgs.size) {
@@ -1538,8 +1532,8 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch(Dispatchers.IO) {
             var sentCount = 0
             recipients.forEachIndexed { index, recipient ->
-                if (index > 0 && index % 5 == 0) {
-                    delay(90L)
+                if (index > 0 && index % 10 == 0) {
+                    delay(10L)
                 }
                 val id = repository.insertOutgoingOrScheduled(
                     contactName = recipient.name.ifBlank { recipient.phoneNumber },
@@ -2363,8 +2357,8 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
             var successCount = 0
             var failCount = 0
             recipients.forEachIndexed { index, recipient ->
-                if (index > 0 && index % 5 == 0) {
-                    delay(90L)
+                if (index > 0 && index % 10 == 0) {
+                    delay(10L)
                 }
                 val id = repository.insertOutgoingOrScheduled(
                     contactName = recipient.name,

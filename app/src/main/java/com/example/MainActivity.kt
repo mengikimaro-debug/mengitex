@@ -24,18 +24,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -147,8 +137,8 @@ class MainActivity : ComponentActivity() {
 
     private val viewModel: SiriSmsViewModel by viewModels()
     private val isAppInForegroundState = mutableStateOf(true)
-    private val isMainAppMountedState = mutableStateOf(false)
-    private val showLaunchAnimationState = mutableStateOf(true)
+    private val isMainAppMountedState = mutableStateOf(true)
+    private val showLaunchAnimationState = mutableStateOf(false)
     private val launchAnimationSessionState = mutableIntStateOf(1)
     private val fastBootDarkState = mutableStateOf<Boolean?>(null)
     private val fastBootLanguageState = mutableStateOf(AppLanguage.SW)
@@ -195,47 +185,20 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val isMounted = isMainAppMountedState.value
-            val showLaunchAnim = showLaunchAnimationState.value
-            val launchSession = launchAnimationSessionState.intValue
-            val systemDark = isSystemInDarkTheme()
-            val fastDark = fastBootDarkState.value ?: systemDark
-            val fastLang = fastBootLanguageState.value
-            val fastTagline = remember(fastLang) { stringsFor(fastLang).launchSplashTagline }
-
-            // Frame 0 renders ONLY MengiTexLaunchAnimationOverlay (zero delay).
-            // Immediately after Frame 0 commits (~16ms), mount the main app silently underneath.
             LaunchedEffect(Unit) {
-                if (!isMainAppMountedState.value) {
-                    withFrameNanos { }
-                    isMainAppMountedState.value = true
-                    pendingLaunchIntent?.let { deferred ->
-                        handleNotificationLaunchIntent(deferred)
-                        pendingLaunchIntent = null
-                    }
+                pendingLaunchIntent?.let { deferred ->
+                    handleNotificationLaunchIntent(deferred)
+                    pendingLaunchIntent = null
                 }
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
-                if (isMounted) {
-                    MengiTexAppRoot(
-                        viewModel = viewModel,
-                        isAppInForeground = isAppInForegroundState.value,
-                        onSyncFastBootPrefs = ::persistFastBootPrefs,
-                        onWillLaunchExternalSystemUi = { suppressNextResumeAnimation = true }
-                    )
-                }
-
-                if (showLaunchAnim) {
-                    SiriSmsTheme(darkTheme = fastDark) {
-                        MengiTexLaunchAnimationOverlay(
-                            sessionKey = launchSession,
-                            isDarkOverride = fastDark,
-                            taglineOverride = fastTagline,
-                            onFinished = { showLaunchAnimationState.value = false }
-                        )
-                    }
-                }
+                MengiTexAppRoot(
+                    viewModel = viewModel,
+                    isAppInForeground = isAppInForegroundState.value,
+                    onSyncFastBootPrefs = ::persistFastBootPrefs,
+                    onWillLaunchExternalSystemUi = { suppressNextResumeAnimation = true }
+                )
             }
         }
     }
@@ -701,10 +664,7 @@ private fun MengiTexAppRoot(
             NextGenAmbientBackdrop {
                 AnimatedContent(
                     targetState = uiState.isLocked,
-                    transitionSpec = {
-                        (fadeIn(tween(240)) + scaleIn(initialScale = 0.96f, animationSpec = tween(240))) togetherWith
-                            (fadeOut(tween(180)) + scaleOut(targetScale = 1.03f, animationSpec = tween(180)))
-                    },
+                    transitionSpec = { EnterTransition.None togetherWith ExitTransition.None },
                     label = "vault_lock_transition"
                 ) { locked ->
                     if (locked) {
@@ -769,8 +729,8 @@ private fun MengiTexAppRoot(
                             topBar = {
                                 AnimatedVisibility(
                                     visible = uiState.activeDestination == DrawerDestination.NONE,
-                                    enter = fadeIn(tween(200)),
-                                    exit = fadeOut(tween(160))
+                                    enter = EnterTransition.None,
+                                    exit = ExitTransition.None
                                 ) {
                                     Surface(
                                         color = MaterialTheme.colorScheme.background,
@@ -808,10 +768,7 @@ private fun MengiTexAppRoot(
 
                                                     AnimatedContent(
                                                         targetState = uiState.selectedTab,
-                                                        transitionSpec = {
-                                                            (fadeIn(tween(200)) + slideInVertically { -it / 3 }) togetherWith
-                                                                (fadeOut(tween(150)) + slideOutVertically { it / 3 })
-                                                        },
+                                                        transitionSpec = { EnterTransition.None togetherWith ExitTransition.None },
                                                         label = "top_bar_title_anim"
                                                     ) { tab ->
                                                         if (tab == MainTab.MESSAGES) {
@@ -855,14 +812,8 @@ private fun MengiTexAppRoot(
                                 // Slim 2-tab Premium Animated Bottom Bar ONLY: Messages & Contacts
                                 AnimatedVisibility(
                                     visible = uiState.activeDestination == DrawerDestination.NONE,
-                                    enter = slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-                                    ) + fadeIn(tween(180)),
-                                    exit = slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(180)
-                                    ) + fadeOut(tween(140))
+                                    enter = EnterTransition.None,
+                                    exit = ExitTransition.None
                                 ) {
                                     PremiumBottomNavBar(
                                         selectedTab = uiState.selectedTab,
@@ -881,10 +832,7 @@ private fun MengiTexAppRoot(
                             ) {
                                 AnimatedContent(
                                     targetState = uiState.activeDestination,
-                                    transitionSpec = {
-                                        fadeIn(tween(65, easing = FastOutSlowInEasing)) togetherWith
-                                            fadeOut(tween(45, easing = FastOutSlowInEasing))
-                                    },
+                                    transitionSpec = { EnterTransition.None togetherWith ExitTransition.None },
                                     label = "destination_transition"
                                 ) { dest ->
                                     when (dest) {
@@ -1173,10 +1121,7 @@ private fun MengiTexAppRoot(
                                         DrawerDestination.NONE -> {
                                             AnimatedContent(
                                                 targetState = uiState.selectedTab,
-                                                transitionSpec = {
-                                                    fadeIn(tween(65, easing = FastOutSlowInEasing)) togetherWith
-                                                        fadeOut(tween(45, easing = FastOutSlowInEasing))
-                                                },
+                                                transitionSpec = { EnterTransition.None togetherWith ExitTransition.None },
                                                 label = "main_tab_transition"
                                             ) { tab ->
                                                 when (tab) {
@@ -1268,8 +1213,8 @@ private fun MengiTexAppRoot(
                 // Instant App-Switch Privacy Shield Curtain (triggers only when activity actually pauses/backgrounds)
                 AnimatedVisibility(
                     visible = !isAppInForeground && uiState.settings.privacyCurtainOnSwitch && !uiState.isLocked,
-                    enter = fadeIn(tween(90)),
-                    exit = fadeOut(tween(150))
+                    enter = EnterTransition.None,
+                    exit = ExitTransition.None
                 ) {
                     PrivacyShieldCurtainOverlay()
                 }

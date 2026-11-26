@@ -2,12 +2,10 @@ package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -342,8 +340,8 @@ fun SettingsScreen(
 
                         AnimatedVisibility(
                             visible = settings.dimLightEnabled,
-                            enter = fadeIn(tween(180)) + expandVertically(tween(200)),
-                            exit = fadeOut(tween(150)) + shrinkVertically(tween(180))
+                            enter = EnterTransition.None,
+                            exit = ExitTransition.None
                         ) {
                             Column(
                                 modifier = Modifier
@@ -852,8 +850,8 @@ private fun SettingsSectionCard(
 
             AnimatedVisibility(
                 visible = expanded,
-                enter = fadeIn(tween(180)) + expandVertically(tween(200)),
-                exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
+                enter = EnterTransition.None,
+                exit = ExitTransition.None
             ) {
                 Column(
                     modifier = Modifier

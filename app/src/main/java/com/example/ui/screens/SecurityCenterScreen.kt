@@ -2,13 +2,11 @@ package com.example.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -144,7 +142,7 @@ fun SecurityCenterScreen(
 
     val levelColor by animateColorAsState(
         targetValue = securityLevelColor(settings.securityLevel),
-        animationSpec = tween(260),
+        animationSpec = tween(30),
         label = "fortress_level_color"
     )
 
@@ -162,7 +160,7 @@ fun SecurityCenterScreen(
     }
     val animatedProgress by animateFloatAsState(
         targetValue = fortressScore / 100f,
-        animationSpec = tween(350),
+        animationSpec = tween(30),
         label = "fortress_score_progress"
     )
 
@@ -802,8 +800,8 @@ private fun SecurityCard(
             }
             AnimatedVisibility(
                 visible = expanded,
-                enter = fadeIn(tween(180)) + expandVertically(tween(200)),
-                exit = fadeOut(tween(140)) + shrinkVertically(tween(180))
+                enter = EnterTransition.None,
+                exit = ExitTransition.None
             ) {
                 Column(
                     modifier = Modifier

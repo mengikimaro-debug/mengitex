@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -13,10 +15,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -477,7 +475,7 @@ fun GithubUpdateSectionContent(
     }.coerceIn(0f, 1f)
     val animatedProgress by animateFloatAsState(
         targetValue = rawProgressFrac,
-        animationSpec = tween(160),
+        animationSpec = tween(20),
         label = "android17_upgrade_progress"
     )
 
@@ -909,8 +907,8 @@ fun GithubUpdateSectionContent(
                 // 4. Live 4-Stage Upgrade Pipeline & 10-Stream Meter (Expands smoothly when active)
                 AnimatedVisibility(
                     visible = isDownloadingApk || isSelfInstalling || selfInstallCompletedTag != null,
-                    enter = fadeIn(tween(180)) + expandVertically(tween(180)),
-                    exit = fadeOut(tween(140)) + shrinkVertically(tween(140))
+                    enter = EnterTransition.None,
+                    exit = ExitTransition.None
                 ) {
                     val activeStage = when {
                         selfInstallCompletedTag != null -> 4
@@ -973,7 +971,7 @@ fun GithubUpdateSectionContent(
                                             reached -> primaryColor
                                             else -> MaterialTheme.colorScheme.surfaceContainerHighest
                                         },
-                                        animationSpec = tween(200),
+                                        animationSpec = tween(20),
                                         label = "stage_bar_$idx"
                                     )
                                     Column(
@@ -1056,8 +1054,8 @@ fun GithubUpdateSectionContent(
                 }
                 AnimatedVisibility(
                     visible = !checkErrorMsg.isNullOrBlank(),
-                    enter = fadeIn(tween(150)) + expandVertically(tween(150)),
-                    exit = fadeOut(tween(120)) + shrinkVertically(tween(120))
+                    enter = EnterTransition.None,
+                    exit = ExitTransition.None
                 ) {
                     val isErr = checkResult is GithubUpdateCheckResult.Error
                     Surface(
@@ -1132,12 +1130,12 @@ fun GithubUpdateSectionContent(
                                     val selected = settings.githubUpdateChannel == ch
                                     val bg by animateColorAsState(
                                         targetValue = if (selected) primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-                                        animationSpec = tween(140),
+                                        animationSpec = tween(20),
                                         label = "ch_bg"
                                     )
                                     val fg by animateColorAsState(
                                         targetValue = if (selected) onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        animationSpec = tween(140),
+                                        animationSpec = tween(20),
                                         label = "ch_fg"
                                     )
                                     Box(
@@ -1236,8 +1234,8 @@ fun GithubUpdateSectionContent(
         // Solid Feedback Banner (when download/install/save finishes)
         AnimatedVisibility(
             visible = !actionFeedback.isNullOrBlank(),
-            enter = fadeIn(tween(150)) + expandVertically(tween(150)),
-            exit = fadeOut(tween(120)) + shrinkVertically(tween(120))
+            enter = EnterTransition.None,
+            exit = ExitTransition.None
         ) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -1269,8 +1267,8 @@ fun GithubUpdateSectionContent(
         // Expandable Release Notes Card
         AnimatedVisibility(
             visible = notesExpanded && activeRelease.bodyNotes.isNotBlank(),
-            enter = fadeIn(tween(150)) + expandVertically(tween(150)),
-            exit = fadeOut(tween(120)) + shrinkVertically(tween(120))
+            enter = EnterTransition.None,
+            exit = ExitTransition.None
         ) {
             Surface(
                 shape = RoundedCornerShape(20.dp),
