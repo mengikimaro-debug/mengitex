@@ -1,10 +1,15 @@
 package com.example.service
 
 import android.app.DownloadManager
+import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageInfo
+import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -17,6 +22,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,6 +39,7 @@ import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicLongArray
 import java.util.zip.ZipFile
@@ -79,7 +88,62 @@ data class GithubSelfInstallProgress(
     val sha256Short: String = ""
 )
 
+data class ApkCompatibilityInfo(
+    val packageName: String,
+    val versionName: String,
+    val versionCode: Long,
+    val installedVersionCode: Long,
+    val installedCertSha256: Set<String>,
+    val archiveCertSha256: Set<String>,
+    val signatureMatchesInstalled: Boolean?,
+    val isVersionDowngrade: Boolean,
+    val isTestOnly: Boolean
+) {
+    val installedCertShort: String
+        get() = installedCertSha256.firstOrNull()?.take(8).orEmpty()
+
+    val archiveCertShort: String
+        get() = archiveCertSha256.firstOrNull()?.take(8).orEmpty()
+}
+
+sealed class PackageInstallSessionEvent {
+    data class PendingUserAction(
+        val sessionId: Int,
+        val versionTag: String,
+        val confirmIntent: Intent
+    ) : PackageInstallSessionEvent()
+
+    data class Success(
+        val sessionId: Int,
+        val versionTag: String
+    ) : PackageInstallSessionEvent()
+
+    data class FailureConflict(
+        val sessionId: Int,
+        val versionTag: String,
+        val rawMessage: String
+    ) : PackageInstallSessionEvent()
+
+    data class FailureAborted(
+        val sessionId: Int,
+        val rawMessage: String
+    ) : PackageInstallSessionEvent()
+
+    data class FailureError(
+        val sessionId: Int,
+        val status: Int,
+        val message: String
+    ) : PackageInstallSessionEvent()
+}
+
 sealed class GithubSelfInstallOutcome {
+    data class DirectPackageInstallerStarted(
+        val versionTag: String,
+        val sha256Short: String,
+        val stagedApk: File,
+        val sessionId: Int
+    ) : GithubSelfInstallOutcome()
+
     data class LaunchedSystemInstaller(
         val versionTag: String,
         val sha256Short: String,
@@ -90,6 +154,14 @@ sealed class GithubSelfInstallOutcome {
         val versionTag: String,
         val sha256Short: String,
         val stagedApk: File
+    ) : GithubSelfInstallOutcome()
+
+    data class SignatureConflict(
+        val versionTag: String,
+        val sha256Short: String,
+        val stagedApk: File,
+        val installedCertShort: String,
+        val archiveCertShort: String
     ) : GithubSelfInstallOutcome()
 }
 
@@ -123,6 +195,28 @@ object GithubUpdateChecker {
     private const val KEY_SELF_INSTALLED_SHA = "self_installed_sha256"
     private const val TURBO_STREAM_COUNT = 10
     private const val TURBO_BUFFER_BYTES = 262_144
+
+    private val _installSessionEvents = MutableSharedFlow<PackageInstallSessionEvent>(
+        replay = 0,
+        extraBufferCapacity = 8
+    )
+    val installSessionEvents: SharedFlow<PackageInstallSessionEvent> = _installSessionEvents.asSharedFlow()
+
+    private val activeCollectorCount = AtomicInteger(0)
+
+    fun registerInstallCollector(): Unit {
+        activeCollectorCount.incrementAndGet()
+    }
+
+    fun unregisterInstallCollector(): Unit {
+        activeCollectorCount.updateAndGet { current -> if (current > 0) current - 1 else 0 }
+    }
+
+    fun hasActiveInstallCollector(): Boolean = activeCollectorCount.get() > 0
+
+    internal fun emitInstallSessionEvent(event: PackageInstallSessionEvent) {
+        _installSessionEvents.tryEmit(event)
+    }
 
     fun getSavedGithubToken(context: Context): String {
         return runCatching {
@@ -192,6 +286,247 @@ object GithubUpdateChecker {
         }
     }
 
+    fun createAppDetailsSettingsIntent(context: Context): Intent {
+        return Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:${context.packageName}")
+        ).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+
+    fun getInstalledAppVersionCode(context: Context): Long {
+        return runCatching {
+            val pm = context.packageManager
+            val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(
+                    context.packageName,
+                    PackageManager.PackageInfoFlags.of(0)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(context.packageName, 0)
+            }
+            extractLongVersionCode(pkgInfo)
+        }.getOrDefault(BuildConfig.VERSION_CODE.toLong())
+    }
+
+    private fun extractLongVersionCode(pkgInfo: PackageInfo): Long {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            pkgInfo.longVersionCode
+        } else {
+            @Suppress("DEPRECATION")
+            pkgInfo.versionCode.toLong()
+        }
+    }
+
+    fun isUpgradeVersionCompatible(installedVersionCode: Long, candidateVersionCode: Long): Boolean {
+        if (installedVersionCode <= 0L || candidateVersionCode <= 0L) return true
+        return candidateVersionCode >= installedVersionCode
+    }
+
+    fun areSigningCertificatesCompatible(
+        installedCertSha256: Set<String>,
+        archiveCertSha256: Set<String>
+    ): Boolean? {
+        if (installedCertSha256.isEmpty() || archiveCertSha256.isEmpty()) return null
+        return installedCertSha256.any { it in archiveCertSha256 }
+    }
+
+    private fun sha256OfSignature(sig: Signature): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(sig.toByteArray())
+        return digest.joinToString("") { "%02X".format(it) }
+    }
+
+    private fun extractCertSha256Set(pkgInfo: PackageInfo?): Set<String> {
+        if (pkgInfo == null) return emptySet()
+        val rawSigners: Array<Signature>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val signingInfo = pkgInfo.signingInfo
+            when {
+                signingInfo == null -> {
+                    @Suppress("DEPRECATION")
+                    pkgInfo.signatures
+                }
+                signingInfo.hasMultipleSigners() -> signingInfo.apkContentsSigners
+                else -> signingInfo.signingCertificateHistory ?: signingInfo.apkContentsSigners
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            pkgInfo.signatures
+        }
+        return rawSigners
+            ?.mapNotNull { runCatching { sha256OfSignature(it) }.getOrNull() }
+            ?.toSet()
+            .orEmpty()
+    }
+
+    private fun getInstalledSigningCertSha256(context: Context): Set<String> {
+        return runCatching {
+            val pm = context.packageManager
+            val primaryInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(
+                    context.packageName,
+                    PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong())
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+            }
+            val certs = extractCertSha256Set(primaryInfo)
+            if (certs.isNotEmpty()) return@runCatching certs
+            @Suppress("DEPRECATION")
+            val legacyInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(
+                    context.packageName,
+                    PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNATURES.toLong())
+                )
+            } else {
+                pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+            }
+            extractCertSha256Set(legacyInfo)
+        }.getOrDefault(emptySet())
+    }
+
+    private fun getArchivePackageInfoWithSignatures(context: Context, apkFile: File): PackageInfo? {
+        val pm = context.packageManager
+        val primaryInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES.toLong())
+            )
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            pm.getPackageArchiveInfo(apkFile.absolutePath, PackageManager.GET_SIGNING_CERTIFICATES)
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageArchiveInfo(apkFile.absolutePath, PackageManager.GET_SIGNATURES)
+        }
+        if (primaryInfo != null && extractCertSha256Set(primaryInfo).isNotEmpty()) {
+            return primaryInfo
+        }
+        @Suppress("DEPRECATION")
+        val legacyInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.getPackageArchiveInfo(
+                apkFile.absolutePath,
+                PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNATURES.toLong())
+            )
+        } else {
+            pm.getPackageArchiveInfo(apkFile.absolutePath, PackageManager.GET_SIGNATURES)
+        }
+        return legacyInfo ?: primaryInfo
+    }
+
+    fun inspectApkCompatibility(context: Context, apkFile: File): Result<ApkCompatibilityInfo> {
+        return runCatching {
+            require(apkFile.exists() && apkFile.length() > 1024L) {
+                "Faili la APK halipo au ni dogo mno."
+            }
+            val hasManifest = ZipFile(apkFile).use { zip ->
+                zip.size() > 0 && zip.getEntry("AndroidManifest.xml") != null
+            }
+            require(hasManifest) {
+                "Faili lililopakuliwa si APK halali ya Android."
+            }
+            val archiveInfo = getArchivePackageInfoWithSignatures(context, apkFile)
+            require(archiveInfo != null) {
+                "Mfumo wa Android umeshindwa kusoma kifurushi hiki cha APK."
+            }
+            require(archiveInfo.packageName == context.packageName) {
+                "APK hii (${archiveInfo.packageName}) hailingani na programu ya MengiTex."
+            }
+            val installedVersionCode = getInstalledAppVersionCode(context)
+            val archiveVersionCode = extractLongVersionCode(archiveInfo)
+            val isDowngrade = !isUpgradeVersionCompatible(installedVersionCode, archiveVersionCode)
+            val isTestOnly = ((archiveInfo.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_TEST_ONLY) != 0
+            val installedCerts = getInstalledSigningCertSha256(context)
+            val archiveCerts = extractCertSha256Set(archiveInfo)
+            val sigMatch = areSigningCertificatesCompatible(installedCerts, archiveCerts)
+
+            ApkCompatibilityInfo(
+                packageName = archiveInfo.packageName,
+                versionName = archiveInfo.versionName?.takeIf { it.isNotBlank() } ?: "",
+                versionCode = archiveVersionCode,
+                installedVersionCode = installedVersionCode,
+                installedCertSha256 = installedCerts,
+                archiveCertSha256 = archiveCerts,
+                signatureMatchesInstalled = sigMatch,
+                isVersionDowngrade = isDowngrade,
+                isTestOnly = isTestOnly
+            )
+        }
+    }
+
+    fun installApkViaPackageInstallerSession(
+        context: Context,
+        apkFile: File,
+        versionTag: String
+    ): Result<Int> {
+        return runCatching {
+            require(apkFile.exists() && apkFile.length() > 1024L) {
+                "Faili la APK halipo au halijakamilika."
+            }
+            val packageInstaller = context.packageManager.packageInstaller
+            // Abandon any leftover sessions created by this app so storage stays clean
+            packageInstaller.mySessions.forEach { existing ->
+                runCatching { packageInstaller.abandonSession(existing.sessionId) }
+            }
+
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+                setAppPackageName(context.packageName)
+                setSize(apkFile.length())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    setInstallReason(PackageManager.INSTALL_REASON_USER)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                }
+            }
+
+            val sessionId = packageInstaller.createSession(params)
+            var session: PackageInstaller.Session? = null
+            try {
+                session = packageInstaller.openSession(sessionId)
+                val safeName = apkFile.name.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { "update.apk" }
+                session.openWrite(safeName, 0, apkFile.length()).use { out ->
+                    FileInputStream(apkFile).use { input ->
+                        val buf = ByteArray(TURBO_BUFFER_BYTES)
+                        while (true) {
+                            val read = input.read(buf)
+                            if (read <= 0) break
+                            out.write(buf, 0, read)
+                        }
+                    }
+                    session.fsync(out)
+                }
+
+                val callbackIntent = Intent(context, SelfUpdateInstallReceiver::class.java).apply {
+                    action = SelfUpdateInstallReceiver.ACTION_INSTALL_STATUS
+                    putExtra(SelfUpdateInstallReceiver.EXTRA_VERSION_TAG, versionTag)
+                }
+                val piFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                } else {
+                    PendingIntent.FLAG_UPDATE_CURRENT
+                }
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    sessionId,
+                    callbackIntent,
+                    piFlags
+                )
+                session.commit(pendingIntent.intentSender)
+                sessionId
+            } catch (t: Throwable) {
+                runCatching { session?.abandon() }
+                runCatching { packageInstaller.abandonSession(sessionId) }
+                throw t
+            } finally {
+                runCatching { session?.close() }
+            }
+        }
+    }
+
     fun launchSystemApkInstaller(context: Context, apkFile: File): Result<Unit> {
         return runCatching {
             require(apkFile.exists() && apkFile.length() > 1024L) {
@@ -223,33 +558,14 @@ object GithubUpdateChecker {
     }
 
     fun verifyApkArchive(context: Context, apkFile: File): Result<String> {
-        return runCatching {
-            require(apkFile.exists() && apkFile.length() > 1024L) {
-                "Faili la APK halipo au ni dogo mno."
+        return inspectApkCompatibility(context, apkFile).mapCatching { compat ->
+            require(!compat.isTestOnly) {
+                "APK hii ni ya majaribio (testOnly) na haiwezi kusakinishwa moja kwa moja."
             }
-            val hasManifest = ZipFile(apkFile).use { zip ->
-                zip.size() > 0 && zip.getEntry("AndroidManifest.xml") != null
+            require(!compat.isVersionDowngrade) {
+                "Toleo hili (build ${compat.versionCode}) ni la chini kuliko lililopo kwenye simu (build ${compat.installedVersionCode})."
             }
-            require(hasManifest) {
-                "Faili lililopakuliwa si APK halali ya Android."
-            }
-            val pm = context.packageManager
-            val archiveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.getPackageArchiveInfo(
-                    apkFile.absolutePath,
-                    PackageManager.PackageInfoFlags.of(0)
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getPackageArchiveInfo(apkFile.absolutePath, 0)
-            }
-            require(archiveInfo != null) {
-                "Mfumo wa Android umeshindwa kusoma kifurushi hiki cha APK."
-            }
-            require(archiveInfo.packageName == context.packageName) {
-                "APK hii (${archiveInfo.packageName}) hailingani na programu ya MengiTex."
-            }
-            archiveInfo.versionName?.takeIf { it.isNotBlank() } ?: ""
+            compat.versionName
         }
     }
 
@@ -968,17 +1284,23 @@ object GithubUpdateChecker {
                 )
             )
 
-            // Stage 2: Verify APK structure & AndroidManifest package match (28% -> 58%)
+            // Stage 2: Verify APK structure, AndroidManifest package, versionCode & signing match (28% -> 58%)
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 2,
-                    stageSw = "Hatua 2/4: Kukagua kifurushi cha APK (${release.tagName})...",
-                    stageEn = "Stage 2/4: Validating APK archive (${release.tagName})...",
+                    stageSw = "Hatua 2/4: Kukagua kifurushi na saini ya APK (${release.tagName})...",
+                    stageEn = "Stage 2/4: Validating APK archive & signature (${release.tagName})...",
                     percent = 45,
                     sha256Short = shaHex
                 )
             )
-            verifyApkArchive(context, downloadedFile).getOrThrow()
+            val compat = inspectApkCompatibility(context, downloadedFile).getOrThrow()
+            require(!compat.isTestOnly) {
+                "APK hii ni ya majaribio (testOnly) na haiwezi kusakinishwa moja kwa moja."
+            }
+            require(!compat.isVersionDowngrade) {
+                "Toleo hili (build ${compat.versionCode}) ni la chini kuliko lililopo kwenye simu (build ${compat.installedVersionCode})."
+            }
 
             val stagedDir = File(context.filesDir, "apk_exports").apply {
                 if (!exists()) mkdirs()
@@ -1003,17 +1325,37 @@ object GithubUpdateChecker {
                 .putString(KEY_SELF_INSTALLED_SHA, shaHex)
                 .apply()
 
+            val cleanTag = release.tagName.trim().removePrefix("v").removePrefix("V")
+
+            if (compat.signatureMatchesInstalled == false) {
+                onInstallProgress(
+                    GithubSelfInstallProgress(
+                        stageIndex = 3,
+                        stageSw = "Hatua 3/4: Saini ya toleo la zamani kwenye simu hailingani na mpya.",
+                        stageEn = "Stage 3/4: Installed build signature differs from update APK.",
+                        percent = 84,
+                        sha256Short = shaHex
+                    )
+                )
+                return@runCatching GithubSelfInstallOutcome.SignatureConflict(
+                    versionTag = cleanTag,
+                    sha256Short = shaHex,
+                    stagedApk = stagedApk,
+                    installedCertShort = compat.installedCertShort,
+                    archiveCertShort = compat.archiveCertShort
+                )
+            }
+
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 3,
-                    stageSw = "Hatua 3/4: Kuandaa kisakinishi cha Android...",
-                    stageEn = "Stage 3/4: Preparing Android Package Installer...",
+                    stageSw = "Hatua 3/4: Kuandaa kisakinishi cha moja kwa moja...",
+                    stageEn = "Stage 3/4: Preparing direct PackageInstaller session...",
                     percent = 80,
                     sha256Short = shaHex
                 )
             )
 
-            val cleanTag = release.tagName.trim().removePrefix("v").removePrefix("V")
             if (!canRequestPackageInstalls(context)) {
                 onInstallProgress(
                     GithubSelfInstallProgress(
@@ -1031,7 +1373,27 @@ object GithubUpdateChecker {
                 )
             }
 
-            // Stage 4: Launch Android's real system PackageInstaller UI on Main thread
+            // Stage 4: Stream directly into Android PackageInstaller.Session (with ACTION_VIEW fallback)
+            val sessionResult = installApkViaPackageInstallerSession(context, stagedApk, cleanTag)
+            if (sessionResult.isSuccess) {
+                val sessionId = sessionResult.getOrThrow()
+                onInstallProgress(
+                    GithubSelfInstallProgress(
+                        stageIndex = 4,
+                        stageSw = "Hatua 4/4: Kisakinishi cha moja kwa moja kimeanzishwa ✓",
+                        stageEn = "Stage 4/4: Direct in-app installer session started ✓",
+                        percent = 100,
+                        sha256Short = shaHex
+                    )
+                )
+                return@runCatching GithubSelfInstallOutcome.DirectPackageInstallerStarted(
+                    versionTag = cleanTag,
+                    sha256Short = shaHex,
+                    stagedApk = stagedApk,
+                    sessionId = sessionId
+                )
+            }
+
             withContext(Dispatchers.Main) {
                 launchSystemApkInstaller(context, stagedApk).getOrThrow()
             }
@@ -1039,8 +1401,8 @@ object GithubUpdateChecker {
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 4,
-                    stageSw = "Hatua 4/4: Kisakinishi cha Android kimefunguliwa — thibitisha kusakinisha ✓",
-                    stageEn = "Stage 4/4: Android installer opened — confirm installation ✓",
+                    stageSw = "Hatua 4/4: Kisakinishi cha Android kimefunguliwa — thibitisha kuboresha ✓",
+                    stageEn = "Stage 4/4: Android installer opened — confirm upgrade ✓",
                     percent = 100,
                     sha256Short = shaHex
                 )

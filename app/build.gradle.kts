@@ -13,11 +13,16 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
+    val propVersionCode = (project.findProperty("APP_VERSION_CODE") as String?)?.toIntOrNull()
+      ?: System.getenv("APP_VERSION_CODE")?.toIntOrNull()
+    val propVersionName = (project.findProperty("APP_VERSION_NAME") as String?)?.takeIf { it.isNotBlank() }
+      ?: System.getenv("APP_VERSION_NAME")?.takeIf { it.isNotBlank() }
+
     applicationId = "com.aistudio.sirisms.qvxkmp"
     minSdk = 24
     targetSdk = 36
-    versionCode = 5
-    versionName = "3.2.0"
+    versionCode = propVersionCode ?: 6
+    versionName = propVersionName ?: "3.3.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

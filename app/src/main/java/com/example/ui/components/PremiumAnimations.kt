@@ -9,23 +9,18 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,6 +28,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,7 +37,6 @@ import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Sms
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -177,8 +172,7 @@ fun VoiceWaveformVisualizer(
 }
 
 /**
- * Authentic Full-Width Android 17 Material 3 Expressive NavigationBar (Messages & Contacts).
- * Solid surfaceContainer dock, M3 pill indicator above label, zero floating borders or shadows.
+ * Authentic Android 17 Material 3 Expressive Floating Pill Navigation Bar (Messages & Contacts).
  */
 @Composable
 fun PremiumBottomNavBar(
@@ -187,22 +181,27 @@ fun PremiumBottomNavBar(
     contactsLabel: String,
     onSelectTab: (MainTab) -> Unit
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        modifier = Modifier.fillMaxWidth()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 24.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh
-            )
+        Surface(
+            shape = RoundedCornerShape(32.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            tonalElevation = 0.dp,
+            shadowElevation = 4.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 420.dp)
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -241,16 +240,16 @@ private fun Android17NavBarItem(
 ) {
     val indicatorColor by animateColorAsState(
         targetValue = if (selected) {
-            MaterialTheme.colorScheme.secondaryContainer
+            MaterialTheme.colorScheme.primaryContainer
         } else {
-            MaterialTheme.colorScheme.surfaceContainer
+            Color.Transparent
         },
         animationSpec = tween(20),
         label = "a17_nav_indicator"
     )
     val iconTint by animateColorAsState(
         targetValue = if (selected) {
-            MaterialTheme.colorScheme.onSecondaryContainer
+            MaterialTheme.colorScheme.onPrimaryContainer
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         },
@@ -259,7 +258,7 @@ private fun Android17NavBarItem(
     )
     val labelColor by animateColorAsState(
         targetValue = if (selected) {
-            MaterialTheme.colorScheme.onSurface
+            MaterialTheme.colorScheme.primary
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         },
@@ -270,12 +269,12 @@ private fun Android17NavBarItem(
     Column(
         modifier = modifier
             .minimumInteractiveComponentSize()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(24.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 4.dp)
             .testTag(testTag),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
         Box(
             modifier = Modifier
@@ -289,7 +288,7 @@ private fun Android17NavBarItem(
                 imageVector = if (selected) selectedIcon else unselectedIcon,
                 contentDescription = label,
                 tint = iconTint,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(21.dp)
             )
         }
         Text(

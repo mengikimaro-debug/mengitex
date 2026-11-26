@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -824,7 +825,8 @@ private fun BubbleChatContent(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(50),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier.weight(1f)
                     ) {
                         Row(
@@ -1104,12 +1106,12 @@ private fun BubbleChatContent(
                         text = msg,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF16A34A),
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
 
-                // Compact Bottom Authentic Android Phone SMS Composer Bar inside Bubble Pop ("Hii bar ya kutuma sms mpya weka iwe ndogo")
+                // Compact Bottom Authentic Android Phone SMS Composer Bar inside Bubble Pop
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Bottom,
@@ -1117,7 +1119,8 @@ private fun BubbleChatContent(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(24.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 38.dp)
@@ -1253,7 +1256,7 @@ private fun BubbleChatContent(
                         Icon(
                             Icons.AutoMirrored.Filled.Send,
                             contentDescription = if (isSw) "Tuma" else "Send",
-                            tint = if (canSend) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (canSend) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(17.dp)
                         )
                     }
@@ -1335,13 +1338,13 @@ private fun BubbleChatContent(
                                             callBubblePhone(phone)
                                         },
                                         shape = RoundedCornerShape(10.dp),
-                                        color = Color(0xFF16A34A)
+                                        color = MaterialTheme.colorScheme.secondary
                                     ) {
                                         Text(
                                             text = if (isSw) "Piga" else "Call",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onSecondary,
                                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                         )
                                     }
@@ -1588,7 +1591,8 @@ private fun BubbleMessageRow(
         } else {
             Surface(
                 shape = bubbleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier
                     .widthIn(max = 285.dp)
                     .clip(bubbleShape)
@@ -1653,13 +1657,13 @@ private fun BubbleMessageRow(
                                     Surface(
                                         onClick = { onCallPhone(num) },
                                         shape = RoundedCornerShape(7.dp),
-                                        color = Color(0xFF16A34A)
+                                        color = MaterialTheme.colorScheme.secondary
                                     ) {
                                         Text(
                                             text = if (isSw) "Piga" else "Call",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onSecondary,
                                             modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                         )
                                     }

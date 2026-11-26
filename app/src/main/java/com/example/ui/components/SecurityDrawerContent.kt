@@ -6,9 +6,9 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,7 +63,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -101,9 +100,9 @@ fun SecurityDrawerContent(
         label = "drawer_level_accent"
     )
 
-    // Android 17 Solid Tonal Drawer Palette (100% Opaque, Zero Glow, Warm Off-White in Light Mode)
+    // Android 17 Solid Tonal Drawer Palette (100% Opaque, Warm Off-White in Light Mode)
     val drawerSolidBg = MaterialTheme.colorScheme.background
-    val drawerCardBg = MaterialTheme.colorScheme.surfaceContainerLow
+    val drawerCardBg = MaterialTheme.colorScheme.surfaceContainerLowest
     val drawerCardBorder = MaterialTheme.colorScheme.outlineVariant
     val drawerTitleColor = MaterialTheme.colorScheme.onSurface
     val drawerSubColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -194,13 +193,14 @@ fun SecurityDrawerContent(
                 }
             }
 
-            // 2. Minimizable Security Level Control M3 Tonal Card (borderless)
+            // 2. Minimizable Security Level Control M3 Tonal Card
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp),
                 shape = RoundedCornerShape(24.dp),
                 color = drawerCardBg,
+                border = BorderStroke(1.dp, drawerCardBorder),
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp
             ) {
@@ -343,7 +343,7 @@ fun SecurityDrawerContent(
                     title = s.drawerCompose,
                     subtitle = null,
                     badgeText = null,
-                    accentColor = Color(0xFF2563EB),
+                    accentColor = MaterialTheme.colorScheme.primary,
                     titleColor = drawerTitleColor,
                     subColor = drawerSubColor,
                     testTag = "drawer_compose_button",
@@ -355,7 +355,7 @@ fun SecurityDrawerContent(
                     title = s.drawerSchedule,
                     subtitle = null,
                     badgeText = if (scheduledCount > 0) scheduledCount.toString() else null,
-                    accentColor = Color(0xFF7C3AED),
+                    accentColor = MaterialTheme.colorScheme.secondary,
                     titleColor = drawerTitleColor,
                     subColor = drawerSubColor,
                     testTag = "drawer_schedule_button",
@@ -367,7 +367,7 @@ fun SecurityDrawerContent(
                     title = s.drawerTemplates,
                     subtitle = null,
                     badgeText = null,
-                    accentColor = Color(0xFF0EA5E9),
+                    accentColor = MaterialTheme.colorScheme.tertiary,
                     titleColor = drawerTitleColor,
                     subColor = drawerSubColor,
                     testTag = "drawer_templates_button",
@@ -379,7 +379,7 @@ fun SecurityDrawerContent(
                     title = s.drawerUsageDashboard,
                     subtitle = null,
                     badgeText = if (totalMessagesCount > 0) totalMessagesCount.toString() else null,
-                    accentColor = Color(0xFF10B981),
+                    accentColor = MaterialTheme.colorScheme.primary,
                     titleColor = drawerTitleColor,
                     subColor = drawerSubColor,
                     testTag = "drawer_usage_dashboard_button",
@@ -495,6 +495,7 @@ private fun DrawerGroupCard(
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = cardBg,
+            border = BorderStroke(1.dp, borderColor),
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
@@ -508,7 +509,7 @@ private fun DrawerGroupCard(
 private fun DrawerSubtleDivider(borderColor: Color) {
     HorizontalDivider(
         modifier = Modifier.padding(start = 62.dp, end = 16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh
+        color = borderColor.copy(alpha = 0.55f)
     )
 }
 
@@ -569,7 +570,7 @@ private fun DrawerActionTile(
         if (badgeText != null) {
             Badge(
                 containerColor = accentColor,
-                contentColor = Color.White
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Text(
                     text = badgeText,

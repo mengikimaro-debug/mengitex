@@ -8,9 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release version tag (e.g. v3.2.0)'
+        description: 'Release version tag (e.g. v3.3.0)'
         required: true
-        default: 'v3.2.0'
+        default: 'v3.3.0'
+      version_code:
+        description: 'Optional monotonic Android versionCode override'
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -40,20 +44,13 @@ jobs:
 
       - name: Prepare valid signing keystore & environment
         run: |
-          if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then
-            tr -d '\r\n ' < debug.keystore.base64 | base64 -d > debug.keystore || true
-          fi
-          if ! keytool -list -keystore debug.keystore -storepass android -alias androiddebugkey > /dev/null 2>&1; then
+          if [ -f debug.keystore.base64 ]; then
             rm -f debug.keystore
-            keytool -genkeypair -v \
-              -keystore debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
+            tr -d '\r\n ' < debug.keystore.base64 | base64 -d > debug.keystore
+          fi
+          if ! keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -q "C1:FE:4D:DF:B5:CF:13:31:72:F2:91:75:4F:98:33:B6:F6:63:FF:F1:80:8F:15:45:70:EB:A3:5A:7A:63:B3:6B"; then
+            echo "ERROR: debug.keystore fingerprint mismatch! Refusing to sign with an incompatible key."
+            exit 1
           fi
           if [ ! -f .env ] && [ -f .env.example ]; then
             cp .env.example .env
@@ -66,7 +63,17 @@ jobs:
 
       - name: Build MengiTex APK
         run: |
-          gradle assembleDebug \
+          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.3.0' }}"
+          CLEAN_VER=$(echo "$TAG_NAME" | sed 's/^[vV]//' | tr -cd 'A-Za-z0-9._+-')
+          EXTRA_ARGS=""
+          if [ -n "$CLEAN_VER" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS -PAPP_VERSION_NAME=$CLEAN_VER"
+          fi
+          INPUT_CODE="${{ github.event.inputs.version_code }}"
+          if [ -n "$INPUT_CODE" ]; then
+            EXTRA_ARGS="$EXTRA_ARGS -PAPP_VERSION_CODE=$INPUT_CODE"
+          fi
+          gradle assembleDebug $EXTRA_ARGS \
             --no-daemon \
             --no-configuration-cache \
             --max-workers=2 \
@@ -76,7 +83,7 @@ jobs:
       - name: Prepare versioned APK artifact
         run: |
           mkdir -p release_apks
-          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.2.0' }}"
+          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.3.0' }}"
           SAFE_TAG=$(echo "$TAG_NAME" | tr -cd 'A-Za-z0-9._-')
           APK_SRC=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
           if [ -z "$APK_SRC" ]; then

@@ -77,7 +77,7 @@ data class SecuritySettings(
     val lockOnScreenOff: Boolean = true,
     val hasPasscode: Boolean = false,
     val isDarkMode: Boolean = false,
-    val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    val themeMode: AppThemeMode = AppThemeMode.LIGHT,
     val dimLightEnabled: Boolean = false,
     val dimLightLevel: Float = 0.35f,
     val launcherIconMode: LauncherIconMode = LauncherIconMode.VISIBLE,
@@ -168,6 +168,7 @@ class SecurityPreferences(private val context: Context) {
         val PIN_SALT = stringPreferencesKey("pin_salt")
         val DARK_MODE = booleanPreferencesKey("dark_mode_theme_v2")
         val THEME_MODE = stringPreferencesKey("app_theme_mode_v1")
+        val THEME_MODE_V2 = stringPreferencesKey("app_theme_mode_v2")
         val DIM_LIGHT_ENABLED = booleanPreferencesKey("dim_light_enabled")
         val DIM_LIGHT_LEVEL = floatPreferencesKey("dim_light_level")
         val ICON_MODE = stringPreferencesKey("icon_mode")
@@ -256,14 +257,11 @@ class SecurityPreferences(private val context: Context) {
             NotificationPreviewMode.valueOf(prefs[Keys.NOTIF_PREVIEW_MODE] ?: NotificationPreviewMode.SHOW_ALL.name)
         }.getOrDefault(NotificationPreviewMode.SHOW_ALL)
 
-        val savedThemeModeName = prefs[Keys.THEME_MODE]
-        val legacyDark = prefs[Keys.DARK_MODE] ?: false
+        val savedThemeModeName = prefs[Keys.THEME_MODE_V2]
         val themeMode = if (savedThemeModeName != null) {
-            runCatching { AppThemeMode.valueOf(savedThemeModeName) }.getOrDefault(AppThemeMode.SYSTEM)
-        } else if (legacyDark) {
-            AppThemeMode.DARK
+            runCatching { AppThemeMode.valueOf(savedThemeModeName) }.getOrDefault(AppThemeMode.LIGHT)
         } else {
-            AppThemeMode.SYSTEM
+            AppThemeMode.LIGHT
         }
 
         SecuritySettings(
@@ -467,14 +465,17 @@ class SecurityPreferences(private val context: Context) {
     }
 
     suspend fun setDarkMode(enabled: Boolean) {
+        val targetMode = if (enabled) AppThemeMode.DARK else AppThemeMode.LIGHT
         context.siriSecurityDataStore.edit {
             it[Keys.DARK_MODE] = enabled
-            it[Keys.THEME_MODE] = if (enabled) AppThemeMode.DARK.name else AppThemeMode.LIGHT.name
+            it[Keys.THEME_MODE] = targetMode.name
+            it[Keys.THEME_MODE_V2] = targetMode.name
         }
     }
 
     suspend fun setThemeMode(mode: AppThemeMode) {
         context.siriSecurityDataStore.edit {
+            it[Keys.THEME_MODE_V2] = mode.name
             it[Keys.THEME_MODE] = mode.name
             it[Keys.DARK_MODE] = (mode == AppThemeMode.DARK)
         }

@@ -107,6 +107,7 @@ import com.example.service.GithubSelfInstallProgress
 import com.example.service.GithubUpdateChannel
 import com.example.service.GithubUpdateCheckResult
 import com.example.service.GithubUpdateChecker
+import com.example.service.PackageInstallSessionEvent
 import com.example.ui.components.OneUi85SubScreenHeader
 import com.example.ui.i18n.AppLanguage
 import com.example.ui.i18n.LocalAppStrings
@@ -179,21 +180,88 @@ fun UpgradeScreen(
     var awaitingInstallPermission by remember { mutableStateOf(false) }
     var selfInstallCompletedTag by remember { mutableStateOf<String?>(null) }
     var actionFeedback by remember { mutableStateOf<String?>(null) }
+    var signatureConflictApk by remember { mutableStateOf<File?>(null) }
+    var signatureConflictDetail by remember { mutableStateOf<String?>(null) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val launchStagedInstallNow: (File, String?) -> Unit = { stagedFile, versionTag ->
-        val launchRes = GithubUpdateChecker.launchSystemApkInstaller(context, stagedFile)
-        if (launchRes.isSuccess) {
+        val cleanTag = versionTag?.removePrefix("v")?.removePrefix("V").orEmpty().ifBlank { "latest" }
+        val sessionRes = GithubUpdateChecker.installApkViaPackageInstallerSession(context, stagedFile, cleanTag)
+        if (sessionRes.isSuccess) {
             selfInstallCompletedTag = versionTag
             actionFeedback = if (isSw) {
-                "Kisakinishi cha Android kimefunguliwa — thibitisha kuboresha (${stagedFile.name})."
+                "Kisakinishi cha moja kwa moja kimeanzishwa (${stagedFile.name}) — thibitisha kuboresha."
             } else {
-                "Android Package Installer opened — tap Install to apply (${stagedFile.name})."
+                "Direct in-app installer started (${stagedFile.name}) — confirm to upgrade."
             }
         } else {
-            val err = launchRes.exceptionOrNull()?.localizedMessage ?: "Error"
-            actionFeedback = if (isSw) "Imeshindwa kufungua kisakinishi: $err" else "Could not open installer: $err"
+            val launchRes = GithubUpdateChecker.launchSystemApkInstaller(context, stagedFile)
+            if (launchRes.isSuccess) {
+                selfInstallCompletedTag = versionTag
+                actionFeedback = if (isSw) {
+                    "Kisakinishi cha Android kimefunguliwa — thibitisha kuboresha (${stagedFile.name})."
+                } else {
+                    "Android Package Installer opened — tap Install to apply (${stagedFile.name})."
+                }
+            } else {
+                val err = launchRes.exceptionOrNull()?.localizedMessage ?: "Error"
+                actionFeedback = if (isSw) "Imeshindwa kufungua kisakinishi: $err" else "Could not open installer: $err"
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        GithubUpdateChecker.installSessionEvents.collect { event ->
+            when (event) {
+                is PackageInstallSessionEvent.PendingUserAction -> {
+                    runCatching {
+                        context.startActivity(event.confirmIntent)
+                    }.onFailure {
+                        pendingInstallApkFile?.takeIf { it.exists() }?.let { fallbackFile ->
+                            GithubUpdateChecker.launchSystemApkInstaller(context, fallbackFile)
+                        }
+                    }
+                }
+                is PackageInstallSessionEvent.Success -> {
+                    selfInstallCompletedTag = event.versionTag.ifBlank { selfInstallCompletedTag }
+                    signatureConflictApk = null
+                    signatureConflictDetail = null
+                    actionFeedback = if (isSw) {
+                        "MengiTex imeboreshwa moja kwa moja!"
+                    } else {
+                        "MengiTex updated directly in-place!"
+                    }
+                }
+                is PackageInstallSessionEvent.FailureConflict -> {
+                    signatureConflictApk = pendingInstallApkFile ?: downloadedApkFile
+                    signatureConflictDetail = if (isSw) {
+                        "Toleo lililopo kwenye simu lina saini tofauti ya awali kuliko faili hili jipya. Hifadhi APK hii kisha ondoa toleo la zamani mara moja tu; matoleo yote yajayo yatasakinishwa moja kwa moja."
+                    } else {
+                        "The existing app on your device was signed with a different older key. Save this APK and uninstall the old version once; all future updates will install directly over the app."
+                    }
+                    actionFeedback = null
+                }
+                is PackageInstallSessionEvent.FailureAborted -> {
+                    actionFeedback = if (isSw) {
+                        "Usakinishaji ulisitishwa na mtumiaji."
+                    } else {
+                        "Installation was cancelled."
+                    }
+                }
+                is PackageInstallSessionEvent.FailureError -> {
+                    val staged = pendingInstallApkFile
+                    if (staged != null && staged.exists()) {
+                        GithubUpdateChecker.launchSystemApkInstaller(context, staged)
+                    } else {
+                        actionFeedback = if (isSw) {
+                            "Hitilafu ya kusakinisha: ${event.message.ifBlank { "Jaribu tena" }}"
+                        } else {
+                            "Install failed: ${event.message.ifBlank { "Please retry" }}"
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -215,6 +283,7 @@ fun UpgradeScreen(
     }
 
     DisposableEffect(lifecycleOwner) {
+        GithubUpdateChecker.registerInstallCollector()
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 installedVersion = GithubUpdateChecker.getInstalledAppVersionName(context)
@@ -231,6 +300,7 @@ fun UpgradeScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            GithubUpdateChecker.unregisterInstallCollector()
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
@@ -352,6 +422,8 @@ fun UpgradeScreen(
     val executeSelfInstallNow: (GithubReleaseInfo, File) -> Unit = { targetRelease, file ->
         if (!isSelfInstalling) {
             isSelfInstalling = true
+            signatureConflictApk = null
+            signatureConflictDetail = null
             scope.launch {
                 val installRes = GithubUpdateChecker.runInAppSelfInstaller(
                     context = context,
@@ -366,6 +438,18 @@ fun UpgradeScreen(
                 isSelfInstalling = false
                 if (installRes.isSuccess) {
                     when (val outcome = installRes.getOrThrow()) {
+                        is GithubSelfInstallOutcome.DirectPackageInstallerStarted -> {
+                            pendingInstallApkFile = outcome.stagedApk
+                            downloadedApkFile = outcome.stagedApk
+                            selfInstallCompletedTag = outcome.versionTag
+                            verifiedShaHex = outcome.sha256Short.take(8).uppercase()
+                            val sizeLabel = GithubUpdateChecker.formatByteSize(outcome.stagedApk.length())
+                            actionFeedback = if (isSw) {
+                                "Kisakinishi cha moja kwa moja kimeanzishwa (v${outcome.versionTag} • $sizeLabel) — thibitisha kuboresha."
+                            } else {
+                                "Direct updater started (v${outcome.versionTag} • $sizeLabel) — confirm to update."
+                            }
+                        }
                         is GithubSelfInstallOutcome.LaunchedSystemInstaller -> {
                             pendingInstallApkFile = outcome.stagedApk
                             downloadedApkFile = outcome.stagedApk
@@ -396,6 +480,21 @@ fun UpgradeScreen(
                             }.onFailure {
                                 awaitingInstallPermission = false
                             }
+                        }
+                        is GithubSelfInstallOutcome.SignatureConflict -> {
+                            pendingInstallApkFile = outcome.stagedApk
+                            downloadedApkFile = outcome.stagedApk
+                            verifiedShaHex = outcome.sha256Short.take(8).uppercase()
+                            signatureConflictApk = outcome.stagedApk
+                            val keyPairInfo = if (outcome.installedCertShort.isNotBlank() && outcome.archiveCertShort.isNotBlank()) {
+                                " (${outcome.installedCertShort} ≠ ${outcome.archiveCertShort})"
+                            } else ""
+                            signatureConflictDetail = if (isSw) {
+                                "Toleo lililopo kwenye simu lina saini ya awali tofauti$keyPairInfo. Hifadhi APK hii kisha ondoa toleo la zamani mara moja tu; matoleo yote yajayo yatasakinishwa moja kwa moja."
+                            } else {
+                                "The currently installed app has a different older signing key$keyPairInfo. Save this APK and uninstall the old build once; every future version will update directly in-app."
+                            }
+                            actionFeedback = null
                         }
                     }
                 } else {
@@ -868,7 +967,78 @@ fun UpgradeScreen(
                     }
                 }
 
-                // 3. Feedback & Error Banners
+                // 3. Feedback, Signature Conflict & Error Banners
+                if (!signatureConflictDetail.isNullOrBlank()) {
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = errorContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.ErrorOutline,
+                                        contentDescription = null,
+                                        tint = onErrorContainer,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = signatureConflictDetail.orEmpty(),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = onErrorContainer,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    val conflictFile = signatureConflictApk
+                                    if (conflictFile != null && conflictFile.exists()) {
+                                        Button(
+                                            onClick = { saveApkLauncher.launch(conflictFile.name) },
+                                            shape = RoundedCornerShape(50),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text(
+                                                text = if (isSw) "Hifadhi APK" else "Save APK",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            runCatching {
+                                                context.startActivity(
+                                                    GithubUpdateChecker.createAppDetailsSettingsIntent(context)
+                                                )
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = if (isSw) "Ondoa ya Zamani" else "App Info",
+                                            color = onErrorContainer,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (!actionFeedback.isNullOrBlank()) {
                     item {
                         Surface(

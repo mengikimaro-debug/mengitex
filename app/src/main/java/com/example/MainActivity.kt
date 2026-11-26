@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Calculate
@@ -55,7 +56,6 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -682,7 +682,7 @@ private fun MengiTexAppRoot(
 
                     ModalNavigationDrawer(
                         drawerState = drawerState,
-                        scrimColor = Color(0xAD050914),
+                        scrimColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.28f),
                         drawerContent = {
                             val shouldRenderDrawer = drawerState.isOpen ||
                                 drawerState.isAnimationRunning ||
@@ -740,70 +740,100 @@ private fun MengiTexAppRoot(
                                             .fillMaxWidth()
                                             .statusBarsPadding()
                                     ) {
-                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
                                             Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 8.dp, vertical = 8.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                modifier = Modifier.weight(1f)
                                             ) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                IconButton(
+                                                    onClick = { scope.launch { drawerState.open() } },
+                                                    modifier = Modifier
+                                                        .size(48.dp)
+                                                        .testTag("top_bar_open_drawer_button")
                                                 ) {
-                                                    IconButton(
-                                                        onClick = { scope.launch { drawerState.open() } },
+                                                    Box(
                                                         modifier = Modifier
-                                                            .size(48.dp)
-                                                            .testTag("top_bar_open_drawer_button")
+                                                            .size(40.dp)
+                                                            .clip(CircleShape)
+                                                            .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                                                        contentAlignment = Alignment.Center
                                                     ) {
                                                         Icon(
                                                             imageVector = Icons.Filled.Menu,
                                                             contentDescription = s.cdOpenDrawer,
                                                             tint = MaterialTheme.colorScheme.onSurface,
-                                                            modifier = Modifier.size(24.dp)
+                                                            modifier = Modifier.size(20.dp)
                                                         )
                                                     }
+                                                }
 
-                                                    AnimatedContent(
-                                                        targetState = uiState.selectedTab,
-                                                        transitionSpec = { EnterTransition.None togetherWith ExitTransition.None },
-                                                        label = "top_bar_title_anim"
-                                                    ) { tab ->
-                                                        if (tab == MainTab.MESSAGES) {
-                                                            Row(
-                                                                verticalAlignment = Alignment.CenterVertically,
-                                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                                                modifier = Modifier.testTag("top_bar_brand_logo")
-                                                            ) {
-                                                                MengiTexLogoMark(
-                                                                    size = 34.dp,
-                                                                    cornerRadius = 11.dp,
-                                                                    showGlow = false
-                                                                )
-                                                                Text(
-                                                                    text = "MengiTex",
-                                                                    style = MaterialTheme.typography.titleLarge,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    color = MaterialTheme.colorScheme.onSurface
-                                                                )
-                                                            }
-                                                        } else {
+                                                AnimatedContent(
+                                                    targetState = uiState.selectedTab,
+                                                    transitionSpec = { EnterTransition.None togetherWith ExitTransition.None },
+                                                    label = "top_bar_title_anim"
+                                                ) { tab ->
+                                                    if (tab == MainTab.MESSAGES) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                            modifier = Modifier.testTag("top_bar_brand_logo")
+                                                        ) {
+                                                            MengiTexLogoMark(
+                                                                size = 36.dp,
+                                                                cornerRadius = 12.dp,
+                                                                showGlow = false
+                                                            )
                                                             Text(
-                                                                text = s.contactsTitle,
+                                                                text = "MengiTex",
                                                                 style = MaterialTheme.typography.titleLarge,
                                                                 fontWeight = FontWeight.Bold,
                                                                 color = MaterialTheme.colorScheme.onSurface
                                                             )
                                                         }
+                                                    } else {
+                                                        Text(
+                                                            text = s.contactsTitle,
+                                                            style = MaterialTheme.typography.titleLarge,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.onSurface
+                                                        )
                                                     }
                                                 }
                                             }
-                                            HorizontalDivider(
-                                                thickness = 1.dp,
-                                                color = MaterialTheme.colorScheme.surfaceContainerHigh
-                                            )
+
+                                            Surface(
+                                                onClick = { viewModel.openDestination(DrawerDestination.SECURITY) },
+                                                shape = RoundedCornerShape(50),
+                                                color = MaterialTheme.colorScheme.primaryContainer,
+                                                tonalElevation = 0.dp,
+                                                modifier = Modifier.testTag("top_bar_security_pill")
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Shield,
+                                                        contentDescription = s.drawerSecurityCenter,
+                                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                        modifier = Modifier.size(15.dp)
+                                                    )
+                                                    Text(
+                                                        text = "L${uiState.settings.securityLevel}",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }

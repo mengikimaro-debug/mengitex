@@ -476,12 +476,13 @@ fun InboxAndReportsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Android 17 Material 3 Pill SearchBar (borderless solid surfaceContainerHigh)
+            // Android 17 Material 3 Expressive Pill SearchBar
             Surface(
                 shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 tonalElevation = 0.dp,
-                shadowElevation = 0.dp,
+                shadowElevation = 1.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -817,7 +818,7 @@ fun InboxAndReportsScreen(
                 ) {
                     repeat(5) {
                         Surface(
-                            shape = RoundedCornerShape(20.dp),
+                            shape = RoundedCornerShape(24.dp),
                             color = skeletonRowBg,
                             border = BorderStroke(1.dp, skeletonRowBorder),
                             modifier = Modifier
@@ -992,7 +993,7 @@ fun InboxAndReportsScreen(
                             val (avatarBg, avatarFg) = remember(contact.phoneNumber, isDarkTheme) {
                                 android17AvatarColors(contact.phoneNumber, isDarkTheme)
                             }
-                            val rowShape = RoundedCornerShape(20.dp)
+                            val rowShape = RoundedCornerShape(24.dp)
                             val highlightColor = MaterialTheme.colorScheme.primary
                             val highlightBg = MaterialTheme.colorScheme.primaryContainer
                             Surface(
@@ -1081,7 +1082,7 @@ fun InboxAndReportsScreen(
                         }
                     }
 
-                    item(key = "inbox_bottom_spacer") { Spacer(modifier = Modifier.height(88.dp)) }
+                    item(key = "inbox_bottom_spacer") { Spacer(modifier = Modifier.height(104.dp)) }
                 }
             }
         }
@@ -1124,7 +1125,7 @@ fun InboxAndReportsScreen(
                 onClick = onQuickCompose,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 18.dp, bottom = 14.dp)
+                    .padding(end = 18.dp, bottom = 10.dp)
                     .testTag("inbox_compose_fab")
             )
         }
@@ -1287,7 +1288,7 @@ private fun PremiumConversationRow(
     val highlightColor = MaterialTheme.colorScheme.primary
     val highlightBg = MaterialTheme.colorScheme.primaryContainer
 
-    val rowShape = RoundedCornerShape(20.dp)
+    val rowShape = RoundedCornerShape(24.dp)
     val rowBg = conversationRowContainerColor(
         isDark = isDark,
         isSelected = isSelected,

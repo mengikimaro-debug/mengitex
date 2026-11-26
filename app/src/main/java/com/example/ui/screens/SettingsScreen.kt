@@ -6,6 +6,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -781,7 +782,8 @@ private fun SettingsSectionCard(
     val cardShape = RoundedCornerShape(24.dp)
     Surface(
         shape = cardShape,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
         modifier = Modifier.fillMaxWidth()

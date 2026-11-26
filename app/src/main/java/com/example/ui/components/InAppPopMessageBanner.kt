@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -100,9 +101,10 @@ fun InAppPopMessageOverlay(
 
         Surface(
             shape = shape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             tonalElevation = 0.dp,
-            shadowElevation = 0.dp,
+            shadowElevation = 4.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(shape)
@@ -145,7 +147,7 @@ fun InAppPopMessageOverlay(
                                 .size(22.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.primary)
-                                .border(2.dp, MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
+                                .border(2.dp, MaterialTheme.colorScheme.surfaceContainerLowest, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(

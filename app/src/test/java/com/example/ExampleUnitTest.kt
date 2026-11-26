@@ -1,5 +1,6 @@
 package com.example
 
+import com.example.security.AppThemeMode
 import com.example.security.SecuritySettings
 import com.example.service.GithubUpdateChecker
 import com.example.service.MengiTexNotificationManager
@@ -33,6 +34,19 @@ class ExampleUnitTest {
         )
         assertTrue(GithubUpdateChecker.isDirectApkUrl("https://github.com/a/b/releases/download/v3.2.0/MengiTex.apk"))
         assertFalse(GithubUpdateChecker.isDirectApkUrl("mengikimaro-debug/mengitex"))
+    }
+
+    @Test
+    fun apkUpgradeVersionCodeAndSigningCompatibilityWork() {
+        assertTrue(GithubUpdateChecker.isUpgradeVersionCompatible(installedVersionCode = 5L, candidateVersionCode = 6L))
+        assertTrue(GithubUpdateChecker.isUpgradeVersionCompatible(installedVersionCode = 6L, candidateVersionCode = 6L))
+        assertFalse(GithubUpdateChecker.isUpgradeVersionCompatible(installedVersionCode = 6L, candidateVersionCode = 5L))
+
+        val unifiedCert = "C1FE4DDFB5CF133172F291754F9833B6F663FFF1808F154570EBA35A7A63B36B"
+        val otherCert = "AA11BB22CC33DD44EE55FF667788990011223344556677889900AABBCCDDEEFF"
+        assertEquals(true, GithubUpdateChecker.areSigningCertificatesCompatible(setOf(unifiedCert), setOf(unifiedCert)))
+        assertEquals(false, GithubUpdateChecker.areSigningCertificatesCompatible(setOf(otherCert), setOf(unifiedCert)))
+        assertNull(GithubUpdateChecker.areSigningCertificatesCompatible(emptySet(), setOf(unifiedCert)))
     }
 
     @Test
@@ -73,5 +87,9 @@ class ExampleUnitTest {
         assertEquals(DarkConvRowBg, darkNormal)
         assertNotEquals(ObsidianBg, darkNormal)
         assertNotEquals(darkNormal, darkUnread)
+
+        val defaultSettings = SecuritySettings()
+        assertEquals(AppThemeMode.LIGHT, defaultSettings.themeMode)
+        assertFalse(defaultSettings.resolveIsDarkTheme(systemIsDark = true))
     }
 }

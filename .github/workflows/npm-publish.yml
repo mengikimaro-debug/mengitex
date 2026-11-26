@@ -31,20 +31,13 @@ jobs:
 
       - name: Prepare valid signing keystore & environment
         run: |
-          if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then
-            tr -d '\r\n ' < debug.keystore.base64 | base64 -d > debug.keystore || true
-          fi
-          if ! keytool -list -keystore debug.keystore -storepass android -alias androiddebugkey > /dev/null 2>&1; then
+          if [ -f debug.keystore.base64 ]; then
             rm -f debug.keystore
-            keytool -genkeypair -v \
-              -keystore debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
+            tr -d '\r\n ' < debug.keystore.base64 | base64 -d > debug.keystore
+          fi
+          if ! keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -q "C1:FE:4D:DF:B5:CF:13:31:72:F2:91:75:4F:98:33:B6:F6:63:FF:F1:80:8F:15:45:70:EB:A3:5A:7A:63:B3:6B"; then
+            echo "ERROR: debug.keystore fingerprint mismatch! Refusing to sign with a different key."
+            exit 1
           fi
           if [ ! -f .env ] && [ -f .env.example ]; then
             cp .env.example .env

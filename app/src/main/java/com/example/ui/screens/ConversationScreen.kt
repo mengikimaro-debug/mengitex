@@ -14,11 +14,11 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -86,7 +86,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -554,12 +553,20 @@ fun ConversationScreen(
                                 .size(48.dp)
                                 .testTag("conversation_back_button")
                         ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = s.cdBack,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(24.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = s.cdBack,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
 
                         // Tappable Contact Header Target
@@ -664,10 +671,6 @@ fun ConversationScreen(
                         }
                     }
                 }
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
             }
         }
 
@@ -679,7 +682,8 @@ fun ConversationScreen(
         ) {
             Surface(
                 shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 6.dp)
@@ -1089,17 +1093,13 @@ fun ConversationScreen(
             color = if (isSecretBurnArmed) {
                 MaterialTheme.colorScheme.tertiaryContainer
             } else {
-                MaterialTheme.colorScheme.surfaceContainerLow
+                MaterialTheme.colorScheme.surface
             },
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1427,12 +1427,13 @@ fun ConversationScreen(
                         }
 
                         Surface(
-                            shape = RoundedCornerShape(24.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(26.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                             tonalElevation = 0.dp,
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 40.dp)
+                                .heightIn(min = 42.dp)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -2194,7 +2195,8 @@ private fun PremiumChatBubble(
             val highlightBg = MaterialTheme.colorScheme.primaryContainer
             Surface(
                 shape = bubbleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp,
                 modifier = Modifier

@@ -2,7 +2,9 @@ package com.example.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +32,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Android 17 Solid Background (100% opaque, zero glow, zero radial gradient).
+ * Android 17 Solid Background (100% opaque, warm Off-White in Light mode).
  */
 @Composable
 fun NextGenAmbientBackdrop(
@@ -58,7 +58,7 @@ fun NextGenAmbientBackdrop(
 }
 
 /**
- * Android 17 Borderless Solid Tonal Surface (zero borders, zero transparency, zero glow).
+ * Android 17 Material 3 Expressive Tonal Card Surface.
  */
 @Composable
 fun NextGenGlassSurface(
@@ -72,19 +72,26 @@ fun NextGenGlassSurface(
     val fillColor = if (highlighted) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
+        MaterialTheme.colorScheme.surfaceContainerLowest
     }
 
     Box(
         modifier = modifier
             .clip(shape)
-            .background(fillColor),
+            .background(fillColor)
+            .then(
+                if (!highlighted) {
+                    Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+                } else {
+                    Modifier
+                }
+            ),
         content = content
     )
 }
 
 /**
- * Android 17 Borderless Material 3 Expressive Filter Chip Pill.
+ * Android 17 Material 3 Expressive Filter Chip Pill.
  */
 @Composable
 fun NextGenFilterPill(
@@ -95,7 +102,7 @@ fun NextGenFilterPill(
 ) {
     val textColor by animateColorAsState(
         targetValue = if (selected) {
-            MaterialTheme.colorScheme.onSecondaryContainer
+            MaterialTheme.colorScheme.onPrimaryContainer
         } else {
             MaterialTheme.colorScheme.onSurfaceVariant
         },
@@ -104,24 +111,28 @@ fun NextGenFilterPill(
     )
     val bgColor by animateColorAsState(
         targetValue = if (selected) {
-            MaterialTheme.colorScheme.secondaryContainer
+            MaterialTheme.colorScheme.primaryContainer
         } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
+            MaterialTheme.colorScheme.surfaceContainerLowest
         },
         animationSpec = tween(20),
         label = "filter_pill_bg"
     )
     val shape = RoundedCornerShape(50)
 
-    Box(
+    Surface(
+        shape = shape,
+        color = bgColor,
+        border = if (selected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
         modifier = modifier
+            .heightIn(min = 38.dp)
             .clip(shape)
-            .background(bgColor)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 9.dp),
-        contentAlignment = Alignment.Center
     ) {
         Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -145,7 +156,7 @@ fun NextGenFilterPill(
 }
 
 /**
- * Android 17 Material 3 Expressive Squircle FAB (100% solid primaryContainer, zero glow or transparency).
+ * Android 17 Material 3 Expressive Extended Pill FAB.
  */
 @Composable
 fun NextGenGradientFab(
@@ -154,27 +165,48 @@ fun NextGenGradientFab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    Box(
-        modifier = modifier
-            .size(56.dp)
-            .shadow(elevation = 2.dp, shape = shape)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.primaryContainer)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+    val hasLabel = text.isNotBlank()
+    val shape = RoundedCornerShape(22.dp)
+    Surface(
+        onClick = onClick,
+        shape = shape,
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        tonalElevation = 0.dp,
+        shadowElevation = 4.dp,
+        modifier = modifier.heightIn(min = 56.dp)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = text,
-            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.size(24.dp)
-        )
+        Row(
+            modifier = Modifier.padding(
+                horizontal = if (hasLabel) 20.dp else 16.dp,
+                vertical = 15.dp
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = text.ifBlank { null },
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(22.dp)
+            )
+            if (hasLabel) {
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
 /**
- * Android 17 Borderless Tonal Icon Button Container (zero borders, zero glow, zero alpha).
+ * Android 17 Tonal Icon Button Container.
  */
 @Composable
 fun NextGenIconOrb(
@@ -188,7 +220,7 @@ fun NextGenIconOrb(
     val bgColor = if (accent) {
         MaterialTheme.colorScheme.primaryContainer
     } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
+        MaterialTheme.colorScheme.surfaceContainerLow
     }
 
     Box(
@@ -213,7 +245,7 @@ fun NextGenIconOrb(
 }
 
 /**
- * Authentic Android 17 Full-Width Edge-to-Edge M3 TopAppBar for Sub-Screens.
+ * Authentic Android 17 Expressive Seamless Top Header for Sub-Screens.
  */
 @Composable
 fun OneUi85SubScreenHeader(
@@ -232,70 +264,72 @@ fun OneUi85SubScreenHeader(
         shadowElevation = 0.dp,
         modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.weight(1f)
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .then(
+                            if (backTestTag.isNotEmpty()) {
+                                Modifier.testTag(backTestTag)
+                            } else {
+                                Modifier
+                            }
+                        )
                 ) {
-                    IconButton(
-                        onClick = onBack,
+                    Box(
                         modifier = Modifier
-                            .size(48.dp)
-                            .then(
-                                if (backTestTag.isNotEmpty()) {
-                                    Modifier.testTag(backTestTag)
-                                } else {
-                                    Modifier
-                                }
-                            )
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = backIcon,
                             contentDescription = backContentDescription,
                             tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    Column(modifier = Modifier.weight(1f)) {
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (!subtitle.isNullOrBlank()) {
                         Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            text = subtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        if (!subtitle.isNullOrBlank()) {
-                            Text(
-                                text = subtitle,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-                if (trailingContent != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Box(modifier = Modifier.padding(end = 6.dp)) {
-                        trailingContent()
                     }
                 }
             }
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh
-            )
+            if (trailingContent != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(modifier = Modifier.padding(end = 4.dp)) {
+                    trailingContent()
+                }
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -306,11 +307,11 @@ fun ContactsScreen(
                 }
             } else {
                 val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-                val cardShape = remember { RoundedCornerShape(20.dp) }
+                val cardShape = remember { RoundedCornerShape(24.dp) }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(
                         items = filtered,
@@ -323,7 +324,12 @@ fun ContactsScreen(
                         val cardBg = if (isSelected) {
                             MaterialTheme.colorScheme.primaryContainer
                         } else {
-                            MaterialTheme.colorScheme.surfaceContainerLow
+                            MaterialTheme.colorScheme.surfaceContainerLowest
+                        }
+                        val cardBorder = if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant
                         }
                         val (avatarBg, avatarFg) = remember(contact.phoneNumber, isDark) {
                             android17AvatarColors(contact.phoneNumber, isDark)
@@ -332,6 +338,7 @@ fun ContactsScreen(
                         Surface(
                             shape = cardShape,
                             color = cardBg,
+                            border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, cardBorder),
                             tonalElevation = 0.dp,
                             shadowElevation = 0.dp,
                             modifier = Modifier
@@ -448,7 +455,7 @@ fun ContactsScreen(
                                 }
                             }
                     }
-                    item(key = "contacts_bottom_spacer") { Spacer(modifier = Modifier.height(88.dp)) }
+                    item(key = "contacts_bottom_spacer") { Spacer(modifier = Modifier.height(104.dp)) }
                 }
             }
         }

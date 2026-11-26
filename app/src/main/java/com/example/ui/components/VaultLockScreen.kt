@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,7 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -114,8 +114,9 @@ fun VaultLockScreen(
                 .fillMaxWidth()
                 .widthIn(max = 420.dp)
                 .offset { IntOffset(shakeOffset.value.roundToInt(), 0) },
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            shape = RoundedCornerShape(32.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             tonalElevation = 0.dp
         ) {
             Column(
@@ -253,31 +254,38 @@ fun PrivacyShieldCurtainOverlay() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF111318)),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.padding(32.dp)
+        Surface(
+            shape = RoundedCornerShape(32.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.padding(24.dp)
         ) {
-            MengiTexLogoMark(
-                size = 84.dp,
-                cornerRadius = 24.dp,
-                showGlow = false
-            )
-            Text(
-                text = s.privacyCurtainTitle,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFFF8FAFC)
-            )
-            Text(
-                text = s.privacyCurtainSub,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF93C5FD),
-                textAlign = TextAlign.Center
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.padding(32.dp)
+            ) {
+                MengiTexLogoMark(
+                    size = 84.dp,
+                    cornerRadius = 24.dp,
+                    showGlow = false
+                )
+                Text(
+                    text = s.privacyCurtainTitle,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = s.privacyCurtainSub,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }

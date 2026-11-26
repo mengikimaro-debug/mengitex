@@ -61,7 +61,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -711,18 +710,14 @@ fun ComposeScreen(
             }
         }
 
-        // 3. Compact Bottom Pinned Authentic Android Phone SMS Composer Dock ("Hii bar ya kutuma sms mpya weka iwe ndogo")
+        // 3. Compact Bottom Pinned Authentic Android Phone SMS Composer Dock
         Surface(
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            color = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp,
             shadowElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                HorizontalDivider(
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
