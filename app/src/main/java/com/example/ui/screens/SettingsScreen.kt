@@ -1149,11 +1149,11 @@ fun SettingsScreen(
                 StaggeredEntrance(index = 8) {
                     SettingsSectionCard(
                         icon = Icons.Filled.SystemUpdate,
-                        title = if (isSwLang) "Sasisha Toleo Jipya (GitHub Update)" else "Update New Version (GitHub)",
+                        title = if (isSwLang) "Sasisha Toleo Jipya (10x Update)" else "System Update (10x Hyper)",
                         subtitle = if (isSwLang) {
-                            "Kagua na upakue toleo jipya la app moja kwa moja kutoka GitHub Releases"
+                            "Mfumo wa kisasa wa kusasisha kwa kasi ya 10x na kuji-install kutoka GitHub"
                         } else {
-                            "Check and download the latest app version directly from GitHub Releases"
+                            "Modern 10x hyper-speed GitHub OTA updater & auto self-installer"
                         },
                         accent = if (hasNewerCached) Color(0xFFD97706) else MaterialTheme.colorScheme.primary,
                         expanded = githubUpdateExpanded,

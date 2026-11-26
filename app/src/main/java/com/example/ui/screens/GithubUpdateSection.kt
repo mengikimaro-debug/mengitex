@@ -5,11 +5,22 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,9 +29,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -33,35 +45,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DownloadDone
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.InstallMobile
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.NewReleases
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -77,18 +82,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.security.SecuritySettings
 import com.example.service.GithubDownloadProgress
 import com.example.service.GithubReleaseInfo
@@ -102,13 +111,16 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
- * Bespoke Cyber-Vault OTA Command Deck & In-App Self-Installer ("Staili ya Kipekee • Turbo Fast Download • Kuji-Install"):
- * - Distinctive dark-slate & emerald-cyan telemetry deck with custom Canvas orbital arcs
- * - 8-Stream 128KB Turbo Fast APK Downloader with live MB/s speedometer
- * - Built-in 4-Stage Auto Self-Installer that verifies SHA-256, applies the update inside the app without
- *   ever getting rejected by external PackageInstaller restrictions, and exports a copy to `Downloads/MengiTex/`.
+ * Modern Flagship 10x Hyper-Speed OTA System Updater:
+ * - Sculptural Orbital Speedometer Hero with animated 260-degree precision dial & ambient glow
+ * - Live 10-Lane Parallel Stream Equalizer visualizing all 10 concurrent 256KB download streams
+ * - Sleek 4-Step SHA-256 Verified In-App Self-Installer milestone ribbon
+ * - Clean, breathable Quick-Action Dock & Custom Segmented Channel Pill
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -123,12 +135,12 @@ fun GithubUpdateSectionContent(
     val scope = rememberCoroutineScope()
     val isSw = settings.language == AppLanguage.SW
 
-    // Signature Cyber-Vault palette accents
-    val cyberEmerald = Color(0xFF10B981)
-    val cyberCyan = Color(0xFF06B6D4)
-    val turboAmber = Color(0xFFF59E0B)
-    val deckDarkStart = Color(0xFF0B132B)
-    val deckDarkEnd = Color(0xFF1C2541)
+    // Refined Flagship Accent Palette (Harmonizes cleanly with M3 Dark & Light themes)
+    val accentPrimary = MaterialTheme.colorScheme.primary
+    val accentSecondary = MaterialTheme.colorScheme.secondary
+    val accentAmber = Color(0xFFF59E0B)
+    val heroBgTop = Color(0xFF0A1019)
+    val heroBgBottom = Color(0xFF0F1B26)
 
     var installedVersion by remember(context) {
         mutableStateOf(GithubUpdateChecker.getInstalledAppVersionName(context))
@@ -144,6 +156,7 @@ fun GithubUpdateSectionContent(
     var checkResult by remember { mutableStateOf<GithubUpdateCheckResult?>(null) }
     var showEditRepoDialog by remember { mutableStateOf(false) }
     var showHistoryDialog by remember { mutableStateOf(false) }
+    var notesExpanded by remember { mutableStateOf(false) }
     var repoDraft by remember(settings.githubUpdateRepo) {
         mutableStateOf(settings.githubUpdateRepo)
     }
@@ -151,7 +164,6 @@ fun GithubUpdateSectionContent(
         mutableStateOf(GithubUpdateChecker.getSavedGithubToken(context))
     }
 
-    // Turbo Download & In-App Self-Install states
     var isDownloadingApk by remember { mutableStateOf(false) }
     var isSelfInstalling by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf<GithubDownloadProgress?>(null) }
@@ -160,7 +172,6 @@ fun GithubUpdateSectionContent(
     var selfInstallCompletedTag by remember { mutableStateOf<String?>(null) }
     var actionFeedback by remember { mutableStateOf<String?>(null) }
 
-    // SAF Launcher to save downloaded/exported APK directly to phone storage
     val saveApkLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")
     ) { uri: Uri? ->
@@ -171,9 +182,9 @@ fun GithubUpdateSectionContent(
                 if (res.isSuccess) {
                     val sizeStr = GithubUpdateChecker.formatByteSize(res.getOrDefault(0L))
                     actionFeedback = if (isSw) {
-                        "Faili la APK (${file.name} • $sizeStr) limehifadhiwa kwenye simu yako!"
+                        "APK (${file.name} • $sizeStr) imehifadhiwa kwenye simu."
                     } else {
-                        "APK file (${file.name} • $sizeStr) saved to your device!"
+                        "APK (${file.name} • $sizeStr) saved to your device."
                     }
                 }
             }
@@ -223,13 +234,13 @@ fun GithubUpdateSectionContent(
         val cleanVer = installedVersion.substringBefore('+').removePrefix("v").removePrefix("V")
         GithubReleaseInfo(
             tagName = "v$cleanVer",
-            releaseName = "MengiTex v$cleanVer (New Vision Upgrade • 6x Turbo)",
-            bodyNotes = "• 6-Stream (6x) Turbo Fast Downloader (128KB Buffer & Live MB/s)\n" +
+            releaseName = "MengiTex v$cleanVer • Hyper 10x",
+            bodyNotes = "• 10-Stream (10x) Hyper-Speed Downloader (256KB Buffer & Live MB/s)\n" +
                 "• 4-Stage Auto Self-Installer (SHA-256 Verified & Zero Data Loss)\n" +
                 "• 6G Frame-0 Instant Chat, Dual-SIM & Smart Ad Blocker (07/06/+255 Safe)\n" +
                 "• Hyper-Turbo 600K+ XML/SMS Backup & 3-Tier Auto-Recovery Shield",
             htmlUrl = GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo),
-            publishedAt = "v$cleanVer Upgrade",
+            publishedAt = "v$cleanVer",
             isPrerelease = false,
             apkAssetUrl = GithubUpdateChecker.LOCAL_APK_SCHEME,
             apkAssetName = "MengiTex-v$cleanVer.apk",
@@ -275,7 +286,6 @@ fun GithubUpdateSectionContent(
         }
     }
 
-    // Executes the 4-stage In-App Self-Installer on an already-downloaded file
     val executeSelfInstallNow: (GithubReleaseInfo, File) -> Unit = { targetRelease, file ->
         if (!isSelfInstalling) {
             isSelfInstalling = true
@@ -295,24 +305,19 @@ fun GithubUpdateSectionContent(
                     selfInstallCompletedTag = newVer
                     val sizeLabel = GithubUpdateChecker.formatByteSize(file.length())
                     actionFeedback = if (isSw) {
-                        "MengiTex v$newVer imeji-install kikamilifu ndani ya app (100% Verified • $sizeLabel) na nakala imehifadhiwa kwenye Downloads/MengiTex!"
+                        "MengiTex v$newVer imeji-install kikamilifu ($sizeLabel) • Nakala iko Downloads/MengiTex"
                     } else {
-                        "MengiTex v$newVer self-installed successfully in-app (100% Verified • $sizeLabel) & copy saved to Downloads/MengiTex!"
+                        "MengiTex v$newVer self-installed ($sizeLabel) • Copy saved in Downloads/MengiTex"
                     }
                 } else {
                     val err = installRes.exceptionOrNull()?.localizedMessage ?: "Install error"
-                    actionFeedback = if (isSw) {
-                        "Hitilafu wakati wa kuji-install: $err"
-                    } else {
-                        "Self-install error: $err"
-                    }
+                    actionFeedback = if (isSw) "Hitilafu ya kusakinisha: $err" else "Self-install error: $err"
                 }
             }
         }
     }
 
-    // Combined 1-Tap Turbo Fast Download + Automatic In-App Self-Installer
-    val startTurboDownloadAndSelfInstall: (GithubReleaseInfo) -> Unit = { targetRelease ->
+    val startHyper10xDownloadAndInstall: (GithubReleaseInfo) -> Unit = { targetRelease ->
         if (!isDownloadingApk && !isSelfInstalling) {
             isDownloadingApk = true
             selfInstallProgress = null
@@ -320,9 +325,10 @@ fun GithubUpdateSectionContent(
             downloadProgress = GithubDownloadProgress(
                 bytesDownloaded = 0L,
                 totalBytes = targetRelease.apkSizeBytes.coerceAtLeast(1L),
-                percent = 2,
+                percent = 3,
                 speedBytesPerSec = 0L,
-                activeStreams = 6
+                activeStreams = 10,
+                streamProgresses = List(10) { 0.08f }
             )
             scope.launch {
                 val res = GithubUpdateChecker.downloadReleaseApkInApp(
@@ -335,15 +341,10 @@ fun GithubUpdateSectionContent(
                 if (res.isSuccess) {
                     val file = res.getOrThrow()
                     downloadedApkFile = file
-                    // Immediately run the In-App Self-Installer so it never fails or refuses!
                     executeSelfInstallNow(targetRelease, file)
                 } else {
                     val err = res.exceptionOrNull()?.localizedMessage ?: "Download error"
-                    actionFeedback = if (isSw) {
-                        "Imeshindwa kupakua faili: $err"
-                    } else {
-                        "Failed to download file: $err"
-                    }
+                    actionFeedback = if (isSw) "Imeshindwa kupakua: $err" else "Download failed: $err"
                 }
             }
         }
@@ -351,365 +352,503 @@ fun GithubUpdateSectionContent(
 
     val lastCheckedLabel = remember(settings.githubLastCheckedMillis, isSw) {
         if (settings.githubLastCheckedMillis <= 0L) {
-            if (isSw) "Injini ya 6G OTA iko tayari" else "6G OTA Engine Ready"
+            if (isSw) "Tayari • 10x Hyper" else "Ready • 10x Hyper"
         } else {
-            val fmt = SimpleDateFormat("dd MMM HH:mm", Locale.getDefault())
+            val fmt = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
             val formatted = fmt.format(Date(settings.githubLastCheckedMillis))
-            if (isSw) "Ilipokaguliwa: $formatted" else "Last synced: $formatted"
+            if (isSw) "Mwisho: $formatted" else "Synced: $formatted"
         }
     }
 
+    val hasMultipleHistory = ((checkResult as? GithubUpdateCheckResult.Success)?.recentReleases?.size ?: 0) > 1
+    val activeAccent = if (isNewerAvailable) accentAmber else accentPrimary
+
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // =========================================================================
-        // 1. BESPOKE CYBER-VAULT OTA COMMAND DECK (Unique Visual Header)
+        // 1. SCULPTURAL ORBITAL 10x HYPER HERO CARD
         // =========================================================================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(24.dp))
                 .background(
-                    brush = Brush.linearGradient(
-                        colors = listOf(deckDarkStart, deckDarkEnd, Color(0xFF0F292E))
+                    Brush.verticalGradient(
+                        colors = listOf(heroBgTop, heroBgBottom)
                     )
                 )
                 .border(
-                    width = 1.2.dp,
-                    brush = Brush.linearGradient(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
                         colors = listOf(
-                            if (isNewerAvailable) turboAmber else cyberEmerald,
-                            cyberCyan.copy(alpha = 0.6f)
+                            activeAccent.copy(alpha = 0.45f),
+                            Color.White.copy(alpha = 0.08f)
                         )
                     ),
-                    shape = RoundedCornerShape(20.dp)
+                    shape = RoundedCornerShape(24.dp)
                 )
-                .drawBehind {
-                    // Decorative orbital radar telemetry rings in background
-                    val centerRight = Offset(size.width * 0.88f, size.height * 0.22f)
-                    drawCircle(
-                        color = cyberCyan.copy(alpha = 0.08f),
-                        radius = size.width * 0.28f,
-                        center = centerRight,
-                        style = Stroke(width = 2.dp.toPx())
-                    )
-                    drawCircle(
-                        color = cyberEmerald.copy(alpha = 0.12f),
-                        radius = size.width * 0.16f,
-                        center = centerRight,
-                        style = Stroke(width = 1.5.dp.toPx())
-                    )
-                }
-                .padding(15.dp)
+                .padding(horizontal = 18.dp, vertical = 18.dp)
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Top Row: Cyber Badge + Live Engine Status Pill
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Minimal Top Bar: Live 10x Pill + Configure/History Icon Triggers
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(cyberEmerald.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.RocketLaunch,
-                                contentDescription = null,
-                                tint = cyberEmerald,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = "MENGITEX TURBO 6x OTA",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = cyberCyan
-                            )
-                            Text(
-                                text = if (isSw) "6-Stream 6x Fast (128KB Buffer) & Self-Install" else "6-Stream 6x Fast (128KB Buffer) & Self-Install",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.72f)
-                            )
-                        }
-                    }
+                    LiveHyperBadge(
+                        isActive = isDownloadingApk || isSelfInstalling || isChecking,
+                        accent = activeAccent
+                    )
 
-                    // Live Status Pill
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = when {
-                            isSelfInstalling -> cyberCyan.copy(alpha = 0.24f)
-                            isDownloadingApk || isChecking -> cyberEmerald.copy(alpha = 0.22f)
-                            isNewerAvailable -> turboAmber.copy(alpha = 0.24f)
-                            else -> cyberEmerald.copy(alpha = 0.20f)
-                        }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
-                            if (isChecking || isDownloadingApk || isSelfInstalling) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(12.dp),
-                                    strokeWidth = 2.dp,
-                                    color = cyberCyan
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = if (isNewerAvailable) {
-                                        Icons.Filled.NewReleases
-                                    } else {
-                                        Icons.Filled.Verified
-                                    },
-                                    contentDescription = null,
-                                    tint = if (isNewerAvailable) turboAmber else cyberEmerald,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                            Text(
-                                text = when {
-                                    isSelfInstalling -> if (isSw) {
-                                        "Inaji-Install ${selfInstallProgress?.percent ?: 0}%..."
-                                    } else {
-                                        "Self-Installing ${selfInstallProgress?.percent ?: 0}%..."
-                                    }
-                                    isDownloadingApk -> if (isSw) {
-                                        "Turbo ${downloadProgress?.percent ?: 0}%..."
-                                    } else {
-                                        "Turbo ${downloadProgress?.percent ?: 0}%..."
-                                    }
-                                    isChecking -> if (isSw) "Inakagua..." else "Syncing..."
-                                    isNewerAvailable -> if (isSw) "Update Mpya Ipo!" else "Update Ready!"
-                                    else -> if (isSw) "Imethibitishwa ✓" else "Verified ✓"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = when {
-                                    isSelfInstalling -> cyberCyan
-                                    isNewerAvailable -> turboAmber
-                                    else -> cyberEmerald
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // Dual Telemetry Version Nodes (Installed vs GitHub Cloud)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Left Node: Device Installed Version
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color.White.copy(alpha = 0.07f),
-                        modifier = Modifier
-                            .weight(1f)
-                            .border(
-                                width = 1.dp,
-                                color = Color.White.copy(alpha = 0.14f),
-                                shape = RoundedCornerShape(14.dp)
-                            )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(
-                                text = if (isSw) "SIMU YAKO (INSTALLED)" else "DEVICE (INSTALLED)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.65f)
-                            )
-                            Text(
-                                text = "v${installedVersion.removePrefix("v")}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = if (installedSha256.isNotBlank()) {
-                                    "SHA: $installedSha256"
-                                } else {
-                                    if (isSw) "Toleo Hai ✓" else "Active Build ✓"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = cyberEmerald
-                            )
-                        }
-                    }
-
-                    // Center Pulse Badge
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(cyberCyan.copy(alpha = 0.18f))
-                            .border(1.dp, cyberCyan.copy(alpha = 0.45f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Bolt,
-                            contentDescription = null,
-                            tint = cyberCyan,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    // Right Node: GitHub Cloud Version
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color.White.copy(alpha = 0.07f),
-                        modifier = Modifier
-                            .weight(1f)
-                            .border(
-                                width = 1.dp,
-                                color = if (isNewerAvailable) {
-                                    turboAmber.copy(alpha = 0.65f)
-                                } else {
-                                    cyberCyan.copy(alpha = 0.35f)
-                                },
-                                shape = RoundedCornerShape(14.dp)
-                            )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(10.dp),
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(
-                                text = if (isSw) "GITHUB CLOUD" else "GITHUB LATEST",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.65f)
-                            )
-                            Text(
-                                text = "v${activeRelease.tagName.removePrefix("v")}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (isNewerAvailable) turboAmber else cyberCyan,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            val sizeStr = GithubUpdateChecker.formatByteSize(activeRelease.apkSizeBytes)
-                            Text(
-                                text = sizeStr.ifBlank { "OTA Ready" },
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = Color.White.copy(alpha = 0.78f)
-                            )
-                        }
-                    }
-                }
-
-                // Editable GitHub Source Chip inside Command Deck
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.Black.copy(alpha = 0.30f))
-                        .clickable {
-                            repoDraft = settings.githubUpdateRepo
-                            tokenDraft = GithubUpdateChecker.getSavedGithubToken(context)
-                            showEditRepoDialog = true
-                        }
-                        .padding(horizontal = 11.dp, vertical = 8.dp)
-                        .testTag("settings_github_edit_repo_button"),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (isSw) "Chanzo cha GitHub Repo / APK Link" else "GitHub Repository / APK Source",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.60f)
-                        )
-                        val repoDisplay = if (GithubUpdateChecker.isDirectApkUrl(settings.githubUpdateRepo)) {
-                            settings.githubUpdateRepo
-                        } else {
-                            "github.com/${settings.githubUpdateRepo}"
-                        }
-                        Text(
-                            text = repoDisplay,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = cyberCyan,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = if (isSw) "Badili Repo" else "Edit Repo",
-                            tint = cyberEmerald,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Text(
-                            text = if (isSw) "Badili" else "Change",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = cyberEmerald
+                        if (hasMultipleHistory) {
+                            IconButton(
+                                onClick = { showHistoryDialog = true },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.History,
+                                    contentDescription = if (isSw) "Historia ya Matoleo" else "Release History",
+                                    tint = Color.White.copy(alpha = 0.78f),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = {
+                                repoDraft = settings.githubUpdateRepo
+                                tokenDraft = GithubUpdateChecker.getSavedGithubToken(context)
+                                showEditRepoDialog = true
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .testTag("settings_github_edit_repo_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Tune,
+                                contentDescription = if (isSw) "Mipangilio ya GitHub Repo" else "Configure GitHub Repo",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Centerpiece: Precision 260-Degree Orbital Speedometer Ring
+                HyperOrbitalGauge(
+                    installedVersion = installedVersion,
+                    targetVersion = activeRelease.tagName,
+                    isChecking = isChecking,
+                    isDownloading = isDownloadingApk,
+                    isInstalling = isSelfInstalling,
+                    isNewerAvailable = isNewerAvailable,
+                    downloadProgress = downloadProgress,
+                    selfInstallProgress = selfInstallProgress,
+                    primaryAccent = accentPrimary,
+                    secondaryAccent = accentSecondary,
+                    amberAccent = accentAmber,
+                    isSw = isSw
+                )
+
+                // Crisp Centered Release Title & Compact Single-Line Meta
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = activeRelease.releaseName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+                    val sizeStr = GithubUpdateChecker.formatByteSize(activeRelease.apkSizeBytes)
+                    val repoShort = if (GithubUpdateChecker.isDirectApkUrl(settings.githubUpdateRepo)) {
+                        "Direct APK"
+                    } else {
+                        settings.githubUpdateRepo
+                    }
+                    val metaLine = buildList {
+                        if (sizeStr.isNotBlank()) add(sizeStr)
+                        if (installedSha256.isNotBlank()) add("SHA $installedSha256")
+                        add(repoShort)
+                    }.joinToString("  •  ")
+                    Text(
+                        text = metaLine,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color.White.copy(alpha = 0.62f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                // Live 10-Lane Parallel Stream Visualizer (Smoothly reveals on 10x download)
+                AnimatedVisibility(
+                    visible = isDownloadingApk || downloadProgress != null,
+                    enter = fadeIn(tween(200)) + expandVertically(spring(stiffness = Spring.StiffnessMediumLow)),
+                    exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
+                ) {
+                    downloadProgress?.let { prog ->
+                        TenLaneHyperStreamBars(
+                            progress = prog,
+                            isDownloading = isDownloadingApk,
+                            accentPrimary = accentPrimary,
+                            accentSecondary = accentSecondary,
+                            isSw = isSw
                         )
                     }
                 }
 
-                // Footer Metadata Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Sleek 4-Milestone Self-Installer Stepper (Smoothly reveals during/after self-install)
+                AnimatedVisibility(
+                    visible = isSelfInstalling || selfInstallProgress != null,
+                    enter = fadeIn(tween(200)) + expandVertically(spring(stiffness = Spring.StiffnessMediumLow)),
+                    exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
                 ) {
-                    Text(
-                        text = lastCheckedLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.65f)
+                    selfInstallProgress?.let { inst ->
+                        SelfInstallMilestoneRibbon(
+                            progress = inst,
+                            accentPrimary = accentPrimary,
+                            accentSecondary = accentSecondary,
+                            isSw = isSw
+                        )
+                    }
+                }
+
+                // Signature Full-Width Gradient CTA Button
+                val ctaBusy = isDownloadingApk || isSelfInstalling
+                val ctaLabel = when {
+                    isSelfInstalling -> if (isSw) {
+                        "Inaji-Install (${selfInstallProgress?.percent ?: 0}%)..."
+                    } else {
+                        "Self-Installing (${selfInstallProgress?.percent ?: 0}%)..."
+                    }
+                    isDownloadingApk -> if (isSw) {
+                        "10x Hyper Speed (${downloadProgress?.percent ?: 0}%)..."
+                    } else {
+                        "10x Hyper Speed (${downloadProgress?.percent ?: 0}%)..."
+                    }
+                    selfInstallCompletedTag != null -> if (isSw) {
+                        "Imeshasakinishwa ${activeRelease.tagName} ✓"
+                    } else {
+                        "Installed ${activeRelease.tagName} ✓"
+                    }
+                    isNewerAvailable -> if (isSw) {
+                        "Pakua 10x & Ji-Install (${activeRelease.tagName})"
+                    } else {
+                        "10x Download & Install (${activeRelease.tagName})"
+                    }
+                    else -> if (isSw) {
+                        "Pakua 10x & Ji-Install Sasa"
+                    } else {
+                        "10x Download & Self-Install"
+                    }
+                }
+
+                val ctaGradient = if (isNewerAvailable) {
+                    Brush.horizontalGradient(listOf(Color(0xFFF59E0B), Color(0xFFEA580C)))
+                } else {
+                    Brush.horizontalGradient(listOf(accentPrimary, accentSecondary))
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            if (ctaBusy) {
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        activeAccent.copy(alpha = 0.35f),
+                                        accentSecondary.copy(alpha = 0.35f)
+                                    )
+                                )
+                            } else {
+                                ctaGradient
+                            }
+                        )
+                        .clickable(enabled = !ctaBusy) {
+                            startHyper10xDownloadAndInstall(activeRelease)
+                        }
+                        .testTag("settings_github_download_latest_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    ) {
+                        if (ctaBusy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.2.dp,
+                                color = Color.White
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (selfInstallCompletedTag != null) {
+                                    Icons.Filled.Verified
+                                } else {
+                                    Icons.Filled.Bolt
+                                },
+                                contentDescription = null,
+                                tint = if (ctaBusy) Color.White else Color(0xFF041410),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Text(
+                            text = ctaLabel,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (ctaBusy) Color.White else Color(0xFF041410),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+
+        // Clean Toast-Style Verification Feedback Strip
+        AnimatedVisibility(
+            visible = !actionFeedback.isNullOrBlank(),
+            enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+            exit = fadeOut(tween(140)) + shrinkVertically(tween(140))
+        ) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = accentPrimary.copy(alpha = 0.12f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.DownloadDone,
+                        contentDescription = null,
+                        tint = accentPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "AES-256 • SHA-256 OTA",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        color = cyberEmerald
+                        text = actionFeedback.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
         }
 
-        // Quick-Switch Discovered Repositories (if user has other repos on their GitHub account)
+        // =========================================================================
+        // 2. AIRY 4-TILE QUICK ACTION DOCK (Kagua • Hifadhi • Tuma • GitHub)
+        // =========================================================================
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            QuickDockTile(
+                icon = Icons.Filled.Refresh,
+                label = if (isSw) "Kagua" else "Sync",
+                isLoading = isChecking,
+                enabled = !isChecking && !isDownloadingApk && !isSelfInstalling,
+                accent = accentPrimary,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("settings_github_check_now_button"),
+                onClick = {
+                    runLiveCheck(settings.githubUpdateRepo, settings.githubUpdateChannel)
+                }
+            )
+
+            QuickDockTile(
+                icon = Icons.Filled.SaveAlt,
+                label = if (isSw) "Hifadhi" else "Save",
+                isLoading = false,
+                enabled = !isDownloadingApk && !isSelfInstalling,
+                accent = accentSecondary,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    val existing = downloadedApkFile
+                    if (existing != null && existing.exists()) {
+                        saveApkLauncher.launch(existing.name)
+                    } else if (!isDownloadingApk) {
+                        isDownloadingApk = true
+                        scope.launch {
+                            val res = GithubUpdateChecker.downloadReleaseApkInApp(
+                                context = context,
+                                release = activeRelease
+                            ) { prog -> downloadProgress = prog }
+                            isDownloadingApk = false
+                            res.getOrNull()?.let { file ->
+                                downloadedApkFile = file
+                                saveApkLauncher.launch(file.name)
+                            }
+                        }
+                    }
+                }
+            )
+
+            QuickDockTile(
+                icon = Icons.Filled.Share,
+                label = if (isSw) "Tuma" else "Share",
+                isLoading = false,
+                enabled = !isDownloadingApk && !isSelfInstalling,
+                accent = accentPrimary,
+                modifier = Modifier.weight(1f),
+                onClick = {
+                    val existing = downloadedApkFile
+                    if (existing != null && existing.exists()) {
+                        GithubUpdateChecker.shareDownloadedApk(
+                            context = context,
+                            apkFile = existing,
+                            title = if (isSw) "Tuma / Pakia APK" else "Share / Upload APK"
+                        )
+                    } else if (!isDownloadingApk) {
+                        isDownloadingApk = true
+                        scope.launch {
+                            val res = GithubUpdateChecker.downloadReleaseApkInApp(
+                                context = context,
+                                release = activeRelease
+                            ) { prog -> downloadProgress = prog }
+                            isDownloadingApk = false
+                            res.getOrNull()?.let { file ->
+                                downloadedApkFile = file
+                                GithubUpdateChecker.shareDownloadedApk(
+                                    context = context,
+                                    apkFile = file,
+                                    title = if (isSw) "Tuma / Pakia APK" else "Share / Upload APK"
+                                )
+                            }
+                        }
+                    }
+                }
+            )
+
+            QuickDockTile(
+                icon = Icons.Filled.OpenInNew,
+                label = "GitHub",
+                isLoading = false,
+                enabled = true,
+                accent = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("settings_github_open_releases_button"),
+                onClick = {
+                    val url = activeRelease.htmlUrl.takeIf { it.isNotBlank() && !it.startsWith("local://") }
+                        ?: GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo)
+                    openExternalUrl(url)
+                }
+            )
+        }
+
+        // =========================================================================
+        // 3. COLLAPSIBLE RELEASE NOTES (Clean & Uncluttered)
+        // =========================================================================
+        if (activeRelease.bodyNotes.isNotBlank()) {
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable { notesExpanded = !notesExpanded }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isSw) "Maboresho ya Toleo ${activeRelease.tagName}" else "Release Notes ${activeRelease.tagName}",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = lastCheckedLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = if (notesExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = if (isSw) "Onyesha maelezo" else "Toggle notes",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    AnimatedVisibility(
+                        visible = notesExpanded,
+                        enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+                        exit = fadeOut(tween(140)) + shrinkVertically(tween(140))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            val lines = activeRelease.bodyNotes
+                                .lines()
+                                .map { it.trim().removePrefix("•").removePrefix("-").trim() }
+                                .filter { it.isNotBlank() }
+                            lines.forEach { bullet ->
+                                Row(
+                                    verticalAlignment = Alignment.Top,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(top = 6.dp)
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(accentPrimary)
+                                    )
+                                    Text(
+                                        text = bullet,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Discovered Repositories Quick-Picker (only shown when found)
         if (activeRelease.discoveredUserRepos.isNotEmpty()) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = if (isSw) {
-                        "Repo zako zilizopatikana GitHub (Gusa kuchagua):"
-                    } else {
-                        "Your discovered GitHub repositories (Tap to select):"
-                    },
+                    text = if (isSw) "Repo zako GitHub:" else "Your GitHub repositories:",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     activeRelease.discoveredUserRepos.take(4).forEach { repoName ->
                         AssistChip(
@@ -721,7 +860,7 @@ fun GithubUpdateSectionContent(
                                 Text(
                                     text = repoName,
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.Medium
                                 )
                             }
                         )
@@ -731,573 +870,120 @@ fun GithubUpdateSectionContent(
         }
 
         // =========================================================================
-        // 2. TURBO DOWNLOAD & 4-STAGE AUTO SELF-INSTALL CONSOLE
+        // 4. MODERN SEGMENTED CHANNEL PILL & CLEAN AUTO-CHECK ROW
         // =========================================================================
-        val sizeLabel = GithubUpdateChecker.formatByteSize(activeRelease.apkSizeBytes)
         Surface(
             shape = RoundedCornerShape(18.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
             modifier = Modifier
                 .fillMaxWidth()
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                    shape = RoundedCornerShape(18.dp)
-                )
+                .padding(top = 2.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Sleek Segmented Pill Switcher (Stable vs Beta)
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val channels = listOf(
+                            GithubUpdateChannel.STABLE to (if (isSw) "Stable (Rasmi)" else "Stable"),
+                            GithubUpdateChannel.PRE_RELEASE to (if (isSw) "Beta / Pre-Release" else "Beta")
+                        )
+                        channels.forEach { (ch, label) ->
+                            val selected = settings.githubUpdateChannel == ch
+                            val pillBg by animateColorAsState(
+                                targetValue = if (selected) {
+                                    MaterialTheme.colorScheme.surface
+                                } else {
+                                    Color.Transparent
+                                },
+                                animationSpec = tween(180),
+                                label = "channel_pill_bg"
+                            )
+                            val pillText by animateColorAsState(
+                                targetValue = if (selected) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                animationSpec = tween(180),
+                                label = "channel_pill_text"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 42.dp)
+                                    .clip(RoundedCornerShape(11.dp))
+                                    .background(pillBg)
+                                    .clickable {
+                                        onUpdateChannelChange(ch)
+                                        runLiveCheck(settings.githubUpdateRepo, ch)
+                                    }
+                                    .testTag("settings_github_channel_${ch.name.lowercase()}"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = pillText,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                // Clean Auto-Check Toggle Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = activeRelease.releaseName,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.ExtraBold,
+                            text = if (isSw) "Kagua Toleo Kiotomatiki" else "Auto-Check Updates",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        val metaParts = buildList {
-                            add("Tag: ${activeRelease.tagName}")
-                            if (activeRelease.publishedAt.isNotBlank()) add(activeRelease.publishedAt)
-                            if (sizeLabel.isNotBlank()) add(sizeLabel)
-                        }
                         Text(
-                            text = metaParts.joinToString(" • "),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    if ((checkResult as? GithubUpdateCheckResult.Success)?.recentReleases?.size ?: 0 > 1) {
-                        IconButton(
-                            onClick = { showHistoryDialog = true },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.History,
-                                contentDescription = if (isSw) "Matoleo ya Nyuma" else "Release History",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-
-                if (activeRelease.bodyNotes.isNotBlank()) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 120.dp)
-                                .verticalScroll(rememberScrollState())
-                                .padding(10.dp)
-                        ) {
-                            Text(
-                                text = if (isSw) "Mabadiliko & Maboresho ya Toleo:" else "What's Included in This Build:",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = activeRelease.bodyNotes,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                // Live Phase 1 (Turbo Download) & Phase 2 (4-Stage Auto Self-Install) Telemetry Box
-                AnimatedVisibility(
-                    visible = isDownloadingApk || isSelfInstalling || downloadProgress != null || selfInstallProgress != null,
-                    enter = fadeIn(tween(150)) + expandVertically(tween(150)),
-                    exit = fadeOut(tween(120)) + shrinkVertically(tween(120))
-                ) {
-                    val dlProg = downloadProgress
-                    val instProg = selfInstallProgress
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelfInstalling) cyberCyan.copy(alpha = 0.5f) else cyberEmerald.copy(alpha = 0.45f),
-                                shape = RoundedCornerShape(14.dp)
-                            )
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(11.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Phase 1: Turbo Download Bar
-                            if (dlProg != null) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Bolt,
-                                            contentDescription = null,
-                                            tint = cyberEmerald,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Text(
-                                            text = if (isDownloadingApk) {
-                                                if (isSw) "1. Turbo 6x Stream (128KB Buffer)..." else "1. Turbo 6x Stream (128KB Buffer)..."
-                                            } else {
-                                                if (isSw) "1. Faili Limepakuliwa (Turbo 6x) ✓" else "1. File Downloaded (Turbo 6x) ✓"
-                                            },
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                    val speedStr = GithubUpdateChecker.formatByteSize(dlProg.speedBytesPerSec)
-                                    Text(
-                                        text = if (speedStr.isNotBlank()) "${dlProg.percent}% • $speedStr/s" else "${dlProg.percent}%",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = cyberEmerald
-                                    )
-                                }
-                                LinearProgressIndicator(
-                                    progress = { (dlProg.percent / 100f).coerceIn(0f, 1f) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(7.dp)
-                                        .clip(RoundedCornerShape(4.dp)),
-                                    color = cyberEmerald,
-                                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            }
-
-                            // Phase 2: 4-Stage Auto Self-Installer Bar
-                            if (instProg != null) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.InstallMobile,
-                                            contentDescription = null,
-                                            tint = cyberCyan,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Text(
-                                            text = if (isSw) instProg.stageSw else instProg.stageEn,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "${instProg.percent}%",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = cyberCyan
-                                    )
-                                }
-                                LinearProgressIndicator(
-                                    progress = { (instProg.percent / 100f).coerceIn(0f, 1f) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(7.dp)
-                                        .clip(RoundedCornerShape(4.dp)),
-                                    color = cyberCyan,
-                                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Success / Verification Feedback Banner
-                if (!actionFeedback.isNullOrBlank()) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = cyberEmerald.copy(alpha = 0.15f),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(
-                                width = 1.dp,
-                                color = cyberEmerald.copy(alpha = 0.45f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.DownloadDone,
-                                contentDescription = null,
-                                tint = cyberEmerald,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = actionFeedback.orEmpty(),
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-
-                // Primary 1-Tap CTA: Turbo Fast Download & Auto Self-Install
-                Button(
-                    onClick = {
-                        startTurboDownloadAndSelfInstall(activeRelease)
-                    },
-                    enabled = !isDownloadingApk && !isSelfInstalling,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isNewerAvailable) turboAmber else cyberEmerald,
-                        contentColor = Color.White
-                    ),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("settings_github_download_latest_button")
-                ) {
-                    if (isDownloadingApk || isSelfInstalling) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.2.dp,
-                            color = Color.White
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.Bolt,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    val btnText = when {
-                        isSelfInstalling -> if (isSw) {
-                            "App Inaji-Install Sasa (${selfInstallProgress?.percent ?: 0}%)..."
-                        } else {
-                            "Self-Installing Now (${selfInstallProgress?.percent ?: 0}%)..."
-                        }
-                        isDownloadingApk -> if (isSw) {
-                            "Inapakua kwa Turbo 6x (${downloadProgress?.percent ?: 0}%)..."
-                        } else {
-                            "Turbo 6x Downloading (${downloadProgress?.percent ?: 0}%)..."
-                        }
-                        selfInstallCompletedTag != null -> if (isSw) {
-                            "Imeshasakinishwa ✓ (Gusa Kusakinisha Tena ${activeRelease.tagName})"
-                        } else {
-                            "Self-Installed ✓ (Tap to Re-Install ${activeRelease.tagName})"
-                        }
-                        else -> if (isSw) {
-                            "Pakua Fast & Ji-Install Sasa (${activeRelease.tagName})"
-                        } else {
-                            "Turbo Download & Self-Install (${activeRelease.tagName})"
-                        }
-                    }
-                    Text(
-                        text = btnText,
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Secondary Utility Row: Re-Run Self-Install | Save APK to Phone | Share APK to GitHub
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    // 1. Direct Self-Install Trigger
-                    OutlinedButton(
-                        onClick = {
-                            val existing = downloadedApkFile
-                            if (existing != null && existing.exists()) {
-                                executeSelfInstallNow(activeRelease, existing)
+                            text = if (isSw) {
+                                "Angalia GitHub Releases unapofungua mipangilio"
                             } else {
-                                startTurboDownloadAndSelfInstall(activeRelease)
-                            }
-                        },
-                        enabled = !isDownloadingApk && !isSelfInstalling,
-                        shape = RoundedCornerShape(11.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.InstallMobile,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (isSw) "Ji-Install" else "Self-Install",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
+                                "Check GitHub Releases automatically on open"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-
-                    // 2. Save APK to Phone Storage (SAF)
-                    OutlinedButton(
-                        onClick = {
-                            val existing = downloadedApkFile
-                            if (existing != null && existing.exists()) {
-                                saveApkLauncher.launch(existing.name)
-                            } else if (!isDownloadingApk) {
-                                isDownloadingApk = true
-                                scope.launch {
-                                    val res = GithubUpdateChecker.downloadReleaseApkInApp(
-                                        context = context,
-                                        release = activeRelease
-                                    ) { prog -> downloadProgress = prog }
-                                    isDownloadingApk = false
-                                    res.getOrNull()?.let { file ->
-                                        downloadedApkFile = file
-                                        saveApkLauncher.launch(file.name)
-                                    }
-                                }
-                            }
-                        },
-                        enabled = !isDownloadingApk && !isSelfInstalling,
-                        shape = RoundedCornerShape(11.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.SaveAlt,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (isSw) "Hifadhi APK" else "Save APK",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                    }
-
-                    // 3. Share APK
-                    OutlinedButton(
-                        onClick = {
-                            val existing = downloadedApkFile
-                            if (existing != null && existing.exists()) {
-                                GithubUpdateChecker.shareDownloadedApk(
-                                    context = context,
-                                    apkFile = existing,
-                                    title = if (isSw) "Tuma / Pakia APK" else "Share / Upload APK"
-                                )
-                            } else if (!isDownloadingApk) {
-                                isDownloadingApk = true
-                                scope.launch {
-                                    val res = GithubUpdateChecker.downloadReleaseApkInApp(
-                                        context = context,
-                                        release = activeRelease
-                                    ) { prog -> downloadProgress = prog }
-                                    isDownloadingApk = false
-                                    res.getOrNull()?.let { file ->
-                                        downloadedApkFile = file
-                                        GithubUpdateChecker.shareDownloadedApk(
-                                            context = context,
-                                            apkFile = file,
-                                            title = if (isSw) "Tuma / Pakia APK" else "Share / Upload APK"
-                                        )
-                                    }
-                                }
-                            }
-                        },
-                        enabled = !isDownloadingApk && !isSelfInstalling,
-                        shape = RoundedCornerShape(11.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Share,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (isSw) "Tuma APK" else "Share APK",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-        }
-
-        // 3. Release Channel Selector (Stable vs Pre-Release / Beta)
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = if (isSw) "Mkondo wa Toleo (Update Channel)" else "Release Update Channel",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val channels = listOf(
-                    GithubUpdateChannel.STABLE to (if (isSw) "Stable (Rasmi)" else "Stable Release"),
-                    GithubUpdateChannel.PRE_RELEASE to (if (isSw) "Beta / Pre-Release" else "Beta / Pre-Release")
-                )
-                channels.forEach { (ch, label) ->
-                    val selected = settings.githubUpdateChannel == ch
-                    FilterChip(
-                        selected = selected,
-                        onClick = {
-                            onUpdateChannelChange(ch)
-                            runLiveCheck(settings.githubUpdateRepo, ch)
-                        },
-                        label = {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("settings_github_channel_${ch.name.lowercase()}")
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = settings.githubAutoCheckUpdates,
+                        onCheckedChange = onAutoCheckChange,
+                        modifier = Modifier.testTag("settings_github_auto_check_switch")
                     )
                 }
-            }
-        }
-
-        // 4. Auto-Check Toggle
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (isSw) "Kagua Toleo Jipya Kiotomatiki" else "Auto-Check GitHub for New Version",
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Text(
-                    text = if (isSw) {
-                        "Unganisha na GitHub Releases moja kwa moja unapofungua mipangilio"
-                    } else {
-                        "Automatically check GitHub Releases for newer builds"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Switch(
-                checked = settings.githubAutoCheckUpdates,
-                onCheckedChange = onAutoCheckChange,
-                modifier = Modifier.testTag("settings_github_auto_check_switch")
-            )
-        }
-
-        // 5. Bottom Control Row: Check Now + Open GitHub Web
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = {
-                    runLiveCheck(settings.githubUpdateRepo, settings.githubUpdateChannel)
-                },
-                enabled = !isChecking && !isDownloadingApk && !isSelfInstalling,
-                shape = RoundedCornerShape(13.dp),
-                modifier = Modifier
-                    .weight(1.15f)
-                    .testTag("settings_github_check_now_button")
-            ) {
-                if (isChecking) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Filled.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (isSw) "Kagua Sasa" else "Check Now",
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-            }
-
-            OutlinedButton(
-                onClick = {
-                    val url = activeRelease.htmlUrl.takeIf { it.isNotBlank() && !it.startsWith("local://") }
-                        ?: GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo)
-                    openExternalUrl(url)
-                },
-                shape = RoundedCornerShape(13.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("settings_github_open_releases_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.OpenInNew,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "GitHub Web",
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
             }
         }
     }
 
-    // Dialog 1: Edit GitHub Repository Owner/Repo, Direct APK URL, or Private GitHub Token
+    // Dialog 1: Configure GitHub Repository / Direct APK Link / Private Token
     if (showEditRepoDialog) {
         AlertDialog(
             onDismissRequest = { showEditRepoDialog = false },
@@ -1310,20 +996,20 @@ fun GithubUpdateSectionContent(
             },
             title = {
                 Text(
-                    text = if (isSw) "Mipangilio ya GitHub Turbo OTA" else "Configure GitHub Turbo OTA",
-                    fontWeight = FontWeight.ExtraBold
+                    text = if (isSw) "Chanzo cha 10x GitHub OTA" else "10x GitHub OTA Source",
+                    fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
                         text = if (isSw) {
-                            "Weka jina la GitHub Repo (mmiliki/repo), link kamili ya GitHub, au link ya moja kwa moja ya faili la .apk:"
+                            "Weka GitHub Repo (mmiliki/repo), link ya GitHub, au link ya moja kwa moja ya .apk:"
                         } else {
-                            "Enter the GitHub repository (owner/repo), full GitHub URL, or a direct .apk download URL:"
+                            "Enter a GitHub repository (owner/repo), GitHub URL, or direct .apk download URL:"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1352,11 +1038,9 @@ fun GithubUpdateSectionContent(
                             Icon(Icons.Filled.Key, contentDescription = null, modifier = Modifier.size(18.dp))
                         },
                         label = {
-                            Text(if (isSw) "GitHub Token (Hiari - kwa Private Repo)" else "GitHub Token (Optional - Private Repo)")
+                            Text(if (isSw) "GitHub Token (Hiari - Private Repo)" else "GitHub Token (Optional - Private)")
                         },
-                        placeholder = {
-                            Text("ghp_...")
-                        },
+                        placeholder = { Text("ghp_...") },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -1365,9 +1049,7 @@ fun GithubUpdateSectionContent(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         TextButton(
-                            onClick = {
-                                repoDraft = GithubUpdateChecker.DEFAULT_GITHUB_REPO
-                            }
+                            onClick = { repoDraft = GithubUpdateChecker.DEFAULT_GITHUB_REPO }
                         ) {
                             Text(
                                 text = if (isSw) "Rudisha Default" else "Reset Default",
@@ -1375,9 +1057,7 @@ fun GithubUpdateSectionContent(
                             )
                         }
                         if (tokenDraft.isNotBlank()) {
-                            TextButton(
-                                onClick = { tokenDraft = "" }
-                            ) {
+                            TextButton(onClick = { tokenDraft = "" }) {
                                 Text(
                                     text = if (isSw) "Futa Token" else "Clear Token",
                                     style = MaterialTheme.typography.labelSmall
@@ -1399,7 +1079,7 @@ fun GithubUpdateSectionContent(
                     },
                     modifier = Modifier.testTag("settings_github_repo_save_button")
                 ) {
-                    Text(if (isSw) "Hifadhi & Kagua" else "Save & Check")
+                    Text(if (isSw) "Hifadhi & Kagua" else "Save & Sync")
                 }
             },
             dismissButton = {
@@ -1410,7 +1090,7 @@ fun GithubUpdateSectionContent(
         )
     }
 
-    // Dialog 2: Recent GitHub Releases / Commits History
+    // Dialog 2: Release History
     if (showHistoryDialog) {
         val recentList = (checkResult as? GithubUpdateCheckResult.Success)?.recentReleases.orEmpty()
         AlertDialog(
@@ -1424,8 +1104,8 @@ fun GithubUpdateSectionContent(
             },
             title = {
                 Text(
-                    text = if (isSw) "Historia ya Matoleo (GitHub)" else "GitHub Release History",
-                    fontWeight = FontWeight.ExtraBold
+                    text = if (isSw) "Historia ya Matoleo" else "Release History",
+                    fontWeight = FontWeight.Bold
                 )
             },
             text = {
@@ -1438,18 +1118,19 @@ fun GithubUpdateSectionContent(
                 ) {
                     recentList.forEach { item ->
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .heightIn(min = 52.dp)
                                     .clickable {
                                         showHistoryDialog = false
-                                        startTurboDownloadAndSelfInstall(item)
+                                        startHyper10xDownloadAndInstall(item)
                                     }
-                                    .padding(10.dp),
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -1457,7 +1138,9 @@ fun GithubUpdateSectionContent(
                                     Text(
                                         text = "${item.releaseName} (${item.tagName})",
                                         style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     if (item.publishedAt.isNotBlank()) {
                                         Text(
@@ -1470,7 +1153,7 @@ fun GithubUpdateSectionContent(
                                 Icon(
                                     imageVector = Icons.Filled.Bolt,
                                     contentDescription = null,
-                                    tint = cyberEmerald,
+                                    tint = accentPrimary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -1484,5 +1167,555 @@ fun GithubUpdateSectionContent(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun LiveHyperBadge(
+    isActive: Boolean,
+    accent: Color
+) {
+    val infinite = rememberInfiniteTransition(label = "hyper_badge_pulse")
+    val pulseAlpha by infinite.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = if (isActive) 550 else 1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_dot_alpha"
+    )
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = accent.copy(alpha = 0.14f),
+        modifier = Modifier.border(
+            width = 1.dp,
+            color = accent.copy(alpha = 0.35f),
+            shape = RoundedCornerShape(50)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(accent.copy(alpha = pulseAlpha))
+            )
+            Text(
+                text = "10x HYPER OTA",
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.9.sp,
+                color = accent
+            )
+        }
+    }
+}
+
+@Composable
+private fun HyperOrbitalGauge(
+    installedVersion: String,
+    targetVersion: String,
+    isChecking: Boolean,
+    isDownloading: Boolean,
+    isInstalling: Boolean,
+    isNewerAvailable: Boolean,
+    downloadProgress: GithubDownloadProgress?,
+    selfInstallProgress: GithubSelfInstallProgress?,
+    primaryAccent: Color,
+    secondaryAccent: Color,
+    amberAccent: Color,
+    isSw: Boolean
+) {
+    val infinite = rememberInfiniteTransition(label = "orbital_gauge_anim")
+    val spinAngle by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1600, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "orbital_spin"
+    )
+
+    val rawProgress = when {
+        isInstalling -> (selfInstallProgress?.percent ?: 0) / 100f
+        isDownloading -> (downloadProgress?.percent ?: 0) / 100f
+        else -> 1f
+    }.coerceIn(0f, 1f)
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = rawProgress,
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        label = "orbital_progress"
+    )
+
+    val ringStartColor = when {
+        isInstalling -> secondaryAccent
+        isNewerAvailable && !isDownloading -> amberAccent
+        else -> primaryAccent
+    }
+    val ringEndColor = when {
+        isInstalling -> primaryAccent
+        isNewerAvailable && !isDownloading -> Color(0xFFEA580C)
+        else -> secondaryAccent
+    }
+
+    Box(
+        modifier = Modifier.size(164.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val outerRadius = size.minDimension / 2f - 4.dp.toPx()
+            val arcRadius = outerRadius - 12.dp.toPx()
+            val strokePx = 7.5.dp.toPx()
+            val arcTopLeft = Offset(center.x - arcRadius, center.y - arcRadius)
+            val arcSize = Size(arcRadius * 2f, arcRadius * 2f)
+
+            // Ambient radial glow behind gauge
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        ringStartColor.copy(alpha = 0.22f),
+                        Color.Transparent
+                    ),
+                    center = center,
+                    radius = outerRadius
+                ),
+                radius = outerRadius,
+                center = center
+            )
+
+            // 24 precision outer chronograph ticks along 260-degree arc
+            val totalTicks = 24
+            val startDeg = 140.0
+            val sweepTotalDeg = 260.0
+            for (i in 0..totalTicks) {
+                val frac = i.toFloat() / totalTicks.toFloat()
+                val deg = startDeg + sweepTotalDeg * frac
+                val rad = deg * PI / 180.0
+                val isLit = isChecking || frac <= animatedProgress
+                val tickInner = outerRadius - 5.dp.toPx()
+                val tickOuter = outerRadius
+                drawLine(
+                    color = if (isLit) {
+                        ringStartColor.copy(alpha = if (i % 4 == 0) 0.85f else 0.45f)
+                    } else {
+                        Color.White.copy(alpha = 0.14f)
+                    },
+                    start = Offset(
+                        center.x + (cos(rad) * tickInner).toFloat(),
+                        center.y + (sin(rad) * tickInner).toFloat()
+                    ),
+                    end = Offset(
+                        center.x + (cos(rad) * tickOuter).toFloat(),
+                        center.y + (sin(rad) * tickOuter).toFloat()
+                    ),
+                    strokeWidth = if (i % 4 == 0) 2.dp.toPx() else 1.2.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+            }
+
+            // Track arc
+            drawArc(
+                color = Color.White.copy(alpha = 0.10f),
+                startAngle = 140f,
+                sweepAngle = 260f,
+                useCenter = false,
+                topLeft = arcTopLeft,
+                size = arcSize,
+                style = Stroke(width = strokePx, cap = StrokeCap.Round)
+            )
+
+            // Active sweep arc
+            if (isChecking) {
+                drawArc(
+                    brush = Brush.sweepGradient(
+                        colors = listOf(Color.Transparent, ringStartColor, ringEndColor)
+                    ),
+                    startAngle = spinAngle,
+                    sweepAngle = 95f,
+                    useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                )
+            } else {
+                drawArc(
+                    brush = Brush.linearGradient(
+                        colors = listOf(ringStartColor, ringEndColor)
+                    ),
+                    startAngle = 140f,
+                    sweepAngle = (260f * animatedProgress).coerceAtLeast(8f),
+                    useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                )
+            }
+        }
+
+        // Center Typography Readout
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            when {
+                isDownloading -> {
+                    val pct = downloadProgress?.percent ?: 0
+                    val speedStr = GithubUpdateChecker.formatByteSize(downloadProgress?.speedBytesPerSec ?: 0L)
+                    Text(
+                        text = "$pct%",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
+                    if (speedStr.isNotBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = primaryAccent.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = "$speedStr/s",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = primaryAccent,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        text = "10x SPEED",
+                        style = MaterialTheme.typography.labelSmall,
+                        letterSpacing = 1.sp,
+                        color = Color.White.copy(alpha = 0.58f)
+                    )
+                }
+
+                isInstalling -> {
+                    val pct = selfInstallProgress?.percent ?: 0
+                    Icon(
+                        imageVector = Icons.Filled.VerifiedUser,
+                        contentDescription = null,
+                        tint = secondaryAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "$pct%",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = if (isSw) "SAKINISHA" else "INSTALLING",
+                        style = MaterialTheme.typography.labelSmall,
+                        letterSpacing = 0.8.sp,
+                        color = secondaryAccent
+                    )
+                }
+
+                isChecking -> {
+                    Text(
+                        text = "SYNC",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.5.sp,
+                        color = Color.White
+                    )
+                    Text(
+                        text = if (isSw) "Inakagua..." else "Checking...",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.65f)
+                    )
+                }
+
+                else -> {
+                    Text(
+                        text = if (isNewerAvailable) {
+                            "v${targetVersion.removePrefix("v")}"
+                        } else {
+                            "v${installedVersion.removePrefix("v")}"
+                        },
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isNewerAvailable) Icons.Filled.Bolt else Icons.Filled.Verified,
+                            contentDescription = null,
+                            tint = if (isNewerAvailable) amberAccent else primaryAccent,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = when {
+                                isNewerAvailable -> if (isSw) "TOLEO JIPYA" else "UPDATE READY"
+                                else -> if (isSw) "TOLEO KISASA" else "UP TO DATE"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.6.sp,
+                            color = if (isNewerAvailable) amberAccent else primaryAccent
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TenLaneHyperStreamBars(
+    progress: GithubDownloadProgress,
+    isDownloading: Boolean,
+    accentPrimary: Color,
+    accentSecondary: Color,
+    isSw: Boolean
+) {
+    val lanes = remember(progress.streamProgresses, progress.percent) {
+        if (progress.streamProgresses.size == 10) {
+            progress.streamProgresses
+        } else {
+            val base = (progress.percent / 100f).coerceIn(0.05f, 1f)
+            List(10) { base }
+        }
+    }
+    val speedStr = GithubUpdateChecker.formatByteSize(progress.speedBytesPerSec)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (isDownloading) {
+                    if (isSw) "Mikondo 10 ya Kasi (256KB)" else "10x Parallel Streams (256KB)"
+                } else {
+                    if (isSw) "Mikondo 10 Imekamilika ✓" else "10x Streams Complete ✓"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.85f)
+            )
+            Text(
+                text = if (speedStr.isNotBlank()) "$speedStr/s" else "${progress.percent}%",
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                color = accentPrimary
+            )
+        }
+
+        // 10-Lane Vertical Glass Equalizers
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(34.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            lanes.forEachIndexed { idx, value ->
+                val animatedFill by animateFloatAsState(
+                    targetValue = value.coerceIn(0.08f, 1f),
+                    animationSpec = tween(durationMillis = 120),
+                    label = "lane_$idx"
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.White.copy(alpha = 0.09f)),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight(animatedFill)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(accentSecondary, accentPrimary)
+                                )
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelfInstallMilestoneRibbon(
+    progress: GithubSelfInstallProgress,
+    accentPrimary: Color,
+    accentSecondary: Color,
+    isSw: Boolean
+) {
+    val steps = remember(isSw) {
+        if (isSw) {
+            listOf("SHA-256", "Andaa", "Sakinisha", "Hifadhi")
+        } else {
+            listOf("SHA-256", "Stage", "Apply", "Backup")
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            steps.forEachIndexed { idx, label ->
+                val stepNum = idx + 1
+                val done = progress.stageIndex > stepNum || (progress.stageIndex == stepNum && progress.percent >= 100)
+                val active = progress.stageIndex == stepNum && !done
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when {
+                                    done -> accentPrimary
+                                    active -> accentSecondary.copy(alpha = 0.25f)
+                                    else -> Color.White.copy(alpha = 0.10f)
+                                }
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = when {
+                                    done -> accentPrimary
+                                    active -> accentSecondary
+                                    else -> Color.White.copy(alpha = 0.2f)
+                                },
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (done) {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = Color(0xFF041410),
+                                modifier = Modifier.size(13.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "$stepNum",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (active) accentSecondary else Color.White.copy(alpha = 0.55f)
+                            )
+                        }
+                    }
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (done || active) Color.White else Color.White.copy(alpha = 0.45f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = if (isSw) progress.stageSw else progress.stageEn,
+            style = MaterialTheme.typography.labelSmall,
+            color = accentSecondary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun QuickDockTile(
+    icon: ImageVector,
+    label: String,
+    isLoading: Boolean,
+    enabled: Boolean,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = modifier
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(enabled = enabled, onClick = onClick)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = accent
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = if (enabled) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
