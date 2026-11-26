@@ -152,7 +152,7 @@ class SmsStealthReceiver : BroadcastReceiver() {
                         MengiTexNotificationManager.postIncomingSmsNotification(
                             context = appContext,
                             senderTitle = preservedSenderName,
-                            phoneNumber = senderAddress.ifBlank { preservedSenderName },
+                            phoneNumber = preservedPhone,
                             plainBody = fullBody,
                             isProtectedTxn = isProtectedTxn,
                             isSecretBurn = isSecretBurn,

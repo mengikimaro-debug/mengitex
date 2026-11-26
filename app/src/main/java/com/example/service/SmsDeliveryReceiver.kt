@@ -52,10 +52,14 @@ class SmsDeliveryReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val appCtx = context.applicationContext
+                VaultCryptoManager.bindContext(appCtx)
                 val crypto = VaultCryptoManager(appCtx)
                 val logger = HiddenVaultLogger(appCtx, crypto)
                 val dao = SiriSmsDatabase.getInstance(appCtx).dao()
                 val repo = SiriSmsRepository(dao, crypto, logger)
+                val settings = LiveSmsEventBus.cachedSettings ?: SecurityPreferences(appCtx).getSnapshot().also {
+                    LiveSmsEventBus.updateCachedSettings(it)
+                }
 
                 val nowTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                 val existingMsg = runCatching { repo.getMessageByIdDecrypted(messageId) }.getOrNull()
@@ -72,7 +76,17 @@ class SmsDeliveryReceiver : BroadcastReceiver() {
                                         status = MessageStatus.SENT,
                                         note = note
                                     )
+                                    com.example.data.SmsInstantCache.updateMessageStatus(
+                                        appCtx, crypto, messageId, MessageStatus.SENT, note
+                                    )
                                     LiveSmsEventBus.emitStatusUpdate(messageId, MessageStatus.SENT, note)
+                                    MengiTexNotificationManager.updatePopReplyNotificationStatus(
+                                        context = appCtx,
+                                        messageId = messageId,
+                                        status = MessageStatus.SENT,
+                                        statusNote = note,
+                                        settings = settings
+                                    )
                                 }
                                 // Persist to Android's Telephony.Sms.Sent ONCE with the EXACT Room timestamp
                                 if (existingMsg != null &&
@@ -102,7 +116,13 @@ class SmsDeliveryReceiver : BroadcastReceiver() {
                                 if (existingMsg?.status != MessageStatus.SENT && existingMsg?.status != MessageStatus.DELIVERED) {
                                     val note = "Hakuna Mtandao ($nowTime)"
                                     repo.updateMessageStatus(messageId, MessageStatus.FAILED, note)
+                                    com.example.data.SmsInstantCache.updateMessageStatus(
+                                        appCtx, crypto, messageId, MessageStatus.FAILED, note
+                                    )
                                     LiveSmsEventBus.emitStatusUpdate(messageId, MessageStatus.FAILED, note)
+                                    MengiTexNotificationManager.updatePopReplyNotificationStatus(
+                                        appCtx, messageId, MessageStatus.FAILED, note, settings
+                                    )
                                 }
                             }
 
@@ -110,7 +130,13 @@ class SmsDeliveryReceiver : BroadcastReceiver() {
                                 if (existingMsg?.status != MessageStatus.SENT && existingMsg?.status != MessageStatus.DELIVERED) {
                                     val note = "Hali ya Ndege Imewashwa ($nowTime)"
                                     repo.updateMessageStatus(messageId, MessageStatus.FAILED, note)
+                                    com.example.data.SmsInstantCache.updateMessageStatus(
+                                        appCtx, crypto, messageId, MessageStatus.FAILED, note
+                                    )
                                     LiveSmsEventBus.emitStatusUpdate(messageId, MessageStatus.FAILED, note)
+                                    MengiTexNotificationManager.updatePopReplyNotificationStatus(
+                                        appCtx, messageId, MessageStatus.FAILED, note, settings
+                                    )
                                 }
                             }
 
@@ -119,7 +145,13 @@ class SmsDeliveryReceiver : BroadcastReceiver() {
                                 if (existingMsg?.status != MessageStatus.SENT && existingMsg?.status != MessageStatus.DELIVERED) {
                                     val note = "Imeshindwa kutumwa ($code • $nowTime)"
                                     repo.updateMessageStatus(messageId, MessageStatus.FAILED, note)
+                                    com.example.data.SmsInstantCache.updateMessageStatus(
+                                        appCtx, crypto, messageId, MessageStatus.FAILED, note
+                                    )
                                     LiveSmsEventBus.emitStatusUpdate(messageId, MessageStatus.FAILED, note)
+                                    MengiTexNotificationManager.updatePopReplyNotificationStatus(
+                                        appCtx, messageId, MessageStatus.FAILED, note, settings
+                                    )
                                 }
                             }
                         }
@@ -153,9 +185,14 @@ class SmsDeliveryReceiver : BroadcastReceiver() {
                                     status = MessageStatus.DELIVERED,
                                     note = note
                                 )
+                                com.example.data.SmsInstantCache.updateMessageStatus(
+                                    appCtx, crypto, messageId, MessageStatus.DELIVERED, note
+                                )
                                 LiveSmsEventBus.emitStatusUpdate(messageId, MessageStatus.DELIVERED, note)
+                                MengiTexNotificationManager.updatePopReplyNotificationStatus(
+                                    appCtx, messageId, MessageStatus.DELIVERED, note, settings
+                                )
                                 runCatching {
-                                    val settings = SecurityPreferences(appCtx).getSnapshot()
                                     val recipientLabel = existingMsg?.contactName?.ifBlank { existingMsg.phoneNumber } ?: "SMS"
                                     MengiTexNotificationManager.postDeliveryReportNotification(
                                         context = appCtx,
@@ -172,7 +209,13 @@ class SmsDeliveryReceiver : BroadcastReceiver() {
                                 if (existingMsg?.status != MessageStatus.DELIVERED) {
                                     val note = "Imetumwa ($nowTime)"
                                     repo.updateMessageStatus(messageId, MessageStatus.SENT, note)
+                                    com.example.data.SmsInstantCache.updateMessageStatus(
+                                        appCtx, crypto, messageId, MessageStatus.SENT, note
+                                    )
                                     LiveSmsEventBus.emitStatusUpdate(messageId, MessageStatus.SENT, note)
+                                    MengiTexNotificationManager.updatePopReplyNotificationStatus(
+                                        appCtx, messageId, MessageStatus.SENT, note, settings
+                                    )
                                 }
                             }
 
@@ -181,7 +224,13 @@ class SmsDeliveryReceiver : BroadcastReceiver() {
                                 if (existingMsg?.status != MessageStatus.DELIVERED) {
                                     val note = "Imetumwa • Haijafika bado ($nowTime)"
                                     repo.updateMessageStatus(messageId, MessageStatus.SENT, note)
+                                    com.example.data.SmsInstantCache.updateMessageStatus(
+                                        appCtx, crypto, messageId, MessageStatus.SENT, note
+                                    )
                                     LiveSmsEventBus.emitStatusUpdate(messageId, MessageStatus.SENT, note)
+                                    MengiTexNotificationManager.updatePopReplyNotificationStatus(
+                                        appCtx, messageId, MessageStatus.SENT, note, settings
+                                    )
                                 }
                             }
                         }

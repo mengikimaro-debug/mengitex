@@ -226,6 +226,7 @@ class BubbleChatActivity : ComponentActivity() {
         extractIntentExtras(intent)
 
         val appCtx = applicationContext
+        VaultCryptoManager.bindContext(appCtx)
         val crypto = VaultCryptoManager(appCtx)
         val logger = HiddenVaultLogger(appCtx, crypto)
         val dao = SiriSmsDatabase.getInstance(appCtx).dao()
@@ -370,6 +371,28 @@ private fun BubbleChatContent(
     var replyText by remember { mutableStateOf("") }
     var statusText by remember { mutableStateOf<String?>(null) }
     var heldBubbleMessage by remember { mutableStateOf<DecryptedSmsMessage?>(null) }
+    val liveStatusOverrides = remember { androidx.compose.runtime.mutableStateMapOf<Long, Pair<String, String>>() }
+    val trackedBubbleMessageIds = remember { androidx.compose.runtime.mutableStateMapOf<Long, String>() }
+
+    LaunchedEffect(Unit) {
+        com.example.data.LiveSmsEventBus.statusUpdates.collect { update ->
+            liveStatusOverrides[update.messageId] = update.status to update.statusNote
+            if (trackedBubbleMessageIds.containsKey(update.messageId)) {
+                statusText = when (update.status) {
+                    MessageStatus.SENT -> if (isSw) "Ujumbe umetumwa! ✓" else "Reply sent! ✓"
+                    MessageStatus.DELIVERED -> {
+                        trackedBubbleMessageIds.remove(update.messageId)
+                        if (isSw) "Ujumbe umefika! ✓✓" else "Reply delivered! ✓✓"
+                    }
+                    MessageStatus.FAILED -> {
+                        trackedBubbleMessageIds.remove(update.messageId)
+                        if (isSw) "Imeshindwa kutuma: ${update.statusNote}" else "Failed to send: ${update.statusNote}"
+                    }
+                    else -> update.statusNote
+                }
+            }
+        }
+    }
 
     val copyBubbleText: (String) -> Unit = { textToCopy ->
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -469,7 +492,7 @@ private fun BubbleChatContent(
 
     // ALL chat messages (both incoming and outgoing) for the person the user is currently chatting with
     val activeThreadMessages by produceState(
-        initialValue = remember(activeCanonicalKey, activeCleanName) {
+        initialValue = remember(activeCanonicalKey, activeCleanName, contactMap) {
             if (allMessages.size <= 3000) {
                 val out = ArrayList<DecryptedSmsMessage>()
                 for (i in allMessages.size - 1 downTo 0) {
@@ -481,9 +504,7 @@ private fun BubbleChatContent(
                 out
             } else emptyList()
         },
-        key1 = allMessages,
-        key2 = activeCanonicalKey,
-        key3 = activeCleanName
+        keys = arrayOf(allMessages, activeCanonicalKey, activeCleanName, contactMap)
     ) {
         value = if (allMessages.size <= 3000) {
             val out = ArrayList<DecryptedSmsMessage>()
@@ -1086,12 +1107,13 @@ private fun BubbleChatContent(
                                 cleanPhone.isNotEmpty() -> cleanPhone
                                 else -> activeSenderName.ifBlank { activePhoneNumber }
                             }
+                            val statusOverride = liveStatusOverrides[msg.id]
                             BubbleMessageRow(
                                 senderHeader = senderHeader,
                                 body = msg.body,
                                 timestamp = msg.timestamp,
                                 isOutgoing = msg.direction == MessageDirection.OUTGOING,
-                                status = msg.status,
+                                status = statusOverride?.first ?: msg.status,
                                 isSw = isSw,
                                 onCallPhone = callBubblePhone,
                                 onCopyText = copyBubbleText,
@@ -1190,7 +1212,16 @@ private fun BubbleChatContent(
                         }
                     }
 
-                    val targetDest = activePhoneNumber.ifBlank { activeSenderName }
+                    val resolvedBubblePhone = remember(activePhoneNumber, activeSenderName, activeThreadMessages) {
+                        val clean = ContactsLoader.cleanSenderIdentifier(activePhoneNumber)
+                        if (clean.isNotEmpty() && clean.any { it.isDigit() }) {
+                            clean
+                        } else {
+                            activeThreadMessages.lastOrNull { it.phoneNumber.any { ch -> ch.isDigit() } }?.phoneNumber
+                                ?: clean.ifBlank { ContactsLoader.cleanSenderIdentifier(activeSenderName) }
+                        }
+                    }
+                    val targetDest = resolvedBubblePhone
                     val canSend = replyText.isNotBlank() && targetDest.isNotBlank()
                     Box(
                         modifier = Modifier
@@ -1207,46 +1238,66 @@ private fun BubbleChatContent(
                                 val text = replyText.trim()
                                 if (text.isEmpty() || targetDest.isBlank()) return@clickable
                                 scope.launch(Dispatchers.IO) {
-                                    val parts = SmsDispatchManager.calculateSmsParts(context, text, selectedSimSubId)
+                                    val appCtx = context.applicationContext
+                                    val activeSim = com.example.service.SimCardManager.resolveEffectiveSim(appCtx, selectedSimSubId)
+                                    val effectiveSubId = activeSim?.subscriptionId ?: selectedSimSubId
+                                    val simLabel = activeSim?.displayName ?: "SIM"
+                                    val parts = SmsDispatchManager.calculateSmsParts(appCtx, text, effectiveSubId)
+                                    val now = System.currentTimeMillis()
+
+                                    if (!SmsDispatchManager.hasSendSmsPermission(appCtx)) {
+                                        withContext(Dispatchers.Main) {
+                                            SmsDispatchManager.openSystemSmsFallback(context, listOf(targetDest), text)
+                                            statusText = if (isSw) "Imefunguliwa kwenye mfumo wa SMS" else "Opened in system SMS"
+                                        }
+                                        return@launch
+                                    }
+
+                                    val sendingStatusNote = if (isSw) {
+                                        "Inatuma kupitia $simLabel..."
+                                    } else {
+                                        "Sending via $simLabel..."
+                                    }
                                     val msgId = repository.insertOutgoingOrScheduled(
                                         contactName = activeSenderName.ifBlank { targetDest },
                                         phoneNumber = targetDest,
                                         plainBody = text,
                                         status = MessageStatus.SENDING,
-                                        statusNote = if (isSw) "Imejibiwa kupitia kiputo" else "Replied via Bubble",
-                                        simSlotLabel = "SIM",
-                                        simSubId = selectedSimSubId,
-                                        partCount = parts
+                                        statusNote = sendingStatusNote,
+                                        simSlotLabel = simLabel,
+                                        simSubId = effectiveSubId,
+                                        partCount = parts,
+                                        timestamp = now
                                     )
+                                    trackedBubbleMessageIds[msgId] = targetDest
                                     runCatching {
                                         repository.getMessageByIdDecrypted(msgId)?.let { decMsg ->
-                                            com.example.data.SmsInstantCache.prependMessageMemoryOnly(decMsg)
+                                            com.example.data.SmsInstantCache.prependMessage(appCtx, repository.getCrypto(), decMsg)
                                             com.example.data.LiveSmsEventBus.emitIncoming(decMsg)
                                         }
                                     }
+                                    withContext(Dispatchers.Main) {
+                                        replyText = ""
+                                        statusText = sendingStatusNote
+                                    }
                                     val result = SmsDispatchManager.sendMultipartSms(
-                                        context = context.applicationContext,
+                                        context = appCtx,
                                         messageId = msgId,
                                         phoneNumber = targetDest,
                                         body = text,
-                                        simSubId = selectedSimSubId,
+                                        simSubId = effectiveSubId,
                                         requestDeliveryReport = deliveryReportsEnabled
                                     )
-                                    if (result.isFailure && SmsDispatchManager.hasSendSmsPermission(context)) {
+                                    if (result.isFailure) {
+                                        trackedBubbleMessageIds.remove(msgId)
                                         val failNote = result.exceptionOrNull()?.message ?: "Imeshindwa kutuma"
                                         repository.updateMessageStatus(msgId, MessageStatus.FAILED, failNote)
+                                        com.example.data.SmsInstantCache.updateMessageStatus(
+                                            appCtx, repository.getCrypto(), msgId, MessageStatus.FAILED, failNote
+                                        )
                                         com.example.data.LiveSmsEventBus.emitStatusUpdate(msgId, MessageStatus.FAILED, failNote)
-                                    }
-                                    withContext(Dispatchers.Main) {
-                                        if (result.isSuccess) {
-                                            replyText = ""
-                                            statusText = if (isSw) "Ujumbe umetumwa! ✓" else "Reply sent! ✓"
-                                        } else if (!SmsDispatchManager.hasSendSmsPermission(context)) {
-                                            SmsDispatchManager.openSystemSmsFallback(context, listOf(targetDest), text)
-                                            statusText = if (isSw) "Imefunguliwa kwenye mfumo wa SMS" else "Opened in system SMS"
-                                        } else {
-                                            val err = result.exceptionOrNull()?.localizedMessage ?: "Error"
-                                            statusText = if (isSw) "Imeshindwa kutuma: $err" else "Failed to send: $err"
+                                        withContext(Dispatchers.Main) {
+                                            statusText = if (isSw) "Imeshindwa kutuma: $failNote" else "Failed to send: $failNote"
                                         }
                                     }
                                 }

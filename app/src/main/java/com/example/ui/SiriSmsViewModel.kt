@@ -282,6 +282,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
     // Zero-latency optimistic chat & settings coordinators
     private val tempOptimisticIdSeq = AtomicLong(1L)
     private val pendingOptimisticMessages = ConcurrentHashMap<Long, DecryptedSmsMessage>()
+    private val trackedPopReplyRecipients = ConcurrentHashMap<Long, String>()
     @Volatile
     private var lastDirectSendFingerprint: String = ""
     @Volatile
@@ -447,6 +448,50 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                         }
                     }
                     if (changed) mapped else current
+                }
+                SmsInstantCache.updateMessageStatus(
+                    appContext,
+                    crypto,
+                    update.messageId,
+                    update.status,
+                    update.statusNote,
+                    persistToDisk = false
+                )
+                val popRecipient = trackedPopReplyRecipients[update.messageId]
+                if (popRecipient != null) {
+                    when (update.status) {
+                        MessageStatus.SENT -> showBanner(
+                            msg(
+                                "Pop Reply imetumwa kwa $popRecipient ✓",
+                                "Pop Reply sent to $popRecipient ✓"
+                            )
+                        )
+                        MessageStatus.DELIVERED -> {
+                            trackedPopReplyRecipients.remove(update.messageId)
+                            showBanner(
+                                msg(
+                                    "Pop Reply imefika kwa $popRecipient ✓✓",
+                                    "Pop Reply delivered to $popRecipient ✓✓"
+                                )
+                            )
+                        }
+                        MessageStatus.FAILED -> {
+                            trackedPopReplyRecipients.remove(update.messageId)
+                            showBanner(
+                                msg(
+                                    "Imeshindwa kutuma Pop Reply kwa $popRecipient: ${update.statusNote}",
+                                    "Pop Reply failed for $popRecipient: ${update.statusNote}"
+                                )
+                            )
+                        }
+                    }
+                } else if (update.status == MessageStatus.FAILED) {
+                    showBanner(
+                        msg(
+                            "Ujumbe umeshindwa kutumwa: ${update.statusNote}",
+                            "Message failed to send: ${update.statusNote}"
+                        )
+                    )
                 }
             }
         }
@@ -1250,26 +1295,64 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun sendPopReplyFromBanner(
+        contactName: String,
+        phoneNumber: String,
+        plainBody: String,
+        useSystemFallbackIfDenied: Boolean = false
+    ) {
+        val cleanPhone = ContactsLoader.cleanSenderIdentifier(phoneNumber)
+            .ifBlank { ContactsLoader.cleanSenderIdentifier(contactName) }
+        val cleanName = ContactsLoader.cleanSenderIdentifier(contactName).ifBlank { cleanPhone }
+        val threadKey = ContactsLoader.resolveCanonicalThreadKey(cleanPhone, cleanName)
+        viewModelScope.launch(Dispatchers.IO) {
+            val unreadIds = _activeMessages.value
+                .filter { !it.isRead && it.id > 0L && it.canonicalThreadKey == threadKey }
+                .map { it.id }
+            if (unreadIds.isNotEmpty()) {
+                val unreadSet = unreadIds.toHashSet()
+                _activeMessages.update { list ->
+                    list.map { m -> if (m.id in unreadSet) m.copy(isRead = true) else m }
+                }
+                repository.markReadBatch(unreadIds)
+            } else if (cleanPhone.isNotEmpty()) {
+                repository.markSenderMessagesRead(cleanPhone)
+            }
+        }
+        sendDirectConversationMessage(
+            contactName = cleanName,
+            phoneNumber = cleanPhone,
+            plainBody = plainBody,
+            isSecretBurn = false,
+            useSystemFallbackIfDenied = useSystemFallbackIfDenied,
+            isPopReply = true
+        )
+    }
+
     fun sendDirectConversationMessage(
         contactName: String,
         phoneNumber: String,
         plainBody: String,
         isSecretBurn: Boolean,
-        useSystemFallbackIfDenied: Boolean = false
+        useSystemFallbackIfDenied: Boolean = false,
+        isPopReply: Boolean = false
     ) {
         recordUserInteraction()
         val body = plainBody.trim()
-        if (body.isEmpty() || phoneNumber.isBlank()) return
+        val cleanPhone = ContactsLoader.cleanSenderIdentifier(phoneNumber)
+            .ifBlank { ContactsLoader.cleanSenderIdentifier(contactName) }
+        if (body.isEmpty() || cleanPhone.isBlank()) return
 
         val state = _uiState.value
         val activeSim = state.detectedSims.firstOrNull { it.subscriptionId == state.settings.selectedSimSubId }
             ?: state.detectedSims.firstOrNull()
+            ?: SimCardManager.resolveEffectiveSim(appContext, state.settings.selectedSimSubId)
         val simLabel = activeSim?.displayName ?: "SIM"
-        val simSubId = activeSim?.subscriptionId ?: -1
+        val simSubId = activeSim?.subscriptionId ?: state.settings.selectedSimSubId
         val fastParts = SmsDispatchManager.estimateSmsPartsFast(body)
-        val resolvedName = contactName.ifBlank { phoneNumber }
+        val resolvedName = ContactsLoader.cleanSenderIdentifier(contactName).ifBlank { cleanPhone }
         val now = System.currentTimeMillis()
-        val threadKey = ContactsLoader.resolveCanonicalThreadKey(phoneNumber, resolvedName)
+        val threadKey = ContactsLoader.resolveCanonicalThreadKey(cleanPhone, resolvedName)
 
         // Rapid double-tap guard (650ms) so accidental double-taps NEVER dispatch the same SMS twice
         val sendFingerprint = "$threadKey|${body.hashCode()}|${body.length}"
@@ -1290,18 +1373,19 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         if (!SmsDispatchManager.hasSendSmsPermission(appContext) && useSystemFallbackIfDenied) {
             SmsDispatchManager.openSystemSmsFallback(
                 context = appContext,
-                phoneNumbers = listOf(phoneNumber),
+                phoneNumbers = listOf(cleanPhone),
                 body = body
             )
             val tempId = -tempOptimisticIdSeq.incrementAndGet()
+            val fallbackNote = msg("Imefunguliwa kupitia App ya SMS ya Mfumo", "Opened in system SMS app")
             val optimisticMsg = DecryptedSmsMessage(
                 id = tempId,
                 contactName = resolvedName,
-                phoneNumber = phoneNumber,
+                phoneNumber = cleanPhone,
                 body = body,
                 direction = MessageDirection.OUTGOING,
-                status = MessageStatus.SENT,
-                statusNote = msg("Imefunguliwa kupitia App ya SMS ya Mfumo", "Opened in system SMS app"),
+                status = MessageStatus.SENDING,
+                statusNote = fallbackNote,
                 timestamp = now,
                 scheduledFor = null,
                 simSlotLabel = simLabel,
@@ -1321,10 +1405,10 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                 val exactParts = SmsDispatchManager.calculateSmsParts(appContext, body, simSubId)
                 val realId = repository.insertOutgoingOrScheduled(
                     contactName = resolvedName,
-                    phoneNumber = phoneNumber,
+                    phoneNumber = cleanPhone,
                     plainBody = body,
-                    status = MessageStatus.SENT,
-                    statusNote = optimisticMsg.statusNote,
+                    status = MessageStatus.SENDING,
+                    statusNote = fallbackNote,
                     simSlotLabel = simLabel,
                     simSubId = simSubId,
                     partCount = exactParts,
@@ -1341,7 +1425,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                         current.map { m -> if (m.id == tempId) persisted else m }
                     }
                 }
-                SmsInstantCache.prependMessageMemoryOnly(persisted)
+                SmsInstantCache.prependMessage(appContext, crypto, persisted)
                 refreshVaultData()
             }
             return
@@ -1349,14 +1433,24 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
 
         // Frame-0 optimistic chat bubble insertion — user sees sent SMS instantaneously (0ms delay)
         val tempId = -tempOptimisticIdSeq.incrementAndGet()
-        val sendingNote = msg(
-            "Inatuma kupitia $simLabel ($fastParts sehemu)...",
-            "Sending via $simLabel ($fastParts parts)..."
-        )
+        val sendingNote = if (isPopReply) {
+            msg(
+                "Pop Reply inatuma kwa $resolvedName kupitia $simLabel...",
+                "Pop Reply sending to $resolvedName via $simLabel..."
+            )
+        } else {
+            msg(
+                "Inatuma kupitia $simLabel ($fastParts sehemu)...",
+                "Sending via $simLabel ($fastParts parts)..."
+            )
+        }
+        if (isPopReply) {
+            showBanner(sendingNote)
+        }
         val optimisticMsg = DecryptedSmsMessage(
             id = tempId,
             contactName = resolvedName,
-            phoneNumber = phoneNumber,
+            phoneNumber = cleanPhone,
             body = body,
             direction = MessageDirection.OUTGOING,
             status = MessageStatus.SENDING,
@@ -1381,7 +1475,7 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
             // Skip redundant SmsManager.divideMessage Binder IPC — fastParts is exact & sendMultipartSms divides once!
             val id = repository.insertOutgoingOrScheduled(
                 contactName = resolvedName,
-                phoneNumber = phoneNumber,
+                phoneNumber = cleanPhone,
                 plainBody = body,
                 status = MessageStatus.SENDING,
                 statusNote = sendingNote,
@@ -1391,6 +1485,13 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                 isSecretBurnAfterRead = isSecretBurn,
                 timestamp = now
             )
+            if (isPopReply && id > 0L) {
+                trackedPopReplyRecipients[id] = resolvedName
+                if (trackedPopReplyRecipients.size > 40) {
+                    val oldestKey = trackedPopReplyRecipients.keys.minOrNull()
+                    if (oldestKey != null) trackedPopReplyRecipients.remove(oldestKey)
+                }
+            }
             val persisted = optimisticMsg.copy(id = id, partCount = fastParts)
             pendingOptimisticMessages.remove(tempId)
             _activeMessages.update { current ->
@@ -1401,17 +1502,18 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                     current.map { m -> if (m.id == tempId) persisted else m }
                 }
             }
-            SmsInstantCache.prependMessageMemoryOnly(persisted)
+            SmsInstantCache.prependMessage(appContext, crypto, persisted)
 
             val result = SmsDispatchManager.sendMultipartSms(
                 context = appContext,
                 messageId = id,
-                phoneNumber = phoneNumber,
+                phoneNumber = cleanPhone,
                 body = body,
                 simSubId = simSubId,
                 requestDeliveryReport = state.settings.deliveryReportsEnabled
             )
             if (result.isFailure) {
+                trackedPopReplyRecipients.remove(id)
                 val failNote = result.exceptionOrNull()?.message
                     ?: msg("Ruhusa ya SMS inahitajika", "SEND_SMS permission required")
                 repository.updateMessageStatus(
@@ -1419,11 +1521,12 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                     status = MessageStatus.FAILED,
                     note = failNote
                 )
+                SmsInstantCache.updateMessageStatus(appContext, crypto, id, MessageStatus.FAILED, failNote)
                 com.example.data.LiveSmsEventBus.emitStatusUpdate(id, MessageStatus.FAILED, failNote)
                 showBanner(
                     msg(
-                        "Toa ruhusa ya SMS ili kutuma moja kwa moja.",
-                        "Grant SMS permission to send directly."
+                        "Imeshindwa kutuma: $failNote",
+                        "Failed to send: $failNote"
                     )
                 )
             }

@@ -101,6 +101,7 @@ import com.example.security.VaultCryptoManager
 import com.example.service.ContactsLoader
 import com.example.service.DefaultAppRoleHelper
 import com.example.service.MengiTexNotificationManager
+import com.example.service.SmsDispatchManager
 import com.example.service.SmsStealthReceiver
 import com.example.ui.DrawerDestination
 import com.example.ui.MainTab
@@ -336,6 +337,8 @@ private fun MengiTexAppRoot(
     val sessionStartedAt = remember { System.currentTimeMillis() }
     var lastPoppedMessageId by remember { mutableStateOf(-1L) }
     var activePopMessage by remember { mutableStateOf<DecryptedSmsMessage?>(null) }
+    var isUserTypingPopReply by remember { mutableStateOf(false) }
+    var pendingPopReplyAfterPermission by remember { mutableStateOf<Triple<String, String, String>?>(null) }
 
     LaunchedEffect(activeMessages, uiState.isLocked) {
         if (uiState.isLocked || activeMessages.isEmpty()) return@LaunchedEffect
@@ -370,7 +373,7 @@ private fun MengiTexAppRoot(
         val viewingSameThread = uiState.activeDestination == DrawerDestination.CONVERSATION &&
             ContactsLoader.normalizePhone(uiState.activeConversationPhone) ==
             ContactsLoader.normalizePhone(targetIncoming.phoneNumber)
-        if (!viewingSameThread) {
+        if (!viewingSameThread && !(isUserTypingPopReply && activePopMessage != null)) {
             activePopMessage = targetIncoming
         }
     }
@@ -388,6 +391,25 @@ private fun MengiTexAppRoot(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) {
         viewModel.refreshSystemEnvironment()
+        val queuedPop = pendingPopReplyAfterPermission
+        if (queuedPop != null) {
+            pendingPopReplyAfterPermission = null
+            if (SmsDispatchManager.hasSendSmsPermission(context)) {
+                viewModel.sendPopReplyFromBanner(
+                    contactName = queuedPop.first,
+                    phoneNumber = queuedPop.second,
+                    plainBody = queuedPop.third
+                )
+            } else {
+                viewModel.showBanner(
+                    if (uiState.settings.language == AppLanguage.EN) {
+                        "SMS permission is required to send Pop Reply directly."
+                    } else {
+                        "Ruhusa ya SMS inahitajika kutuma Pop Reply moja kwa moja."
+                    }
+                )
+            }
+        }
     }
 
     // 2. Dedicated Contacts permission launcher
@@ -878,7 +900,7 @@ private fun MengiTexAppRoot(
                                                 contactName = uiState.activeConversationName,
                                                 phoneNumber = uiState.activeConversationPhone,
                                                 allActiveMessages = activeMessages,
-                                                preIndexedThreadMessages = messagesByThreadKey[activeThreadKey] ?: emptyList(),
+                                                preIndexedThreadMessages = messagesByThreadKey[activeThreadKey],
                                                 contacts = allContacts,
                                                 templates = activeTemplates,
                                                 detectedSims = uiState.detectedSims,
@@ -1225,18 +1247,27 @@ private fun MengiTexAppRoot(
                     hidePreviewForPrivacy = uiState.settings.securityLevel >= 4,
                     autoDismissSeconds = uiState.settings.inAppPopDurationSeconds,
                     onOpenConversation = { name, phone ->
+                        isUserTypingPopReply = false
                         viewModel.openConversation(name, phone)
                     },
                     onSendPopReply = { name, phone, replyBody ->
-                        viewModel.sendDirectConversationMessage(
-                            contactName = name,
-                            phoneNumber = phone,
-                            plainBody = replyBody,
-                            isSecretBurn = false,
-                            useSystemFallbackIfDenied = !uiState.hasSmsPermission
-                        )
+                        isUserTypingPopReply = false
+                        if (SmsDispatchManager.hasSendSmsPermission(context)) {
+                            viewModel.sendPopReplyFromBanner(
+                                contactName = name,
+                                phoneNumber = phone,
+                                plainBody = replyBody
+                            )
+                        } else {
+                            pendingPopReplyAfterPermission = Triple(name, phone, replyBody)
+                            requestSmsPermissions()
+                        }
                     },
-                    onDismiss = { activePopMessage = null },
+                    onDismiss = {
+                        isUserTypingPopReply = false
+                        activePopMessage = null
+                    },
+                    onReplyingStateChange = { typing -> isUserTypingPopReply = typing },
                     modifier = Modifier.align(Alignment.TopCenter)
                 )
 

@@ -738,6 +738,29 @@ class SiriSmsRepository(
         )
     }
 
+    fun getCrypto(): VaultCryptoManager = crypto
+
+    suspend fun findBestPhoneForSender(senderName: String, rawPhone: String): String {
+        val cleanPhone = ContactsLoader.cleanSenderIdentifier(rawPhone)
+        val cleanName = ContactsLoader.cleanSenderIdentifier(senderName)
+        if (cleanPhone.isNotEmpty() && cleanPhone.any { it.isDigit() }) {
+            return cleanPhone
+        }
+        val targetKey = ContactsLoader.resolveCanonicalThreadKey(cleanPhone, cleanName)
+        val recent = getRecentActiveMessagesOnce(500)
+        val byKey = recent.firstOrNull {
+            it.canonicalThreadKey == targetKey && it.phoneNumber.any { ch -> ch.isDigit() }
+        }
+        if (byKey != null) return byKey.phoneNumber
+        if (cleanName.isNotEmpty()) {
+            val byName = recent.firstOrNull {
+                it.contactName.equals(cleanName, ignoreCase = true) && it.phoneNumber.any { ch -> ch.isDigit() }
+            }
+            if (byName != null) return byName.phoneNumber
+        }
+        return cleanPhone.ifEmpty { cleanName }
+    }
+
     suspend fun insertOutgoingOrScheduled(
         contactName: String,
         phoneNumber: String,
@@ -751,24 +774,28 @@ class SiriSmsRepository(
         isSecretBurnAfterRead: Boolean = false,
         timestamp: Long = System.currentTimeMillis()
     ): Long {
+        val cleanPhone = ContactsLoader.cleanSenderIdentifier(phoneNumber)
+            .ifEmpty { ContactsLoader.cleanSenderIdentifier(contactName).ifEmpty { phoneNumber.trim().ifEmpty { "SMS" } } }
+        val cleanName = ContactsLoader.cleanSenderIdentifier(contactName)
+            .ifEmpty { cleanPhone }
         val entity = SmsMessageEntity(
-            contactName = contactName,
-            phoneNumber = phoneNumber,
+            contactName = cleanName,
+            phoneNumber = cleanPhone,
             encryptedBody = crypto.encryptString(plainBody),
             direction = MessageDirection.OUTGOING,
             status = status,
             statusNote = statusNote,
             timestamp = timestamp,
             scheduledFor = scheduledFor,
-            simSlotLabel = simSlotLabel,
+            simSlotLabel = simSlotLabel.ifBlank { "SIM" },
             simSubId = simSubId,
-            partCount = partCount,
+            partCount = partCount.coerceAtLeast(1),
             isSecretBurnAfterRead = isSecretBurnAfterRead,
             isRead = true
         )
         val id = dao.insertMessage(entity)
         preCacheInsertedRow(entity, id, plainBody)
-        val threadKey = ContactsLoader.resolveCanonicalThreadKey(phoneNumber, contactName)
+        val threadKey = ContactsLoader.resolveCanonicalThreadKey(cleanPhone, cleanName)
         LiveSmsEventBus.rememberLocalMessage(
             threadKey = threadKey,
             direction = MessageDirection.OUTGOING,
@@ -779,7 +806,7 @@ class SiriSmsRepository(
         vaultLogger.appendLog(
             category = cat,
             title = if (status == MessageStatus.SCHEDULED) "Ujumbe umeratibiwa" else "Ujumbe umetumwa ($simSlotLabel)",
-            detail = "Mpokeaji: $contactName ($phoneNumber) • Sehemu: $partCount • Herufi: ${plainBody.length}"
+            detail = "Mpokeaji: $cleanName ($cleanPhone) • Sehemu: $partCount • Herufi: ${plainBody.length}"
         )
         return id
     }

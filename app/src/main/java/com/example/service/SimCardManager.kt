@@ -120,6 +120,50 @@ object SimCardManager {
         return results
     }
 
+    fun resolveEffectiveSim(context: Context, preferredSubId: Int): DetectedSimCard? {
+        val detected = detectSimCards(context)
+        if (preferredSubId > 0 && preferredSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            detected.firstOrNull { it.subscriptionId == preferredSubId }?.let { return it }
+        }
+        val defaultSmsSubId = runCatching { SubscriptionManager.getDefaultSmsSubscriptionId() }
+            .getOrDefault(SubscriptionManager.INVALID_SUBSCRIPTION_ID)
+        if (defaultSmsSubId > 0 && defaultSmsSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            detected.firstOrNull { it.subscriptionId == defaultSmsSubId }?.let { return it }
+        }
+        detected.firstOrNull()?.let { return it }
+
+        if (defaultSmsSubId > 0 && defaultSmsSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            return DetectedSimCard(
+                subscriptionId = defaultSmsSubId,
+                slotIndex = 1,
+                displayName = "SIM 1",
+                carrierName = "Mtandao wa Simu",
+                countryIso = "",
+                numberHint = "",
+                isActive = true
+            )
+        }
+        return null
+    }
+
+    fun getCandidateSubIds(context: Context, preferredSubId: Int): List<Int> {
+        val candidates = LinkedHashSet<Int>(4)
+        if (preferredSubId > 0 && preferredSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            candidates.add(preferredSubId)
+        }
+        val defaultSmsSubId = runCatching { SubscriptionManager.getDefaultSmsSubscriptionId() }
+            .getOrDefault(SubscriptionManager.INVALID_SUBSCRIPTION_ID)
+        if (defaultSmsSubId > 0 && defaultSmsSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            candidates.add(defaultSmsSubId)
+        }
+        detectSimCards(context).forEach { sim ->
+            if (sim.subscriptionId > 0 && sim.subscriptionId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                candidates.add(sim.subscriptionId)
+            }
+        }
+        return candidates.toList()
+    }
+
     fun getSimStateSummary(context: Context): String {
         val tm = context.getSystemService(TelephonyManager::class.java)
         return when (tm?.simState) {

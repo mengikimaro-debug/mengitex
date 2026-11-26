@@ -79,8 +79,9 @@ object SmsDispatchManager {
      */
     fun calculateSmsParts(context: Context, text: String, subId: Int = -1): Int {
         if (text.isEmpty()) return 0
+        val effectiveSubId = if (subId > 0) subId else (SimCardManager.resolveEffectiveSim(context, subId)?.subscriptionId ?: -1)
         return try {
-            resolveSmsManager(context, subId).divideMessage(text).size.coerceAtLeast(1)
+            resolveSmsManager(context, effectiveSubId).divideMessage(text).size.coerceAtLeast(1)
         } catch (_: Exception) {
             estimateSmsPartsFast(text)
         }
@@ -103,8 +104,18 @@ object SmsDispatchManager {
         if (!hasSendSmsPermission(context)) {
             return Result.failure(SecurityException("Ruhusa ya SEND_SMS haijatolewa"))
         }
+        val cleanDestination = ContactsLoader.cleanSenderIdentifier(phoneNumber)
+        if (cleanDestination.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Namba ya mpokeaji haipo"))
+        }
         return try {
-            val smsManager = resolveSmsManager(context, simSubId)
+            val candidateSubIds = SimCardManager.getCandidateSubIds(context, simSubId)
+            val primarySubId = if (simSubId > 0 && simSubId != android.telephony.SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                simSubId
+            } else {
+                candidateSubIds.firstOrNull() ?: -1
+            }
+            val smsManager = resolveSmsManager(context, primarySubId)
             val allParts = smsManager.divideMessage(body)
             val totalParts = allParts.size.coerceAtLeast(1)
             val mutableFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -147,16 +158,25 @@ object SmsDispatchManager {
                     globalPartIndex++
                 }
 
-                try {
-                    dispatchBatch(smsManager, phoneNumber, body, batch, sentIntents, deliveredIntents)
-                } catch (simErr: Exception) {
-                    if (simSubId > 0) {
-                        // Retry cleanly on default active SIM if chosen subId became unavailable
-                        val fallbackMgr = resolveSmsManager(context, -1)
-                        dispatchBatch(fallbackMgr, phoneNumber, body, batch, sentIntents, deliveredIntents)
-                    } else {
-                        throw simErr
+                var dispatched = false
+                var lastErr: Exception? = null
+                val attemptSubIds = ArrayList<Int>(candidateSubIds.size + 2).apply {
+                    add(primarySubId)
+                    candidateSubIds.forEach { if (it != primarySubId) add(it) }
+                    if (-1 !in this) add(-1)
+                }
+                for (attemptSubId in attemptSubIds) {
+                    try {
+                        val mgr = if (attemptSubId == primarySubId) smsManager else resolveSmsManager(context, attemptSubId)
+                        dispatchBatch(mgr, cleanDestination, body, batch, sentIntents, deliveredIntents)
+                        dispatched = true
+                        break
+                    } catch (err: Exception) {
+                        lastErr = err
                     }
+                }
+                if (!dispatched) {
+                    throw (lastErr ?: IllegalStateException("Imeshindwa kutuma SMS"))
                 }
             }
 
@@ -244,7 +264,9 @@ object SmsDispatchManager {
      * as a zero-permission fallback when user hasn't granted direct SEND_SMS.
      */
     fun openSystemSmsFallback(context: Context, phoneNumbers: List<String>, body: String) {
-        val joined = phoneNumbers.joinToString(";")
+        val cleaned = phoneNumbers.mapNotNull { ContactsLoader.cleanSenderIdentifier(it).takeIf(String::isNotBlank) }
+        if (cleaned.isEmpty()) return
+        val joined = cleaned.joinToString(";")
         val intent = Intent(Intent.ACTION_SENDTO).apply {
             data = Uri.parse("smsto:${Uri.encode(joined)}")
             putExtra("sms_body", body)

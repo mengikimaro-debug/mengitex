@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -40,11 +42,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.DecryptedSmsMessage
@@ -68,11 +73,20 @@ fun InAppPopMessageOverlay(
     onOpenConversation: (contactName: String, phoneNumber: String) -> Unit,
     onSendPopReply: (contactName: String, phoneNumber: String, replyBody: String) -> Unit,
     onDismiss: () -> Unit,
+    onReplyingStateChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val s = LocalAppStrings.current
     var showReplyInput by remember(message?.id) { mutableStateOf(false) }
     var replyText by remember(message?.id) { mutableStateOf("") }
+    val replyFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(showReplyInput, message?.id) {
+        onReplyingStateChange(message != null && showReplyInput)
+        if (message != null && showReplyInput) {
+            runCatching { replyFocusRequester.requestFocus() }
+        }
+    }
 
     // Auto-dismiss after configured duration unless user is actively typing a Pop Reply
     LaunchedEffect(message?.id, showReplyInput, autoDismissSeconds) {
@@ -228,12 +242,13 @@ fun InAppPopMessageOverlay(
                             color = MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier
                                 .weight(1f)
+                                .heightIn(min = 44.dp)
                                 .clip(RoundedCornerShape(14.dp))
                                 .clickable { showReplyInput = true }
                                 .testTag("pop_reply_expand_button")
                         ) {
                             Row(
-                                modifier = Modifier.padding(vertical = 8.dp),
+                                modifier = Modifier.padding(vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
                             ) {
@@ -257,15 +272,16 @@ fun InAppPopMessageOverlay(
                             color = MaterialTheme.colorScheme.surfaceContainer,
                             modifier = Modifier
                                 .weight(1f)
+                                .heightIn(min = 44.dp)
                                 .clip(RoundedCornerShape(14.dp))
                                 .clickable {
                                     onDismiss()
-                                    onOpenConversation(displaySender, msg.phoneNumber)
+                                    onOpenConversation(displaySender, msg.phoneNumber.ifBlank { displaySender })
                                 }
                                 .testTag("pop_open_chat_button")
                         ) {
                             Box(
-                                modifier = Modifier.padding(vertical = 8.dp),
+                                modifier = Modifier.padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
@@ -285,6 +301,17 @@ fun InAppPopMessageOverlay(
                     enter = EnterTransition.None,
                     exit = ExitTransition.None
                 ) {
+                    val targetPhone = msg.phoneNumber.ifBlank { displaySender }
+                    val dispatchPopReply: () -> Unit = {
+                        val outgoing = replyText.trim()
+                        if (outgoing.isNotEmpty() && targetPhone.isNotBlank()) {
+                            replyText = ""
+                            showReplyInput = false
+                            onReplyingStateChange(false)
+                            onSendPopReply(displaySender, targetPhone, outgoing)
+                            onDismiss()
+                        }
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -295,12 +322,12 @@ fun InAppPopMessageOverlay(
                             color = MaterialTheme.colorScheme.surfaceContainerLow,
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 44.dp)
+                                .heightIn(min = 48.dp)
                         ) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 contentAlignment = Alignment.CenterStart
                             ) {
                                 if (replyText.isEmpty()) {
@@ -314,21 +341,24 @@ fun InAppPopMessageOverlay(
                                     value = replyText,
                                     onValueChange = { replyText = it },
                                     maxLines = 3,
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                                    keyboardActions = KeyboardActions(onSend = { dispatchPopReply() }),
                                     textStyle = MaterialTheme.typography.bodySmall.copy(
                                         color = MaterialTheme.colorScheme.onSurface
                                     ),
                                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .focusRequester(replyFocusRequester)
                                         .testTag("pop_reply_text_input")
                                 )
                             }
                         }
 
-                        val canSend = replyText.isNotBlank()
+                        val canSend = replyText.isNotBlank() && targetPhone.isNotBlank()
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
                                 .background(
                                     if (canSend) {
@@ -337,13 +367,7 @@ fun InAppPopMessageOverlay(
                                         MaterialTheme.colorScheme.surfaceContainerLow
                                     }
                                 )
-                                .clickable(enabled = canSend) {
-                                    val outgoing = replyText.trim()
-                                    replyText = ""
-                                    showReplyInput = false
-                                    onSendPopReply(displaySender, msg.phoneNumber, outgoing)
-                                    onDismiss()
-                                }
+                                .clickable(enabled = canSend) { dispatchPopReply() }
                                 .testTag("pop_reply_send_button"),
                             contentAlignment = Alignment.Center
                         ) {

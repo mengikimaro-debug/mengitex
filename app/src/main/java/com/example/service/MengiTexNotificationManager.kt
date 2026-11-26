@@ -39,6 +39,7 @@ import com.example.security.SecuritySettings
 import com.example.security.SmsAdBlockerEngine
 import com.example.ui.i18n.AppLanguage
 import java.util.Calendar
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Complete centralized Android Notification Manager for MengiTex.
@@ -55,6 +56,17 @@ object MengiTexNotificationManager {
     const val CHANNEL_SILENT_ALERTS = "mengitex_silent_messages"
 
     private const val TEST_NOTIFICATION_ID = 987654
+
+    private data class PopReplyNotificationMeta(
+        val notificationId: Int,
+        val channelId: String,
+        val senderName: String,
+        val phoneNumber: String,
+        val replyText: String,
+        val timestampMillis: Long
+    )
+
+    private val trackedPopReplies = ConcurrentHashMap<Long, PopReplyNotificationMeta>(32)
 
     fun hasNotificationPermission(context: Context): Boolean {
         val runtimeGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -611,6 +623,139 @@ object MengiTexNotificationManager {
 
         nm.notify(notificationId, builder.build())
         return true
+    }
+
+    fun registerPopReplyNotification(
+        messageId: Long,
+        notificationId: Int,
+        senderName: String,
+        phoneNumber: String,
+        replyText: String,
+        timestampMillis: Long = System.currentTimeMillis()
+    ) {
+        if (messageId <= 0L) return
+        val resolvedNotifId = if (notificationId != 0) {
+            notificationId
+        } else {
+            val normKey = ContactsLoader.normalizePhone(phoneNumber).ifBlank { senderName.hashCode().toString() }
+            "mengitex_chat_$normKey".hashCode()
+        }
+        trackedPopReplies[messageId] = PopReplyNotificationMeta(
+            notificationId = resolvedNotifId,
+            channelId = CHANNEL_BUBBLE_SMS,
+            senderName = senderName,
+            phoneNumber = phoneNumber,
+            replyText = replyText,
+            timestampMillis = timestampMillis
+        )
+        if (trackedPopReplies.size > 48) {
+            val oldest = trackedPopReplies.entries.minByOrNull { it.value.timestampMillis }?.key
+            if (oldest != null) trackedPopReplies.remove(oldest)
+        }
+    }
+
+    fun postPopReplyProgressNotification(
+        context: Context,
+        notificationId: Int,
+        senderName: String,
+        phoneNumber: String,
+        replyText: String,
+        statusLine: String,
+        isTerminal: Boolean,
+        isFailure: Boolean,
+        settings: SecuritySettings
+    ) {
+        if (!hasNotificationPermission(context)) return
+        ensureAllChannelsCreated(context, settings)
+        val nm = context.getSystemService(NotificationManager::class.java) ?: return
+        val isSw = settings.language == AppLanguage.SW
+
+        val normKey = ContactsLoader.normalizePhone(phoneNumber).ifBlank { senderName.hashCode().toString() }
+        val resolvedNotifId = if (notificationId != 0) notificationId else "mengitex_chat_$normKey".hashCode()
+
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            if (phoneNumber.isNotBlank()) {
+                putExtra(SmsStealthReceiver.EXTRA_OPEN_PHONE, phoneNumber)
+                putExtra(SmsStealthReceiver.EXTRA_OPEN_NAME, senderName)
+            }
+        }
+        val contentPendingIntent = PendingIntent.getActivity(
+            context,
+            resolvedNotifId + 808,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val mePerson = Person.Builder()
+            .setName(if (isSw) "Mimi" else "Me")
+            .setKey("mengitex_me")
+            .build()
+
+        val style = NotificationCompat.MessagingStyle(mePerson)
+            .setConversationTitle(senderName)
+            .addMessage("$replyText\n($statusLine)", System.currentTimeMillis(), mePerson)
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_BUBBLE_SMS)
+            .setSmallIcon(R.drawable.ic_pop_message)
+            .setColor(if (isFailure) 0xFFB3261E.toInt() else settings.notifLedColorArgb.toInt())
+            .setContentTitle(senderName)
+            .setContentText(statusLine)
+            .setSubText(statusLine)
+            .setStyle(style)
+            .setRemoteInputHistory(arrayOf(replyText))
+            .setContentIntent(contentPendingIntent)
+            .setOnlyAlertOnce(!isFailure)
+            .setSilent(!isFailure)
+            .setAutoCancel(true)
+
+        if (isTerminal && !isFailure) {
+            builder.setTimeoutAfter(9000L)
+        }
+        nm.notify(resolvedNotifId, builder.build())
+    }
+
+    fun updatePopReplyNotificationStatus(
+        context: Context,
+        messageId: Long,
+        status: String,
+        statusNote: String,
+        settings: SecuritySettings
+    ) {
+        val meta = trackedPopReplies[messageId] ?: return
+        val isSw = settings.language == AppLanguage.SW
+        val (statusLine, isTerminal, isFailure) = when (status) {
+            com.example.data.MessageStatus.DELIVERED -> Triple(
+                if (isSw) "Imefika kwa ${meta.senderName} ✓✓" else "Delivered to ${meta.senderName} ✓✓",
+                true,
+                false
+            )
+            com.example.data.MessageStatus.SENT -> Triple(
+                if (isSw) "Imetumwa kwa ${meta.senderName} ✓" else "Sent to ${meta.senderName} ✓",
+                true,
+                false
+            )
+            com.example.data.MessageStatus.FAILED -> Triple(
+                if (isSw) "Imeshindwa: $statusNote" else "Failed: $statusNote",
+                true,
+                true
+            )
+            else -> Triple(statusNote, false, false)
+        }
+        postPopReplyProgressNotification(
+            context = context,
+            notificationId = meta.notificationId,
+            senderName = meta.senderName,
+            phoneNumber = meta.phoneNumber,
+            replyText = meta.replyText,
+            statusLine = statusLine,
+            isTerminal = isTerminal,
+            isFailure = isFailure,
+            settings = settings
+        )
+        if (status == com.example.data.MessageStatus.DELIVERED || status == com.example.data.MessageStatus.FAILED) {
+            trackedPopReplies.remove(messageId)
+        }
     }
 
     /**

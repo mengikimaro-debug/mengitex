@@ -92,4 +92,21 @@ class ExampleUnitTest {
         assertEquals(AppThemeMode.LIGHT, defaultSettings.themeMode)
         assertFalse(defaultSettings.resolveIsDarkTheme(systemIsDark = true))
     }
+
+    @Test
+    fun popReplyCanonicalThreadKeyAndIdentifierCleaningWork() {
+        assertEquals("0712345678", com.example.service.ContactsLoader.cleanSenderIdentifier("tel:0712345678"))
+        assertEquals("+255712345678", com.example.service.ContactsLoader.cleanSenderIdentifier("sms:+255712345678"))
+        assertEquals("", com.example.service.ContactsLoader.cleanSenderIdentifier("Unknown"))
+
+        val keyLocal = com.example.service.ContactsLoader.resolveCanonicalThreadKey("0712 345 678", "Juma")
+        val keyIntl = com.example.service.ContactsLoader.resolveCanonicalThreadKey("+255712345678", "Juma")
+        val keyTel = com.example.service.ContactsLoader.resolveCanonicalThreadKey("tel:+255712345678", "")
+        assertEquals(keyLocal, keyIntl)
+        assertEquals(keyIntl, keyTel)
+
+        val alphaKey = com.example.service.ContactsLoader.resolveCanonicalThreadKey("M-PESA", "M-PESA")
+        assertTrue(alphaKey.startsWith("alpha_"))
+        assertEquals("SIM 1", com.example.service.SimCardManager.sanitizeSimText("T-Mobile", "SIM 1"))
+    }
 }

@@ -185,6 +185,48 @@ object SmsInstantCache {
     }
 
     /**
+     * Updates a message's Sent/Delivered/Failed status in both RAM and disk snapshot so
+     * background Pop Reply / Bubble status ticks stay consistent across restarts.
+     */
+    fun updateMessageStatus(
+        context: Context,
+        crypto: VaultCryptoManager,
+        messageId: Long,
+        status: String,
+        statusNote: String,
+        persistToDisk: Boolean = true
+    ) {
+        if (messageId <= 0L) return
+        val appContext = context.applicationContext
+        val current = if (memorySnapshot.isNotEmpty()) {
+            memorySnapshot
+        } else if (persistToDisk) {
+            VaultCryptoManager.bindContext(appContext)
+            readDiskSnapshot(appContext, crypto)
+        } else {
+            emptyList()
+        }
+        if (current.isEmpty()) return
+        var changed = false
+        val updated = ArrayList<DecryptedSmsMessage>(current.size)
+        for (i in 0 until current.size) {
+            val item = current[i]
+            if (item.id == messageId && (item.status != status || item.statusNote != statusNote)) {
+                changed = true
+                updated.add(item.copy(status = status, statusNote = statusNote))
+            } else {
+                updated.add(item)
+            }
+        }
+        if (changed) {
+            memorySnapshot = updated
+            if (persistToDisk) {
+                saveSnapshotToDisk(appContext, crypto, updated)
+            }
+        }
+    }
+
+    /**
      * Clears both RAM and disk caches (ONLY used during explicit Emergency Intruder Wipe).
      */
     fun clear(context: Context) {
