@@ -4,13 +4,17 @@ name: MengiTex Android APK Release
 
 on:
   release:
-    types: [published]
+    types: [published, created, edited]
+  push:
+    tags:
+      - 'v*'
+      - 'V*'
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release version tag (e.g. v3.4.0)'
+        description: 'Release version tag (e.g. v3.5.0)'
         required: true
-        default: 'v3.4.0'
+        default: 'v3.5.0'
       version_code:
         description: 'Optional monotonic Android versionCode override'
         required: false
@@ -72,7 +76,7 @@ jobs:
 
       - name: Build MengiTex APK
         run: |
-          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.4.0' }}"
+          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.5.0' }}"
           CLEAN_VER=$(echo "$TAG_NAME" | sed 's/^[vV]//' | tr -cd 'A-Za-z0-9._+-')
           EXTRA_ARGS=""
           if [ -n "$CLEAN_VER" ]; then
@@ -92,7 +96,7 @@ jobs:
       - name: Prepare versioned APK artifact
         run: |
           mkdir -p release_apks
-          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.4.0' }}"
+          TAG_NAME="${{ github.event.inputs.release_tag || github.ref_name || 'v3.5.0' }}"
           SAFE_TAG=$(echo "$TAG_NAME" | tr -cd 'A-Za-z0-9._-')
           APK_SRC=$(find app/build/outputs/apk/debug -name "*.apk" | head -n 1)
           if [ -z "$APK_SRC" ]; then
@@ -100,6 +104,7 @@ jobs:
             exit 1
           fi
           cp "$APK_SRC" "release_apks/MengiTex-${SAFE_TAG}.apk"
+          cp "$APK_SRC" "release_apks/MengiTex.apk"
           ls -lh release_apks/
 
       - name: Upload APK build artifact
@@ -109,7 +114,7 @@ jobs:
           path: release_apks/*.apk
 
       - name: Publish APK to GitHub Release
-        if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'release' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}

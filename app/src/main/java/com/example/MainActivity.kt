@@ -1211,7 +1211,8 @@ private fun MengiTexAppRoot(
                                             onGithubRepoChange = viewModel::setGithubUpdateRepo,
                                             onGithubChannelChange = viewModel::setGithubUpdateChannel,
                                             onGithubAutoCheckChange = viewModel::setGithubAutoCheckUpdates,
-                                            onGithubCacheRelease = viewModel::cacheGithubLatestRelease
+                                            onGithubCacheRelease = viewModel::cacheGithubLatestRelease,
+                                            onUpgradeAllSystems = viewModel::upgradeAllSystemsNow
                                         )
 
                                         DrawerDestination.UPGRADE -> UpgradeScreen(
@@ -1220,7 +1221,8 @@ private fun MengiTexAppRoot(
                                             onUpdateRepoChange = viewModel::setGithubUpdateRepo,
                                             onUpdateChannelChange = viewModel::setGithubUpdateChannel,
                                             onAutoCheckChange = viewModel::setGithubAutoCheckUpdates,
-                                            onCacheLatestRelease = viewModel::cacheGithubLatestRelease
+                                            onCacheLatestRelease = viewModel::cacheGithubLatestRelease,
+                                            onUpgradeAllSystems = viewModel::upgradeAllSystemsNow
                                         )
 
                                         DrawerDestination.NONE -> {

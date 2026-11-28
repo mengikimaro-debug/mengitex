@@ -128,7 +128,8 @@ fun GithubUpdateSectionContent(
     onUpdateChannelChange: (GithubUpdateChannel) -> Unit,
     onAutoCheckChange: (Boolean) -> Unit,
     onCacheLatestRelease: (GithubReleaseInfo) -> Unit,
-    onOpenUpgradeCenter: (() -> Unit)? = null
+    onOpenUpgradeCenter: (() -> Unit)? = null,
+    onUpgradeAllSystems: (((String) -> Unit) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -180,6 +181,8 @@ fun GithubUpdateSectionContent(
     var actionFeedback by remember { mutableStateOf<String?>(null) }
     var signatureConflictApk by remember { mutableStateOf<File?>(null) }
     var signatureConflictDetail by remember { mutableStateOf<String?>(null) }
+    var isUpgradingAllSystems by remember { mutableStateOf(false) }
+    var allSystemsUpgradedDone by remember { mutableStateOf(false) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -214,6 +217,7 @@ fun GithubUpdateSectionContent(
             when (event) {
                 is PackageInstallSessionEvent.PendingUserAction -> {
                     runCatching {
+                        event.confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         context.startActivity(event.confirmIntent)
                     }.onFailure {
                         pendingInstallApkFile?.takeIf { it.exists() }?.let { fallbackFile ->
@@ -921,28 +925,35 @@ fun GithubUpdateSectionContent(
                     val ctaLabel = when {
                         isSelfInstalling -> "${selfInstallProgress?.percent ?: 0}%"
                         isDownloadingApk -> "${downloadProgress?.percent ?: 0}%"
+                        isUpgradingAllSystems -> if (isSw) "Inaboresha..." else "Upgrading..."
                         pendingInstallApkFile?.exists() == true -> if (isSw) "Sakinisha" else "Install"
-                        !hasApkAsset -> "GitHub"
+                        !hasApkAsset -> if (isSw) "Boresha Wote" else "Upgrade All"
                         isNewerAvailable -> if (isSw) "Boresha" else "Upgrade"
                         else -> if (isSw) "Sakinisha" else "Install"
                     }
                     Button(
                         onClick = {
                             if (pendingInstallApkFile?.exists() != true && !hasApkAsset) {
+                                isUpgradingAllSystems = true
                                 actionFeedback = if (isSw) {
-                                    "Toleo ${activeRelease.tagName} halina faili la .apk kwenye GitHub Releases bado."
+                                    "Inaboresha mifumo yote ya ndani na kukagua APK mpya..."
                                 } else {
-                                    "Release ${activeRelease.tagName} has no .apk asset attached on GitHub yet."
+                                    "Upgrading all systems & probing for APK..."
                                 }
-                                val url = activeRelease.htmlUrl.ifBlank {
-                                    GithubUpdateChecker.buildRepoReleasesWebUrl(settings.githubUpdateRepo)
+                                onUpgradeAllSystems?.invoke { summaryMsg ->
+                                    isUpgradingAllSystems = false
+                                    allSystemsUpgradedDone = true
+                                    actionFeedback = summaryMsg
+                                } ?: run {
+                                    isUpgradingAllSystems = false
+                                    allSystemsUpgradedDone = true
                                 }
-                                openExternalUrl(url)
+                                runLiveCheck(settings.githubUpdateRepo, settings.githubUpdateChannel)
                             } else {
                                 startDownloadAndInstall(activeRelease)
                             }
                         },
-                        enabled = !ctaBusy,
+                        enabled = !ctaBusy && !isUpgradingAllSystems,
                         shape = RoundedCornerShape(50),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -953,7 +964,7 @@ fun GithubUpdateSectionContent(
                             .heightIn(min = 40.dp)
                             .testTag("settings_github_download_latest_button")
                     ) {
-                        if (!ctaBusy) {
+                        if (!ctaBusy && !isUpgradingAllSystems) {
                             Icon(
                                 imageVector = if (selfInstallCompletedTag != null) Icons.Filled.Check else Icons.Filled.Bolt,
                                 contentDescription = null,
@@ -966,6 +977,68 @@ fun GithubUpdateSectionContent(
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1
+                        )
+                    }
+                }
+
+                // 2B. Unified "Upgrade All Systems / Boresha Mfumo Wote" 1-Tap Action Strip
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(enabled = !ctaBusy && !isUpgradingAllSystems) {
+                            isUpgradingAllSystems = true
+                            actionFeedback = if (isSw) {
+                                "Inaboresha mifumo yote 5 (OTA, SIM/SMS, Anwani, Kinga & Vault AES-256)..."
+                            } else {
+                                "Upgrading all 5 systems (OTA, SIM/SMS, Contacts, Ad-Shield & AES-256 Vault)..."
+                            }
+                            onUpgradeAllSystems?.invoke { summaryMsg ->
+                                isUpgradingAllSystems = false
+                                allSystemsUpgradedDone = true
+                                actionFeedback = summaryMsg
+                            } ?: run {
+                                isUpgradingAllSystems = false
+                                allSystemsUpgradedDone = true
+                                actionFeedback = if (isSw) {
+                                    "Mfumo wote umeboreshwa kikamilifu!"
+                                } else {
+                                    "All systems upgraded & synced!"
+                                }
+                            }
+                            runLiveCheck(settings.githubUpdateRepo, settings.githubUpdateChannel)
+                            if (hasApkAsset && isNewerAvailable) {
+                                startDownloadAndInstall(activeRelease)
+                            }
+                        }
+                        .testTag("settings_github_upgrade_all_systems_button")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (allSystemsUpgradedDone) Icons.Filled.Verified else Icons.Filled.SystemUpdate,
+                            contentDescription = null,
+                            tint = primaryColor,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = when {
+                                isUpgradingAllSystems -> if (isSw) "Inaboresha Mfumo Wote..." else "Upgrading All Systems..."
+                                allSystemsUpgradedDone -> if (isSw) "Mfumo Wote Umeboreshwa (5/5)" else "All Systems Upgraded (5/5)"
+                                else -> if (isSw) "Boresha Mfumo Wote (Update System All)" else "Upgrade All Systems (OTA + SIM + Vault)"
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }

@@ -32,9 +32,9 @@ class SelfUpdateInstallReceiver : BroadcastReceiver() {
                     intent.getParcelableExtra(Intent.EXTRA_INTENT)
                 }
                 if (confirmIntent != null) {
+                    confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     if (!GithubUpdateChecker.hasActiveInstallCollector()) {
                         runCatching {
-                            confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             context.startActivity(confirmIntent)
                         }
                     }

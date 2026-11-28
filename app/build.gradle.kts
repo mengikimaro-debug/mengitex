@@ -13,16 +13,30 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    val propVersionCode = (project.findProperty("APP_VERSION_CODE") as String?)?.toIntOrNull()
-      ?: System.getenv("APP_VERSION_CODE")?.toIntOrNull()
     val propVersionName = (project.findProperty("APP_VERSION_NAME") as String?)?.takeIf { it.isNotBlank() }
       ?: System.getenv("APP_VERSION_NAME")?.takeIf { it.isNotBlank() }
+      ?: "3.5.0"
+    val derivedVersionCode = propVersionName
+      .trim()
+      .removePrefix("v")
+      .removePrefix("V")
+      .substringBefore('-')
+      .substringBefore('+')
+      .split('.')
+      .let { parts ->
+        val major = parts.getOrNull(0)?.toIntOrNull() ?: 3
+        val minor = parts.getOrNull(1)?.toIntOrNull() ?: 5
+        val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
+        (major * 10000 + minor * 100 + patch).coerceAtLeast(8)
+      }
+    val propVersionCode = (project.findProperty("APP_VERSION_CODE") as String?)?.toIntOrNull()
+      ?: System.getenv("APP_VERSION_CODE")?.toIntOrNull()
 
     applicationId = "com.aistudio.sirisms.qvxkmp"
     minSdk = 24
     targetSdk = 36
-    versionCode = propVersionCode ?: 7
-    versionName = propVersionName ?: "3.4.0"
+    versionCode = propVersionCode ?: derivedVersionCode
+    versionName = propVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

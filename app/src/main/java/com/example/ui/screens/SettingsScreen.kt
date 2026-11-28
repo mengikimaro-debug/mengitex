@@ -112,7 +112,8 @@ fun SettingsScreen(
     onGithubRepoChange: (String) -> Unit = {},
     onGithubChannelChange: (GithubUpdateChannel) -> Unit = {},
     onGithubAutoCheckChange: (Boolean) -> Unit = {},
-    onGithubCacheRelease: (GithubReleaseInfo) -> Unit = {}
+    onGithubCacheRelease: (GithubReleaseInfo) -> Unit = {},
+    onUpgradeAllSystems: (((String) -> Unit) -> Unit)? = null
 ) {
     BackHandler(onBack = onBack)
     val s = LocalAppStrings.current
@@ -174,7 +175,8 @@ fun SettingsScreen(
                         onUpdateChannelChange = onGithubChannelChange,
                         onAutoCheckChange = onGithubAutoCheckChange,
                         onCacheLatestRelease = onGithubCacheRelease,
-                        onOpenUpgradeCenter = onOpenUpgradeCenter
+                        onOpenUpgradeCenter = onOpenUpgradeCenter,
+                        onUpgradeAllSystems = onUpgradeAllSystems
                     )
                 }
             }

@@ -3108,6 +3108,96 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
         )
     }
 
+    /**
+     * Unified "Upgrade All Systems / Update System All" (Boresha Mfumo Wote) engine:
+     * Refreshes all 5 core subsystems in one pass:
+     * 1. SIM, Telephony Roles & Permissions + Device Contacts Refresh
+     * 2. Phone SMS Delta Sync & Self-Healing Vault Verification
+     * 3. Ad-Blocker Rules Sweep & Notification Channels Re-Sync
+     * 4. AES-256 Vault Stats, Emoji Reactions Store, Dual-File Instant Cache & Auto-Guardian Snapshot
+     * 5. Live GitHub OTA & Multi-Source APK Discovery Check
+     */
+    fun upgradeAllSystemsNow(onDone: ((String) -> Unit)? = null) {
+        recordUserInteraction()
+        viewModelScope.launch(Dispatchers.IO) {
+            // 1. Refresh SIM cards, permissions, roles & force reload device contacts
+            refreshSystemEnvironment(forceReloadContacts = true)
+
+            // 2. Force incremental device SMS delta sync
+            syncNewDeviceSmsDelta(force = true)
+
+            // 3. Re-sync notification channels & run ad-blocker sweep if enabled
+            val currentSettings = _uiState.value.settings
+            runCatching {
+                MengiTexNotificationManager.ensureAllChannelsCreated(appContext, currentSettings)
+            }
+            var sweptAds = 0
+            if (currentSettings.autoBlockAdsEnabled) {
+                sweptAds = runCatching {
+                    repository.autoSweepExistingAds(
+                        savedContacts = allContacts.value,
+                        whitelistedSenders = currentSettings.whitelistedAdSenders,
+                        isEnglish = isEnglish()
+                    )
+                }.getOrDefault(0)
+            }
+
+            // 4. Reload reaction store, persist instant cache, refresh vault stats & schedule Auto-Guardian
+            runCatching { MessageReactionStore.ensureLoaded(appContext) }
+            val currentMessages = _activeMessages.value
+            if (currentMessages.isNotEmpty()) {
+                runCatching { SmsInstantCache.saveSnapshotToDisk(appContext, crypto, currentMessages) }
+                scheduleAutoGuardianBackup(currentMessages)
+            }
+            refreshVaultData(force = true)
+
+            // 5. Live GitHub OTA & APK check
+            val checkRes = runCatching {
+                GithubUpdateChecker.checkLatestRelease(
+                    context = appContext,
+                    rawRepoInput = currentSettings.githubUpdateRepo,
+                    channel = currentSettings.githubUpdateChannel
+                )
+            }.getOrNull()
+
+            val installedVer = GithubUpdateChecker.getInstalledAppVersionName(appContext)
+                .substringBefore('+')
+                .removePrefix("v")
+                .removePrefix("V")
+
+            val summary = if (checkRes is GithubUpdateCheckResult.Success) {
+                val rel = checkRes.latestRelease
+                cacheGithubLatestRelease(rel)
+                val cleanRemote = rel.tagName.removePrefix("v").removePrefix("V")
+                val newer = GithubUpdateChecker.isRemoteVersionNewer(installedVer, rel.tagName)
+                if (newer) {
+                    msg(
+                        "Mfumo wote umeboreshwa (SIM, SMS, Anwani, Kinga & Vault) • Toleo jipya v$cleanRemote linapatikana!",
+                        "All systems upgraded (SIM, SMS, Contacts, Ad-Shield & Vault) • New build v$cleanRemote ready!"
+                    )
+                } else {
+                    val adsNote = if (sweptAds > 0) " ($sweptAds Ads)" else ""
+                    msg(
+                        "Mfumo wote umeboreshwa kikamilifu (v$installedVer • SIM, SMS, Anwani, Kinga$adsNote & Vault AES-256).",
+                        "All systems upgraded & synced (v$installedVer • SIM, SMS, Contacts, Ad-Shield$adsNote & AES-256 Vault)."
+                    )
+                }
+            } else {
+                msg(
+                    "Mfumo wote wa ndani umeboreshwa kikamilifu (v$installedVer • SIM, SMS, Anwani, Kinga & Vault AES-256).",
+                    "All internal systems upgraded & synced (v$installedVer • SIM, SMS, Contacts, Ad-Shield & AES-256 Vault)."
+                )
+            }
+
+            showBanner(summary)
+            if (onDone != null) {
+                withContext(Dispatchers.Main) {
+                    onDone(summary)
+                }
+            }
+        }
+    }
+
     fun setLauncherIconMode(mode: LauncherIconMode) {
         val label = when (mode) {
             LauncherIconMode.VISIBLE -> msg("Icon ya kawaida (MengiTex)", "Default icon (MengiTex)")
