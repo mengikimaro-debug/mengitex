@@ -219,7 +219,7 @@ fun UpgradeScreen(
             when (event) {
                 is PackageInstallSessionEvent.PendingUserAction -> {
                     runCatching {
-                        event.confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        event.confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                         context.startActivity(event.confirmIntent)
                     }.onFailure {
                         pendingInstallApkFile?.takeIf { it.exists() }?.let { fallbackFile ->
@@ -536,6 +536,7 @@ fun UpgradeScreen(
                 }
                 runLiveCheck(settings.githubUpdateRepo, settings.githubUpdateChannel)
             } else {
+                GithubUpdateChecker.markAutoTriggeredForTag(targetRelease.tagName)
                 isDownloadingApk = true
                 selfInstallProgress = null
                 selfInstallCompletedTag = null
@@ -1329,7 +1330,7 @@ fun UpgradeScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = if (isSw) "Kagua Kiotomatiki" else "Auto Check",
+                                    text = if (isSw) "Sasisha Kiotomatiki (Android System)" else "Auto-Update by Android System",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface,

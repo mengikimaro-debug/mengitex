@@ -31,23 +31,15 @@ jobs:
 
       - name: Prepare valid signing keystore & environment
         run: |
+          rm -f debug.keystore
           if [ -f debug.keystore.base64 ]; then
-            rm -f debug.keystore
-            tr -d '\r\n ' < debug.keystore.base64 | base64 -d > debug.keystore || true
+            base64 -di debug.keystore.base64 > debug.keystore || true
           fi
           if ! keytool -list -keystore debug.keystore -storepass android -alias androiddebugkey > /dev/null 2>&1; then
             rm -f debug.keystore
-            keytool -genkeypair -v \
-              -keystore debug.keystore \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
+            echo "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" | base64 -di > debug.keystore
           fi
-          keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1:|SHA256:" || true
+          keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1:|SHA256:"
           if [ ! -f .env ] && [ -f .env.example ]; then
             cp .env.example .env
           fi

@@ -64,8 +64,9 @@ class ExampleRobolectricTest {
         badFile.delete()
 
         assertTrue(GithubUpdateChecker.isRemoteVersionNewer("3.0.0", "v3.1.0"))
-        assertTrue(GithubUpdateChecker.isRemoteVersionNewer("3.4.0", "v3.5.0"))
-        assertFalse(GithubUpdateChecker.isRemoteVersionNewer("3.5.0", "v3.5.0"))
+        assertTrue(GithubUpdateChecker.isRemoteVersionNewer("3.5.0", "v3.6.0"))
+        assertFalse(GithubUpdateChecker.isRemoteVersionNewer("3.6.0", "v3.6.0"))
+        assertTrue(GithubUpdateChecker.isUpgradeVersionCompatible(30500L, 3_060_000L))
         assertEquals("mengikimaro-debug/mengitex", GithubUpdateChecker.normalizeRepoSlug("https://github.com/mengikimaro-debug/mengitex"))
     }
 

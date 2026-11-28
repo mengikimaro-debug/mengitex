@@ -31,6 +31,14 @@ class BootRescheduleReceiver : BroadcastReceiver() {
             try {
                 val appContext = context.applicationContext
                 val prefs = SecurityPreferences(appContext).getSnapshot()
+                if (action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+                    runCatching {
+                        java.io.File(appContext.cacheDir, "github_updates").listFiles()?.forEach { f ->
+                            runCatching { f.delete() }
+                        }
+                        MengiTexNotificationManager.ensureAllChannelsCreated(appContext, prefs)
+                    }
+                }
                 val crypto = VaultCryptoManager(appContext)
                 val logger = HiddenVaultLogger(appContext, crypto)
                 val dao = SiriSmsDatabase.getInstance(appContext).dao()

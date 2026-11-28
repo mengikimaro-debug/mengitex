@@ -217,7 +217,7 @@ fun GithubUpdateSectionContent(
             when (event) {
                 is PackageInstallSessionEvent.PendingUserAction -> {
                     runCatching {
-                        event.confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        event.confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                         context.startActivity(event.confirmIntent)
                     }.onFailure {
                         pendingInstallApkFile?.takeIf { it.exists() }?.let { fallbackFile ->
@@ -524,6 +524,7 @@ fun GithubUpdateSectionContent(
                     "Release ${targetRelease.tagName} has no .apk asset attached on GitHub yet."
                 }
             } else {
+                GithubUpdateChecker.markAutoTriggeredForTag(targetRelease.tagName)
                 isDownloadingApk = true
                 selfInstallProgress = null
                 selfInstallCompletedTag = null
@@ -1359,7 +1360,7 @@ fun GithubUpdateSectionContent(
                                     )
                                 }
                                 Text(
-                                    text = if (isSw) "Otomatiki" else "Auto",
+                                    text = if (isSw) "Sasisha Kiotomatiki" else "Auto-Update",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = if (autoOn) FontWeight.SemiBold else FontWeight.Normal,
                                     color = if (autoOn) onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,

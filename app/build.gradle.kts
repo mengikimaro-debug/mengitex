@@ -15,7 +15,7 @@ android {
   defaultConfig {
     val propVersionName = (project.findProperty("APP_VERSION_NAME") as String?)?.takeIf { it.isNotBlank() }
       ?: System.getenv("APP_VERSION_NAME")?.takeIf { it.isNotBlank() }
-      ?: "3.5.0"
+      ?: "3.6.0"
     val derivedVersionCode = propVersionName
       .trim()
       .removePrefix("v")
@@ -25,9 +25,9 @@ android {
       .split('.')
       .let { parts ->
         val major = parts.getOrNull(0)?.toIntOrNull() ?: 3
-        val minor = parts.getOrNull(1)?.toIntOrNull() ?: 5
+        val minor = parts.getOrNull(1)?.toIntOrNull() ?: 6
         val patch = parts.getOrNull(2)?.toIntOrNull() ?: 0
-        (major * 10000 + minor * 100 + patch).coerceAtLeast(8)
+        (major * 1_000_000 + minor * 10_000 + patch * 100).coerceAtLeast(3_060_000)
       }
     val propVersionCode = (project.findProperty("APP_VERSION_CODE") as String?)?.toIntOrNull()
       ?: System.getenv("APP_VERSION_CODE")?.toIntOrNull()

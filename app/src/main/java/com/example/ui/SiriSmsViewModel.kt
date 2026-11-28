@@ -43,6 +43,7 @@ import com.example.security.NotificationPriorityLevel
 import com.example.security.NotificationVibratePattern
 import com.example.security.PortableBackupCrypto
 import com.example.security.SecurityPreferences
+import com.example.service.GithubSelfInstallOutcome
 import com.example.security.SecuritySettings
 import com.example.security.SmsAdBlockerEngine
 import com.example.security.VaultCryptoManager
@@ -620,7 +621,48 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                 )
             }.getOrNull()
             if (res is GithubUpdateCheckResult.Success) {
-                cacheGithubLatestRelease(res.latestRelease)
+                val release = res.latestRelease
+                cacheGithubLatestRelease(release)
+                val apkUrl = release.apkAssetUrl.orEmpty()
+                val hasApk = apkUrl.startsWith("https://", ignoreCase = true) ||
+                    apkUrl.startsWith("http://", ignoreCase = true)
+                if (res.isNewerAvailable &&
+                    hasApk &&
+                    !GithubUpdateChecker.hasAutoTriggeredForTag(release.tagName)
+                ) {
+                    if (GithubUpdateChecker.canRequestPackageInstalls(appContext)) {
+                        val autoRes = GithubUpdateChecker.performAutoSystemUpdate(appContext, release)
+                        autoRes.onSuccess { outcome ->
+                            when (outcome) {
+                                is GithubSelfInstallOutcome.DirectPackageInstallerStarted,
+                                is GithubSelfInstallOutcome.LaunchedSystemInstaller -> {
+                                    showBanner(
+                                        msg(
+                                            "Toleo jipya ${release.tagName} linasakinishwa kiotomatiki bila kufuta programu.",
+                                            "Auto-updating MengiTex to ${release.tagName} directly in-place..."
+                                        )
+                                    )
+                                }
+                                is GithubSelfInstallOutcome.NeedsInstallPermission -> {
+                                    showBanner(
+                                        msg(
+                                            "Toleo jipya ${release.tagName} lipo tayari — ruhusu usakinishaji wa programu ili ijiupdate kiotomatiki.",
+                                            "Update ${release.tagName} ready — enable unknown app installs for Android auto-updates."
+                                        )
+                                    )
+                                }
+                                is GithubSelfInstallOutcome.SignatureConflict -> Unit
+                            }
+                        }
+                    } else {
+                        showBanner(
+                            msg(
+                                "Toleo jipya ${release.tagName} limepakia — fungua Maboresho kuruhusu usakinishaji wa kiotomatiki.",
+                                "Update ${release.tagName} available — open Updates once to allow automatic Android updates."
+                            )
+                        )
+                    }
+                }
             }
         }
     }
@@ -3170,7 +3212,18 @@ class SiriSmsViewModel(application: Application) : AndroidViewModel(application)
                 cacheGithubLatestRelease(rel)
                 val cleanRemote = rel.tagName.removePrefix("v").removePrefix("V")
                 val newer = GithubUpdateChecker.isRemoteVersionNewer(installedVer, rel.tagName)
-                if (newer) {
+                val apkUrl = rel.apkAssetUrl.orEmpty()
+                val hasApk = apkUrl.startsWith("https://", ignoreCase = true) ||
+                    apkUrl.startsWith("http://", ignoreCase = true)
+                if (newer && hasApk && GithubUpdateChecker.canRequestPackageInstalls(appContext) &&
+                    !GithubUpdateChecker.hasAutoTriggeredForTag(rel.tagName)
+                ) {
+                    GithubUpdateChecker.performAutoSystemUpdate(appContext, rel)
+                    msg(
+                        "Mfumo wote umeboreshwa • Toleo jipya v$cleanRemote linasakinishwa kiotomatiki!",
+                        "All systems upgraded • Auto-installing v$cleanRemote in-place!"
+                    )
+                } else if (newer) {
                     msg(
                         "Mfumo wote umeboreshwa (SIM, SMS, Anwani, Kinga & Vault) • Toleo jipya v$cleanRemote linapatikana!",
                         "All systems upgraded (SIM, SMS, Contacts, Ad-Shield & Vault) • New build v$cleanRemote ready!"

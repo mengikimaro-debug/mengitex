@@ -203,6 +203,12 @@ object GithubUpdateChecker {
     val installSessionEvents: SharedFlow<PackageInstallSessionEvent> = _installSessionEvents.asSharedFlow()
 
     private val activeCollectorCount = AtomicInteger(0)
+    private val lastCallbackSessionId = AtomicInteger(-1)
+    private val lastCallbackStatus = AtomicInteger(-999)
+    private val lastCallbackTimeMs = AtomicLong(0L)
+    private val isAutoUpdateRunning = AtomicInteger(0)
+    @Volatile
+    private var lastAutoTriggeredTag: String = ""
 
     fun registerInstallCollector(): Unit {
         activeCollectorCount.incrementAndGet()
@@ -213,6 +219,21 @@ object GithubUpdateChecker {
     }
 
     fun hasActiveInstallCollector(): Boolean = activeCollectorCount.get() > 0
+
+    internal fun markInstallSessionCallbackReceived(sessionId: Int, status: Int) {
+        if (sessionId >= 0) {
+            lastCallbackSessionId.set(sessionId)
+        }
+        lastCallbackStatus.set(status)
+        lastCallbackTimeMs.set(System.currentTimeMillis())
+    }
+
+    fun hasReceivedCallbackForSession(sessionId: Int, sinceTimeMs: Long): Boolean {
+        val cbTime = lastCallbackTimeMs.get()
+        if (cbTime < sinceTimeMs) return false
+        val recordedId = lastCallbackSessionId.get()
+        return recordedId == sessionId || recordedId == -1
+    }
 
     internal fun emitInstallSessionEvent(event: PackageInstallSessionEvent) {
         _installSessionEvents.tryEmit(event)
@@ -481,6 +502,9 @@ object GithubUpdateChecker {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
                 }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    runCatching { setRequestUpdateOwnership(true) }
+                }
             }
 
             val sessionId = packageInstaller.createSession(params)
@@ -502,7 +526,9 @@ object GithubUpdateChecker {
 
                 val callbackIntent = Intent(context, SelfUpdateInstallReceiver::class.java).apply {
                     action = SelfUpdateInstallReceiver.ACTION_INSTALL_STATUS
+                    setPackage(context.packageName)
                     putExtra(SelfUpdateInstallReceiver.EXTRA_VERSION_TAG, versionTag)
+                    putExtra(SelfUpdateInstallReceiver.EXTRA_APK_PATH, apkFile.absolutePath)
                 }
                 val piFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
@@ -537,9 +563,12 @@ object GithubUpdateChecker {
                 "${context.packageName}.fileprovider",
                 apkFile
             )
+            @Suppress("DEPRECATION")
             val viewIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, context.packageName)
             }
             val pm = context.packageManager
             if (viewIntent.resolveActivity(pm) != null) {
@@ -550,7 +579,7 @@ object GithubUpdateChecker {
                     data = uri
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
-                    putExtra(Intent.EXTRA_RETURN_RESULT, true)
+                    putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, context.packageName)
                 }
                 context.startActivity(installIntent)
             }
@@ -1388,30 +1417,11 @@ object GithubUpdateChecker {
 
             val cleanTag = release.tagName.trim().removePrefix("v").removePrefix("V")
 
-            if (compat?.signatureMatchesInstalled == false) {
-                onInstallProgress(
-                    GithubSelfInstallProgress(
-                        stageIndex = 3,
-                        stageSw = "Hatua 3/4: Saini ya toleo la zamani kwenye simu hailingani na mpya.",
-                        stageEn = "Stage 3/4: Installed build signature differs from update APK.",
-                        percent = 84,
-                        sha256Short = shaHex
-                    )
-                )
-                return@runCatching GithubSelfInstallOutcome.SignatureConflict(
-                    versionTag = cleanTag,
-                    sha256Short = shaHex,
-                    stagedApk = stagedApk,
-                    installedCertShort = compat.installedCertShort,
-                    archiveCertShort = compat.archiveCertShort
-                )
-            }
-
             onInstallProgress(
                 GithubSelfInstallProgress(
                     stageIndex = 3,
-                    stageSw = "Hatua 3/4: Kuandaa kisakinishi cha moja kwa moja...",
-                    stageEn = "Stage 3/4: Preparing direct PackageInstaller session...",
+                    stageSw = "Hatua 3/4: Kuandaa kisakinishi cha moja kwa moja cha Android...",
+                    stageEn = "Stage 3/4: Preparing direct Android PackageInstaller session...",
                     percent = 80,
                     sha256Short = shaHex
                 )
@@ -1434,15 +1444,30 @@ object GithubUpdateChecker {
                 )
             }
 
-            // Stage 4: Stream directly into Android PackageInstaller.Session (with ACTION_VIEW fallback)
+            // Stage 4: Stream directly into Android PackageInstaller.Session (with automatic system-installer watchdog fallback)
+            val commitTimestampMs = System.currentTimeMillis()
             val sessionResult = installApkViaPackageInstallerSession(context, stagedApk, cleanTag)
             if (sessionResult.isSuccess) {
                 val sessionId = sessionResult.getOrThrow()
+                // Wait up to 1100ms for Android PackageInstaller to deliver STATUS_PENDING_USER_ACTION or STATUS_SUCCESS
+                var receivedCallback = false
+                for (attempt in 0 until 11) {
+                    if (hasReceivedCallbackForSession(sessionId, commitTimestampMs)) {
+                        receivedCallback = true
+                        break
+                    }
+                    delay(100L)
+                }
+                if (!receivedCallback) {
+                    withContext(Dispatchers.Main) {
+                        runCatching { launchSystemApkInstaller(context, stagedApk) }
+                    }
+                }
                 onInstallProgress(
                     GithubSelfInstallProgress(
                         stageIndex = 4,
-                        stageSw = "Hatua 4/4: Kisakinishi cha moja kwa moja kimeanzishwa ✓",
-                        stageEn = "Stage 4/4: Direct in-app installer session started ✓",
+                        stageSw = "Hatua 4/4: Kisakinishi cha moja kwa moja cha Android kimeanzishwa ✓",
+                        stageEn = "Stage 4/4: Direct Android in-app installer started ✓",
                         percent = 100,
                         sha256Short = shaHex
                     )
@@ -1473,6 +1498,59 @@ object GithubUpdateChecker {
                 sha256Short = shaHex,
                 stagedApk = stagedApk
             )
+        }
+    }
+
+    /**
+     * Automatic background/system OTA updater:
+     * Downloads a newly discovered GitHub release APK in the background and streams it directly
+     * into Android's PackageInstaller session so the app updates itself in-place without uninstalling.
+     */
+    suspend fun performAutoSystemUpdate(
+        context: Context,
+        release: GithubReleaseInfo
+    ): Result<GithubSelfInstallOutcome> = withContext(Dispatchers.IO) {
+        runCatching {
+            val tag = release.tagName.trim()
+            val apkUrl = release.apkAssetUrl?.trim().orEmpty()
+            require(apkUrl.startsWith("https://", ignoreCase = true) || apkUrl.startsWith("http://", ignoreCase = true)) {
+                "No valid APK URL available for auto-update."
+            }
+            if (tag.isNotBlank() && lastAutoTriggeredTag.equals(tag, ignoreCase = true)) {
+                error("Auto-update already triggered for $tag in this session.")
+            }
+            if (!isAutoUpdateRunning.compareAndSet(0, 1)) {
+                error("Auto-update is already running.")
+            }
+            try {
+                lastAutoTriggeredTag = tag
+                val downloadedFile = downloadReleaseApkInApp(
+                    context = context,
+                    release = release,
+                    onProgress = {}
+                ).getOrThrow()
+
+                runInAppSelfInstaller(
+                    context = context,
+                    release = release,
+                    downloadedFile = downloadedFile,
+                    onInstallProgress = {}
+                ).getOrThrow()
+            } finally {
+                isAutoUpdateRunning.set(0)
+            }
+        }
+    }
+
+    fun hasAutoTriggeredForTag(tagName: String): Boolean {
+        val clean = tagName.trim()
+        return clean.isNotBlank() && lastAutoTriggeredTag.equals(clean, ignoreCase = true)
+    }
+
+    fun markAutoTriggeredForTag(tagName: String) {
+        val clean = tagName.trim()
+        if (clean.isNotBlank()) {
+            lastAutoTriggeredTag = clean
         }
     }
 

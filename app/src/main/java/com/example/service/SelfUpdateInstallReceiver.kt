@@ -5,10 +5,11 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
+import java.io.File
 
 /**
  * Receives explicit PackageInstaller session callbacks so MengiTex can handle
- * in-place APK upgrades, user confirmation prompts, and conflict diagnostics cleanly.
+ * in-place APK upgrades, user confirmation prompts, and automatic system-installer fallback cleanly.
  */
 class SelfUpdateInstallReceiver : BroadcastReceiver() {
 
@@ -22,6 +23,9 @@ class SelfUpdateInstallReceiver : BroadcastReceiver() {
         val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
         val statusMessage = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE).orEmpty()
         val versionTag = intent.getStringExtra(EXTRA_VERSION_TAG).orEmpty()
+        val apkPath = intent.getStringExtra(EXTRA_APK_PATH).orEmpty()
+
+        GithubUpdateChecker.markInstallSessionCallbackReceived(sessionId, status)
 
         val event = when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
@@ -32,7 +36,7 @@ class SelfUpdateInstallReceiver : BroadcastReceiver() {
                     intent.getParcelableExtra(Intent.EXTRA_INTENT)
                 }
                 if (confirmIntent != null) {
-                    confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                     if (!GithubUpdateChecker.hasActiveInstallCollector()) {
                         runCatching {
                             context.startActivity(confirmIntent)
@@ -44,6 +48,12 @@ class SelfUpdateInstallReceiver : BroadcastReceiver() {
                         confirmIntent = confirmIntent
                     )
                 } else {
+                    if (apkPath.isNotBlank()) {
+                        val fallbackApk = File(apkPath)
+                        if (fallbackApk.exists()) {
+                            GithubUpdateChecker.launchSystemApkInstaller(context, fallbackApk)
+                        }
+                    }
                     PackageInstallSessionEvent.FailureError(
                         sessionId = sessionId,
                         status = status,
@@ -78,6 +88,12 @@ class SelfUpdateInstallReceiver : BroadcastReceiver() {
             PackageInstaller.STATUS_FAILURE_INVALID,
             PackageInstaller.STATUS_FAILURE_STORAGE,
             PackageInstaller.STATUS_FAILURE -> {
+                if (apkPath.isNotBlank()) {
+                    val fallbackApk = File(apkPath)
+                    if (fallbackApk.exists()) {
+                        GithubUpdateChecker.launchSystemApkInstaller(context, fallbackApk)
+                    }
+                }
                 PackageInstallSessionEvent.FailureError(
                     sessionId = sessionId,
                     status = status,
@@ -100,5 +116,6 @@ class SelfUpdateInstallReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_INSTALL_STATUS = "com.example.service.ACTION_SELF_UPDATE_INSTALL_STATUS"
         const val EXTRA_VERSION_TAG = "extra_version_tag"
+        const val EXTRA_APK_PATH = "extra_apk_path"
     }
 }
